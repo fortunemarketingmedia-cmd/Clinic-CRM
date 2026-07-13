@@ -1,0 +1,24 @@
+import { z } from 'zod';
+
+export const settingsSchema = z.object({
+  clinicName: z.string().min(2).optional(),
+  clinicEmail: z.string().email().optional().or(z.literal('')),
+  clinicLogoUrl: z.string().optional(),
+  gstNumber: z.string().optional(),
+  invoicePrefix: z.string().min(1).optional(),
+  gstPercent: z.coerce.number().min(0).max(100).optional(),
+  businessAddress: z.string().optional(),
+  businessPhone: z.string().optional(),
+  invoiceTerms: z.string().optional(),
+  invoiceSignature: z.string().optional(),
+  invoiceFooter: z.string().optional(),
+  paymentInstructions: z.string().optional(),
+  qrRegistrationEnabled: z.boolean().optional(),
+  patientFormConfig: z.unknown().optional(),
+  whatsappPhoneId: z.string().optional(),
+  whatsappAccessToken: z.string().optional(),
+  appointmentTemplate: z.string().optional(),
+  reminderTemplate: z.string().optional(),
+  invoiceTemplate: z.string().optional(),
+  followupTemplate: z.string().optional(),
+});

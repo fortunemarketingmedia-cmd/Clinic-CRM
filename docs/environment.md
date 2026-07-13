@@ -1,0 +1,28 @@
+# Environment Variables
+
+## Backend
+
+Copy `backend/.env.example` to `backend/.env`.
+
+```env
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/revive_crm?schema=public"
+PORT=4000
+NODE_ENV=development
+JWT_ACCESS_SECRET=replace-with-access-secret
+JWT_REFRESH_SECRET=replace-with-refresh-secret
+ACCESS_TOKEN_TTL=15m
+REFRESH_TOKEN_TTL=7d
+REFRESH_TOKEN_DAYS=7
+REFRESH_TOKEN_COOKIE_NAME=revive_refresh_token
+COOKIE_DOMAIN=
+FRONTEND_URL=http://localhost:3000
+FRONTEND_URLS=http://localhost:3001
+```
+
+## Frontend
+
+Copy `frontend/.env.example` to `frontend/.env.local`.
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000/api
+```
