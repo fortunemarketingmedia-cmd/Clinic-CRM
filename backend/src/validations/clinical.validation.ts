@@ -1,12 +1,23 @@
-import { FileCategory } from '@prisma/client';
+import { FileCategory, TreatmentType } from '@prisma/client';
 import { z } from 'zod';
 
 export const sessionSchema = z.object({
+  appointmentId: z.string().optional(),
+  treatmentType: z.nativeEnum(TreatmentType).default(TreatmentType.CONSULTATION),
   visitDate: z.coerce.date(),
   doctorConsulted: z.string().optional(),
+  chiefComplaint: z.string().optional(),
+  diagnosis: z.string().optional(),
   treatmentSuggested: z.string().optional(),
   treatmentTaken: z.string().optional(),
   medicinesPrescribed: z.string().optional(),
+  prescription: z.array(z.object({
+    medicine: z.string().min(1),
+    dosage: z.string().min(1),
+    frequency: z.string().min(1),
+    duration: z.string().min(1),
+    instructions: z.string().optional(),
+  })).optional(),
   notes: z.string().optional(),
   followupDate: z.coerce.date().optional(),
   packageId: z.string().optional(),

@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart3, CalendarPlus, Edit3, Link2, Megaphone, PhoneCall, Plus, Search, Target, TrendingUp } from 'lucide-react';
+import { BarChart3, CalendarPlus, Edit3, Link2, Megaphone, PhoneCall, Plus, Search, Target, TrendingUp, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -20,8 +20,6 @@ const leadStatuses: Array<{ label: string; value: LeadStatus }> = [
   { label: 'New', value: 'NEW' },
   { label: 'Confirmed', value: 'CONFIRMED' },
   { label: 'Cancelled', value: 'CANCELLED' },
-  { label: 'Postponed', value: 'POSTPONED' },
-  { label: 'Not arrived', value: 'NOT_ARRIVED' },
 ];
 
 const leadSchema = z.object({
@@ -41,9 +39,11 @@ const leadSchema = z.object({
 const appointmentBookingSchema = z.object({
   branchId: z.string().min(1, 'Branch is required'),
   appointmentType: z.enum(['CLINIC_VISIT', 'VIDEO_CONSULTATION']),
+  resourceType: z.enum(['CONSULTATION', 'TREATMENT_ROOM']),
+  roomNumber: z.coerce.number().int().min(1).max(4).optional(),
   appointmentAt: z.string().min(1, 'Appointment time is required'),
   notes: z.string().optional(),
-});
+}).refine((value) => value.resourceType !== 'TREATMENT_ROOM' || Boolean(value.roomNumber), { message: 'Select a treatment room', path: ['roomNumber'] });
 
 type LeadFormValues = z.infer<typeof leadSchema>;
 type AppointmentBookingValues = z.infer<typeof appointmentBookingSchema>;
@@ -95,6 +95,7 @@ export function LeadsView() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [bookingLead, setBookingLead] = useState<Lead | null>(null);
   const [activeTab, setActiveTab] = useState<LeadTab>('ALL');
+  const [showLeadForm, setShowLeadForm] = useState(false);
 
   const isAdmin = session?.user.role === 'ADMIN';
 
@@ -181,6 +182,8 @@ export function LeadsView() {
     defaultValues: {
       branchId: formBranchId,
       appointmentType: 'CLINIC_VISIT',
+      resourceType: 'CONSULTATION',
+      roomNumber: undefined,
       appointmentAt: '',
       notes: '',
     },
@@ -253,6 +256,7 @@ export function LeadsView() {
 
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      setShowLeadForm(false);
     },
   });
 
@@ -271,6 +275,7 @@ export function LeadsView() {
       }),
     onSuccess: () => {
       setEditingLead(null);
+      setShowLeadForm(false);
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
@@ -285,6 +290,8 @@ export function LeadsView() {
           branchId: values.branchId,
           appointmentAt: values.appointmentAt,
           appointmentType: values.appointmentType,
+          resourceType: values.resourceType,
+          roomNumber: values.resourceType === 'TREATMENT_ROOM' ? values.roomNumber : undefined,
           notes: values.notes || undefined,
         }),
       }),
@@ -293,6 +300,8 @@ export function LeadsView() {
       bookingForm.reset({
         branchId: formBranchId,
         appointmentType: 'CLINIC_VISIT',
+        resourceType: 'CONSULTATION',
+        roomNumber: undefined,
         appointmentAt: '',
         notes: '',
       });
@@ -304,6 +313,7 @@ export function LeadsView() {
 
   function startEdit(lead: Lead) {
     setEditingLead(lead);
+    setShowLeadForm(true);
 
     form.reset({
       name: lead.name,
@@ -325,6 +335,8 @@ export function LeadsView() {
     bookingForm.reset({
       branchId: lead.branchId,
       appointmentType: lead.appointmentType ?? 'CLINIC_VISIT',
+      resourceType: 'CONSULTATION',
+      roomNumber: undefined,
       appointmentAt: '',
       notes: '',
     });
@@ -369,10 +381,7 @@ export function LeadsView() {
   const publicBase = typeof window !== 'undefined' ? `${window.location.origin.replace(/:\d+$/, ':4000')}/api/public` : '/api/public';
   const leads = useMemo(() => {
     const rows = leadsQuery.data?.data ?? [];
-    if (activeTab === 'MANUAL') {
-      return rows.filter((lead) => lead.source !== 'GOOGLE_ADS' && lead.source !== 'META_ADS');
-    }
-    return rows;
+    return activeTab === 'MANUAL' ? rows.filter((lead) => lead.source !== 'GOOGLE_ADS' && lead.source !== 'META_ADS') : rows;
   }, [activeTab, leadsQuery.data]);
   const adLeads = adLeadsQuery.data?.data.leads ?? [];
   const leadAnalytics = useMemo(() => {
@@ -388,6 +397,7 @@ export function LeadsView() {
       .map(([label, value]) => ({ label: sourceLabel(label), value }))
       .sort((a, b) => b.value - a.value);
     const statusRows = Array.from(statusCounts.entries())
+      .filter(([label]) => !['POSTPONED', 'ARRIVED', 'NOT_ARRIVED'].includes(label))
       .map(([label, value]) => ({ label: label.replaceAll('_', ' '), value }))
       .sort((a, b) => b.value - a.value);
     const campaignCounts = new Map<string, { label: string; platform: AdPlatform; value: number }>();
@@ -417,6 +427,12 @@ export function LeadsView() {
     { label: 'Meta Ads', value: 'META_ADS' },
     { label: 'Campaign Analytics', value: 'CAMPAIGN_ANALYTICS' },
   ];
+  const journeyStages = [
+    { label: 'New enquiry', count: (leadsQuery.data?.data ?? []).filter((lead) => lead.status === 'NEW').length, color: '#6366f1' },
+    { label: 'Follow-up due', count: (leadsQuery.data?.data ?? []).filter((lead) => Boolean(lead.nextFollowupAt) && lead.status !== 'CONVERTED').length, color: '#f59e0b' },
+    { label: 'Appointment', count: (leadsQuery.data?.data ?? []).filter((lead) => ['BOOKED', 'CONFIRMED'].includes(lead.status)).length, color: '#0ea5e9' },
+    { label: 'Converted', count: (leadsQuery.data?.data ?? []).filter((lead) => lead.status === 'CONVERTED').length, color: '#e73748' },
+  ];
 
   return (
     <section className="space-y-5">
@@ -426,6 +442,8 @@ export function LeadsView() {
           <p className="text-sm text-muted-foreground">Every enquiry starts here before becoming a patient.</p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={() => { resetCreateForm(); setShowLeadForm(true); }}><Plus className="size-4" />Add lead</Button>
         {isAdmin ? (
           <Select
             aria-label="Branch filter"
@@ -441,7 +459,19 @@ export function LeadsView() {
             ))}
           </Select>
         ) : null}
+        </div>
       </div>
+
+      <Card>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div><h2 className="font-semibold">Lead journey</h2><p className="text-sm text-muted-foreground">A clear path from first enquiry to converted patient</p></div>
+          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
+            {journeyStages.map((stage, index) => {
+              return <div key={stage.label} className="relative rounded-lg border border-border bg-muted/30 p-3"><div className="mb-2 flex items-center justify-between"><i className="size-2.5 rounded-full" style={{ background: stage.color }} /><span className="text-[10px] text-muted-foreground">0{index + 1}</span></div><div className="text-xl font-semibold">{stage.count}</div><div className="text-xs text-muted-foreground">{stage.label}</div></div>;
+            })}
+          </div>
+        </div>
+      </Card>
 
       {isAdmin ? (
         <Card>
@@ -550,12 +580,13 @@ export function LeadsView() {
         </Card>
       ) : null}
 
-      <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-        <Card>
-          <h2 className="text-base font-semibold">{editingLead ? 'Edit Lead' : 'Create Lead'}</h2>
+      {showLeadForm || editingLead ? (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lead-form-title" onMouseDown={(event) => { if (event.target === event.currentTarget) { setShowLeadForm(false); resetCreateForm(); } }}>
+        <Card className="mx-auto max-w-5xl shadow-2xl">
+          <div className="flex items-start justify-between gap-4 border-b border-border pb-4"><div><h2 id="lead-form-title" className="text-xl font-semibold">{editingLead ? 'Edit Lead' : 'Add New Lead'}</h2><p className="mt-1 text-sm text-muted-foreground">{editingLead ? 'Update contact, interest and follow-up information.' : 'Capture a new enquiry and assign the next action.'}</p></div><Button type="button" variant="secondary" className="w-10 shrink-0 px-0" aria-label="Close lead form" onClick={() => { setShowLeadForm(false); resetCreateForm(); }}><X className="size-4" /></Button></div>
 
-          <form className="mt-4 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <form className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-3">
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Name</span>
                 <Input {...form.register('name')} />
@@ -579,7 +610,7 @@ export function LeadsView() {
             </label>
 
             {duplicateMatches && (duplicateMatches.leads.length || duplicateMatches.patients.length) ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:col-span-2 xl:col-span-3">
                 <div className="font-semibold">Existing record found</div>
                 <div className="mt-2 space-y-1">
                   {duplicateMatches.patients.map((patient) => (
@@ -596,12 +627,12 @@ export function LeadsView() {
               </div>
             ) : null}
 
-            <label className="block space-y-2">
+            <label className="block space-y-2 md:col-span-2 xl:col-span-1">
               <span className="text-sm font-medium">Address</span>
               <Input {...form.register('address')} />
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-2">
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Branch</span>
                 <Select {...form.register('branchId')}>
@@ -629,7 +660,7 @@ export function LeadsView() {
               </label>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-3">
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Priority</span>
                 <Select {...form.register('priority')}>
@@ -645,7 +676,7 @@ export function LeadsView() {
               </label>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-2">
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Next follow-up</span>
                 <Input type="datetime-local" {...form.register('nextFollowupAt')} />
@@ -656,32 +687,35 @@ export function LeadsView() {
               </label>
             </div>
 
-            <label className="block space-y-2">
+            <label className="block space-y-2 md:col-span-2 xl:col-span-1">
               <span className="text-sm font-medium">Follow-up notes</span>
               <Input {...form.register('followupNotes')} />
             </label>
 
             {createLead.error || updateLead.error ? (
-              <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+              <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2 xl:col-span-3">
                 {createLead.error?.message ?? updateLead.error?.message}
               </div>
             ) : null}
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 md:col-span-2 xl:col-span-3">
               <Button type="submit" disabled={createLead.isPending || updateLead.isPending}>
                 <Plus className="size-4" />
                 {editingLead ? 'Save Lead' : 'Create Lead'}
               </Button>
 
               {editingLead ? (
-                <Button type="button" variant="secondary" onClick={resetCreateForm}>
+                <Button type="button" variant="secondary" onClick={() => { setShowLeadForm(false); resetCreateForm(); }}>
                   Cancel
                 </Button>
               ) : null}
             </div>
           </form>
         </Card>
+        </div>
+      ) : null}
 
+      <div className="space-y-5">
         <Card>
           <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
             <div className="relative">
@@ -721,8 +755,8 @@ export function LeadsView() {
             </Select>
           </div>
 
-          <div className="overflow-hidden rounded-md border border-border">
-            <table className="w-full border-collapse text-left text-sm">
+          <div className="overflow-x-auto rounded-md border border-border">
+            <table className="min-w-[900px] w-full border-collapse text-left text-sm">
               <thead className="bg-muted text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Name</th>
@@ -771,7 +805,7 @@ export function LeadsView() {
                     <td className="px-4 py-3">
                       <Select
                         aria-label="Lead status"
-                        value={lead.status}
+                        value={leadStatuses.some((leadStatus) => leadStatus.value === lead.status) ? lead.status : ''}
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) =>
                           updateLead.mutate({
@@ -780,9 +814,7 @@ export function LeadsView() {
                           })
                         }
                       >
-                        {!leadStatuses.some((leadStatus) => leadStatus.value === lead.status) ? (
-                          <option value={lead.status}>{lead.status.replace('_', ' ')}</option>
-                        ) : null}
+                        <option value="" disabled>Choose status</option>
                         {leadStatuses.map((leadStatus) => (
                           <option key={leadStatus.value} value={leadStatus.value}>
                             {leadStatus.label}
@@ -930,6 +962,11 @@ export function LeadsView() {
                   <span className="text-xs text-red-600">{bookingForm.formState.errors.appointmentAt.message}</span>
                 ) : null}
               </label>
+              <label className="block space-y-2">
+                <span className="text-sm font-medium">Visit purpose</span>
+                <Select {...bookingForm.register('resourceType')}><option value="CONSULTATION">Consultation</option><option value="TREATMENT_ROOM">Treatment / room</option></Select>
+              </label>
+              {bookingForm.watch('resourceType') === 'TREATMENT_ROOM' ? <label className="block space-y-2"><span className="text-sm font-medium">Treatment room</span><Select {...bookingForm.register('roomNumber')}><option value="">Select room</option>{[1,2,3,4].map((room) => <option key={room} value={room}>Room {room}</option>)}</Select>{bookingForm.formState.errors.roomNumber ? <span className="text-xs text-red-600">{bookingForm.formState.errors.roomNumber.message}</span> : null}</label> : null}
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Notes</span>
                 <Input {...bookingForm.register('notes')} />

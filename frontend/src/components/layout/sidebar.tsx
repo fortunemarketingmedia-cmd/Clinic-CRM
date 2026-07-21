@@ -20,7 +20,7 @@ export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 border-r border-border bg-surface px-4 py-5 shadow-sm md:block">
+    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r border-border bg-surface px-4 py-5 shadow-sm md:block">
       <div className="mb-8">
         <div className="flex items-center gap-3">
           <div className="flex size-12 items-center justify-center rounded-md border border-border bg-white p-1 shadow-sm">

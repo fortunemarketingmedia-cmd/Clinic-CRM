@@ -54,7 +54,7 @@ export const patientService = {
     if (existingPatient) throw new HttpError(409, 'Patient already exists for this lead');
 
     const duplicates = await patientRepository.findDuplicates({ mobile: input.mobile ?? lead.mobile, email: input.email ?? lead.email ?? undefined });
-    if (duplicates.length) throw new HttpError(409, 'Existing patient found with the same mobile or email');
+    if (duplicates.length) throw new HttpError(409, 'A patient profile already exists with the same mobile or email');
 
     const convertibleStatuses: LeadStatus[] = [LeadStatus.ARRIVED, LeadStatus.CONFIRMED, LeadStatus.BOOKED];
 
@@ -109,10 +109,8 @@ export const patientService = {
     notes?: string;
   }) {
     await ensureBranchExists(input.branchId);
-    const duplicates = await leadRepository.findDuplicates({ mobile: input.mobile, email: input.email });
-    if (duplicates.leads.length || duplicates.patients.length) {
-      throw new HttpError(409, 'Existing record found with the same mobile or email');
-    }
+    const duplicates = await patientRepository.findDuplicates({ mobile: input.mobile, email: input.email });
+    if (duplicates.length) throw new HttpError(409, 'A patient profile already exists with the same mobile or email');
 
     const patient = await patientRepository.createFromClinicQr({
       branchId: input.branchId,
@@ -255,10 +253,8 @@ export const patientService = {
 
       await ensureBranchExists(input.branchId);
 
-      const duplicates = await leadRepository.findDuplicates({ mobile: input.mobile, email: input.email });
-      if (duplicates.leads.length || duplicates.patients.length) {
-        throw new HttpError(409, 'Existing record found with the same mobile or email');
-      }
+      const duplicates = await patientRepository.findDuplicates({ mobile: input.mobile, email: input.email });
+      if (duplicates.length) throw new HttpError(409, 'A patient profile already exists with the same mobile or email');
 
       const patient = await patientRepository.createFromClinicQr({
         branchId: input.branchId,

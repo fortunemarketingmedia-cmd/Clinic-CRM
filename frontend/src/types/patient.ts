@@ -15,6 +15,7 @@ export type Patient = {
   address?: string | null;
   occupation?: string | null;
   maritalStatus?: string | null;
+  createdAt: string;
   branch?: Branch;
   lead?: Lead;
   medicalProfile?: MedicalProfile | null;
@@ -29,18 +30,37 @@ export type MedicalProfile = {
   medicalHistory?: string | null;
   currentMedications?: string | null;
   allergyToDrugs?: string | null;
+  keloidOrHypertrophicScar?: string | null;
+  productsCurrentlyUsed?: string | null;
+  menstrualHistory?: string | null;
+  pregnancyStatus?: string | null;
   notes?: string | null;
 };
 
 export type PatientSession = {
   id: string;
+  appointmentId?: string | null;
+  treatmentType: 'CONSULTATION' | 'VIDEO_CONSULTATION' | 'TREATMENT_ROOM' | 'PROCEDURE' | 'FOLLOW_UP' | 'OTHER';
   visitDate: string;
   doctorConsulted?: string | null;
+  chiefComplaint?: string | null;
+  diagnosis?: string | null;
   treatmentSuggested?: string | null;
   treatmentTaken?: string | null;
   medicinesPrescribed?: string | null;
+  prescription?: PrescriptionMedicine[] | null;
   notes?: string | null;
   followupDate?: string | null;
+  package?: TreatmentPackage | null;
+  files?: PatientFile[];
+};
+
+export type PrescriptionMedicine = {
+  medicine: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions?: string;
 };
 
 export type TreatmentPackage = {

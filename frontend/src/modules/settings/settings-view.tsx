@@ -2,8 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, QrCode, Save } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ChevronLeft, ClipboardList, Database, Download, QrCode, Receipt, Save, Settings2, UserCog } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { UsersView } from '@/modules/users/users-view';
 import { apiRequest } from '@/services/api';
-import type { Branch } from '@/types/branch';
 import type { Lead } from '@/types/lead';
 import type { Patient } from '@/types/patient';
 
@@ -23,6 +22,14 @@ const settingsSchema = z.object({
   clinicLogoUrl: z.string().optional(),
   businessPhone: z.string().optional(),
   businessAddress: z.string().optional(),
+  legalName: z.string().optional(),
+  website: z.string().url().optional().or(z.literal('')),
+  registrationNumber: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  postalCode: z.string().optional(),
+  openingHours: z.string().optional(),
+  timezone: z.string().optional(),
   gstNumber: z.string().optional(),
   invoicePrefix: z.string().min(1),
   gstPercent: z.coerce.number().min(0).max(100),
@@ -40,6 +47,7 @@ type SettingsResponse = SettingsValues & {
 };
 
 type FieldMode = 'REQUIRED' | 'OPTIONAL' | 'HIDDEN';
+type SettingsSection = 'OVERVIEW' | 'CLINIC' | 'INTAKE' | 'BILLING' | 'TEAM' | 'DATA';
 
 const patientFields = [
   'Name',
@@ -73,8 +81,8 @@ function downloadCsv(filename: string, rows: Array<Record<string, string | numbe
 export function SettingsView() {
   const queryClient = useQueryClient();
   const [fieldModes, setFieldModes] = useState<Record<string, FieldMode>>(defaultFieldModes);
+  const [activeSection, setActiveSection] = useState<SettingsSection>('OVERVIEW');
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: () => apiRequest<{ data: SettingsResponse }>('/settings') });
-  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => apiRequest<{ data: Branch[] }>('/branches') });
 
   const form = useForm<SettingsValues>({
     resolver: zodResolver(settingsSchema),
@@ -84,6 +92,14 @@ export function SettingsView() {
       clinicLogoUrl: '',
       businessPhone: '',
       businessAddress: '',
+      legalName: '',
+      website: '',
+      registrationNumber: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      openingHours: '',
+      timezone: 'Asia/Kolkata',
       gstNumber: '',
       invoicePrefix: 'REV-',
       gstPercent: 0,
@@ -108,6 +124,14 @@ export function SettingsView() {
       clinicLogoUrl: settings.clinicLogoUrl ?? '',
       businessPhone: settings.businessPhone ?? '',
       businessAddress: settings.businessAddress ?? '',
+      legalName: settings.legalName ?? '',
+      website: settings.website ?? '',
+      registrationNumber: settings.registrationNumber ?? '',
+      city: settings.city ?? '',
+      state: settings.state ?? '',
+      postalCode: settings.postalCode ?? '',
+      openingHours: settings.openingHours ?? '',
+      timezone: settings.timezone ?? 'Asia/Kolkata',
       gstNumber: settings.gstNumber ?? '',
       invoicePrefix: settings.invoicePrefix ?? 'REV-',
       gstPercent: Number(settings.gstPercent ?? 0),
@@ -128,14 +152,6 @@ export function SettingsView() {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
   });
-
-  const updateBranch = useMutation({
-    mutationFn: ({ id, address, phone }: { id: string; address: string; phone: string }) =>
-      apiRequest(`/branches/${id}`, { method: 'PATCH', body: JSON.stringify({ address, phone }) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['branches'] }),
-  });
-
-  const branchDrafts = useMemo(() => branchesQuery.data?.data ?? [], [branchesQuery.data]);
 
   async function exportPatients() {
     const response = await apiRequest<{ data: Patient[] }>('/patients');
@@ -174,32 +190,41 @@ export function SettingsView() {
   return (
     <section className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">Clinic, branches, users, QR registration, patient form, invoice, and exports.</p>
+        <div className="flex items-center gap-3">{activeSection !== 'OVERVIEW' ? <Button type="button" variant="secondary" className="w-10 px-0" onClick={() => setActiveSection('OVERVIEW')} aria-label="Back to settings"><ChevronLeft className="size-4" /></Button> : null}<div><h1 className="text-2xl font-semibold">{activeSection === 'OVERVIEW' ? 'Settings' : ({ CLINIC: 'Clinic profile', INTAKE: 'Patient intake', BILLING: 'Billing & invoices', TEAM: 'Team & access', DATA: 'Data & exports', OVERVIEW: 'Settings' } as const)[activeSection]}</h1><p className="text-sm text-muted-foreground">Configure the CRM in focused sections without an overwhelming long form.</p></div></div>
       </div>
 
-      <form className="space-y-5" onSubmit={form.handleSubmit((values) => saveSettings.mutate(values))}>
+      {activeSection === 'OVERVIEW' ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <SettingsTile icon={Settings2} title="Clinic profile" description="Identity, contact details and business information" onClick={() => setActiveSection('CLINIC')} />
+        <SettingsTile icon={ClipboardList} title="Patient intake" description="QR registration and patient form visibility" onClick={() => setActiveSection('INTAKE')} />
+        <SettingsTile icon={Receipt} title="Billing & invoices" description="GST, invoice numbering, terms and payment text" onClick={() => setActiveSection('BILLING')} />
+        <SettingsTile icon={UserCog} title="Team & access" description="Users, roles and branch access" onClick={() => setActiveSection('TEAM')} />
+        <SettingsTile icon={Database} title="Data & exports" description="Export patient, lead and revenue records" onClick={() => setActiveSection('DATA')} />
+      </div> : null}
+
+      {activeSection !== 'OVERVIEW' && activeSection !== 'TEAM' && activeSection !== 'DATA' ? <form className="space-y-5" onSubmit={form.handleSubmit((values) => saveSettings.mutate(values))}>
+        {activeSection === 'CLINIC' ? (
         <Card>
           <h2 className="text-base font-semibold">Clinic Settings</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Field label="Clinic Name"><Input {...form.register('clinicName')} /></Field>
+            <Field label="Legal / Registered Name"><Input {...form.register('legalName')} /></Field>
             <Field label="Logo URL"><Input {...form.register('clinicLogoUrl')} /></Field>
             <Field label="Email"><Input {...form.register('clinicEmail')} /></Field>
             <Field label="Mobile Number"><Input {...form.register('businessPhone')} /></Field>
+            <Field label="Website"><Input placeholder="https://" {...form.register('website')} /></Field>
+            <Field label="Clinic Registration Number"><Input {...form.register('registrationNumber')} /></Field>
             <Field label="GST Number"><Input {...form.register('gstNumber')} /></Field>
             <Field label="Clinic Address"><Input {...form.register('businessAddress')} /></Field>
+            <Field label="City"><Input {...form.register('city')} /></Field>
+            <Field label="State"><Input {...form.register('state')} /></Field>
+            <Field label="PIN / Postal Code"><Input {...form.register('postalCode')} /></Field>
+            <Field label="Opening Hours"><Input placeholder="Mon–Sat, 10:00 AM–7:00 PM" {...form.register('openingHours')} /></Field>
+            <Field label="Timezone"><Select {...form.register('timezone')}><option value="Asia/Kolkata">India Standard Time (IST)</option><option value="UTC">UTC</option></Select></Field>
           </div>
         </Card>
+        ) : null}
 
-        <Card>
-          <h2 className="text-base font-semibold">Branches</h2>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            {branchDrafts.map((branch) => (
-              <BranchEditor key={branch.id} branch={branch} onSave={(values) => updateBranch.mutate({ id: branch.id, ...values })} />
-            ))}
-          </div>
-        </Card>
-
+        {activeSection === 'INTAKE' ? <>
         <Card>
           <div className="flex items-center gap-2">
             <QrCode className="size-5 text-primary" />
@@ -247,7 +272,9 @@ export function SettingsView() {
             </table>
           </div>
         </Card>
+        </> : null}
 
+        {activeSection === 'BILLING' ? (
         <Card>
           <h2 className="text-base font-semibold">Invoice Settings</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -259,15 +286,17 @@ export function SettingsView() {
             <Field label="Payment Instructions"><textarea className="min-h-24 w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary" {...form.register('paymentInstructions')} /></Field>
           </div>
         </Card>
+        ) : null}
 
         <Button type="submit" disabled={saveSettings.isPending}>
           <Save className="size-4" />
           Save Settings
         </Button>
-      </form>
+      </form> : null}
 
-      <UsersView />
+      {activeSection === 'TEAM' ? <UsersView /> : null}
 
+      {activeSection === 'DATA' ? (
       <Card>
         <h2 className="text-base font-semibold">Export CSV</h2>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -276,8 +305,13 @@ export function SettingsView() {
           <Button type="button" variant="secondary" onClick={exportLeads}><Download className="size-4" />Export Leads</Button>
         </div>
       </Card>
+      ) : null}
     </section>
   );
+}
+
+function SettingsTile({ icon: Icon, title, description, onClick }: { icon: typeof Settings2; title: string; description: string; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="group rounded-xl border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="size-5" /></div><h2 className="mt-4 font-semibold group-hover:text-primary">{title}</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p><span className="mt-4 inline-block text-sm font-medium text-primary">Open settings →</span></button>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -286,26 +320,5 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="text-sm font-medium">{label}</span>
       {children}
     </label>
-  );
-}
-
-function BranchEditor({ branch, onSave }: { branch: Branch; onSave: (values: { address: string; phone: string }) => void }) {
-  const [address, setAddress] = useState(branch.address);
-  const [phone, setPhone] = useState(branch.phone);
-
-  useEffect(() => {
-    setAddress(branch.address);
-    setPhone(branch.phone);
-  }, [branch.address, branch.phone]);
-
-  return (
-    <div className="rounded-md border border-border p-4">
-      <h3 className="font-semibold">{branch.name}</h3>
-      <div className="mt-3 space-y-3">
-        <Field label="Address"><Input value={address} onChange={(event) => setAddress(event.target.value)} /></Field>
-        <Field label="Contact Number"><Input value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
-        <Button type="button" variant="secondary" onClick={() => onSave({ address, phone })}>Save Branch</Button>
-      </div>
-    </div>
   );
 }

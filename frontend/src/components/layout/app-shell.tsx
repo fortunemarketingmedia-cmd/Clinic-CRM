@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
         </nav>
-        <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-6">{children}</div>
+        <div className="mx-auto w-full max-w-[1600px] px-4 py-6 md:px-6 xl:px-8">{children}</div>
       </main>
     </div>
   );

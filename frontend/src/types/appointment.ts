@@ -7,6 +7,8 @@ export type Appointment = {
   branchId: string;
   appointmentAt: string;
   appointmentType: 'CLINIC_VISIT' | 'VIDEO_CONSULTATION';
+  resourceType: 'CONSULTATION' | 'TREATMENT_ROOM';
+  roomNumber?: number | null;
   status: LeadStatus;
   notes?: string | null;
   createdAt: string;

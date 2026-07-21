@@ -1,7 +1,9 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 const ACCESS_TOKEN_KEY = 'revive_access_token';
+export const AUTH_UNAUTHORIZED_EVENT = 'revive:auth-unauthorized';
 
 let inMemoryAccessToken: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
 
 export function getAccessToken() {
   if (inMemoryAccessToken) {
@@ -30,7 +32,13 @@ export function setAccessToken(accessToken: string | null) {
   }
 }
 
-async function refreshAccessToken() {
+function notifyUnauthorized() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+  }
+}
+
+async function performTokenRefresh() {
   const response = await fetch(`${API_URL}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
@@ -40,12 +48,23 @@ async function refreshAccessToken() {
 
   if (!response.ok) {
     setAccessToken(null);
+    notifyUnauthorized();
     return null;
   }
 
   const session = (await response.json()) as { accessToken: string };
   setAccessToken(session.accessToken);
   return session.accessToken;
+}
+
+function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = performTokenRefresh().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {

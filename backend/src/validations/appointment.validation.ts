@@ -1,4 +1,4 @@
-import { AppointmentType, EnquirySource, LeadStatus } from '@prisma/client';
+import { AppointmentResource, AppointmentType, EnquirySource, LeadStatus } from '@prisma/client';
 import { z } from 'zod';
 
 export const createAppointmentSchema = z.object({
@@ -10,9 +10,14 @@ export const createAppointmentSchema = z.object({
   branchId: z.string().min(1),
   appointmentAt: z.coerce.date(),
   appointmentType: z.nativeEnum(AppointmentType).default(AppointmentType.CLINIC_VISIT),
+  resourceType: z.nativeEnum(AppointmentResource).default(AppointmentResource.CONSULTATION),
+  roomNumber: z.coerce.number().int().min(1).max(4).optional(),
   notes: z.string().optional(),
 }).refine((value) => Boolean(value.leadId || (value.name && value.mobile)), {
   message: 'Either an existing lead or appointment contact details are required',
+}).refine((value) => value.resourceType !== AppointmentResource.TREATMENT_ROOM || Boolean(value.roomNumber), {
+  message: 'Room number is required for treatment room bookings',
+  path: ['roomNumber'],
 });
 
 export const updateAppointmentSchema = z
@@ -20,6 +25,8 @@ export const updateAppointmentSchema = z
     branchId: z.string().min(1).optional(),
     appointmentAt: z.coerce.date().optional(),
     appointmentType: z.nativeEnum(AppointmentType).optional(),
+    resourceType: z.nativeEnum(AppointmentResource).optional(),
+    roomNumber: z.coerce.number().int().min(1).max(4).nullable().optional(),
     status: z.nativeEnum(LeadStatus).optional(),
     notes: z.string().optional(),
   })

@@ -1,4 +1,4 @@
-import type { AppointmentType, EnquirySource, LeadStatus } from '@prisma/client';
+import type { AppointmentResource, AppointmentType, EnquirySource, LeadStatus } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
 
@@ -77,11 +77,13 @@ export const appointmentRepository = {
     });
   },
 
-  findSlotConflict(branchId: string, appointmentAt: Date, excludeId?: string) {
+  findSlotConflict(branchId: string, appointmentAt: Date, resourceType: AppointmentResource, roomNumber?: number | null, excludeId?: string) {
     return prisma.appointment.findFirst({
       where: {
         branchId,
         appointmentAt,
+        resourceType,
+        roomNumber: resourceType === 'TREATMENT_ROOM' ? roomNumber : null,
         id: excludeId ? { not: excludeId } : undefined,
         status: { notIn: ['CANCELLED', 'CONVERTED'] },
       },
@@ -105,6 +107,8 @@ export const appointmentRepository = {
     createdById: string;
     appointmentAt: Date;
     appointmentType: AppointmentType;
+    resourceType: AppointmentResource;
+    roomNumber?: number | null;
     notes?: string;
   }) {
     return prisma.$transaction(async (tx) => {
@@ -129,6 +133,8 @@ export const appointmentRepository = {
           branchId: data.branchId,
           appointmentAt: data.appointmentAt,
           appointmentType: data.appointmentType,
+          resourceType: data.resourceType,
+          roomNumber: data.resourceType === 'TREATMENT_ROOM' ? data.roomNumber : null,
           notes: data.notes,
           status: 'CONFIRMED',
         },
@@ -149,6 +155,8 @@ export const appointmentRepository = {
     branchId: string;
     appointmentAt: Date;
     appointmentType: AppointmentType;
+    resourceType: AppointmentResource;
+    roomNumber?: number | null;
     notes?: string;
   }) {
     return prisma.$transaction(async (tx) => {
@@ -185,6 +193,8 @@ export const appointmentRepository = {
       branchId: string;
       appointmentAt: Date;
       appointmentType: AppointmentType;
+      resourceType: AppointmentResource;
+      roomNumber: number | null;
       status: LeadStatus;
       notes: string;
     }>,

@@ -54,6 +54,11 @@ enum AppointmentType {
   VIDEO_CONSULTATION
 }
 
+enum AppointmentResource {
+  CONSULTATION
+  TREATMENT_ROOM
+}
+
 enum Sex {
   MALE
   FEMALE
@@ -79,6 +84,15 @@ enum FileCategory {
   PRESCRIPTION
   REPORT
   INVOICE
+  OTHER
+}
+
+enum TreatmentType {
+  CONSULTATION
+  VIDEO_CONSULTATION
+  TREATMENT_ROOM
+  PROCEDURE
+  FOLLOW_UP
   OTHER
 }
 
@@ -201,14 +215,18 @@ model Appointment {
   branchId        String
   appointmentAt   DateTime
   appointmentType AppointmentType @default(CLINIC_VISIT)
+  resourceType    AppointmentResource @default(CONSULTATION)
+  roomNumber     Int?
   status          LeadStatus      @default(BOOKED)
   notes           String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   lead            Lead            @relation(fields: [leadId], references: [id])
   branch          Branch          @relation(fields: [branchId], references: [id])
+  treatment       Session?
 
   @@index([branchId, appointmentAt])
+  @@index([branchId, roomNumber, appointmentAt])
   @@index([leadId])
 }
 
@@ -283,21 +301,28 @@ model MedicalProfile {
 model Session {
   id                 String            @id @default(cuid())
   patientId          String
+  appointmentId      String?           @unique
+  treatmentType      TreatmentType     @default(CONSULTATION)
   visitDate          DateTime
   doctorConsulted    String?
+  chiefComplaint     String?
+  diagnosis          String?
   treatmentSuggested String?
   treatmentTaken     String?
   medicinesPrescribed String?
+  prescription       Json?
   notes              String?
   followupDate       DateTime?
   packageId          String?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   patient            Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment        Appointment?       @relation(fields: [appointmentId], references: [id])
   package            TreatmentPackage? @relation(fields: [packageId], references: [id])
   files              PatientFile[]
 
   @@index([patientId])
+  @@index([appointmentId])
   @@index([visitDate])
   @@index([followupDate])
 }
@@ -413,6 +438,14 @@ model ClinicSettings {
   gstPercent        Decimal  @default(0) @db.Decimal(5, 2)
   businessAddress   String?
   businessPhone     String?
+  legalName         String?
+  website           String?
+  registrationNumber String?
+  city              String?
+  state             String?
+  postalCode        String?
+  openingHours      String?
+  timezone          String?  @default("Asia/Kolkata")
   invoiceTerms      String?
   invoiceSignature  String?
   invoiceFooter     String?

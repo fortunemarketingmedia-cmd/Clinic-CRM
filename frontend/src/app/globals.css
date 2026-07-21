@@ -25,6 +25,19 @@ body {
   color: hsl(var(--foreground));
 }
 
+table th {
+  white-space: nowrap;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.45);
+  outline-offset: 2px;
+}
+
 button,
 input,
 select,

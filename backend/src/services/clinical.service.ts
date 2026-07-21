@@ -23,6 +23,18 @@ export const clinicalService = {
 
   async createSession(patientId: string, input: Parameters<typeof clinicalRepository.createSession>[1]) {
     const patient = await ensurePatient(patientId);
+    if (input.appointmentId) {
+      const appointment = patient.lead.appointments.find((item) => item.id === input.appointmentId);
+      if (!appointment) throw new HttpError(400, 'Appointment does not belong to this patient');
+    }
+    if (input.packageId) {
+      const packages = await clinicalRepository.listPackages(patientId);
+      const treatmentPackage = packages.find((item) => item.id === input.packageId);
+      if (!treatmentPackage) throw new HttpError(400, 'Treatment package does not belong to this patient');
+      if (treatmentPackage.completedSessions >= treatmentPackage.totalSessions) {
+        throw new HttpError(409, 'All sessions in this package are already completed');
+      }
+    }
     const session = await clinicalRepository.createSession(patientId, input);
     await timelineRepository.create({
       leadId: patient.leadId,

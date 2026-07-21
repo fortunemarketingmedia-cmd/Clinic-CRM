@@ -30,6 +30,7 @@ export type Lead = {
   branchId: string;
   appointmentType: 'CLINIC_VISIT' | 'VIDEO_CONSULTATION';
   appointmentAt?: string | null;
+  createdAt: string;
   branch?: Branch;
   adLeads?: AdLead[];
   patient?: { id: string; patientNo: string; fullName: string } | null;

@@ -37,7 +37,7 @@ export const patientRepository = {
       where: { id },
       include: {
         branch: true,
-        lead: true,
+        lead: { include: { appointments: true } },
         medicalProfile: true,
         sessions: { orderBy: { visitDate: 'desc' } },
         packages: { orderBy: { createdAt: 'desc' } },

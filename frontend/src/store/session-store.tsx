@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { setAccessToken } from '@/services/api';
+import { AUTH_UNAUTHORIZED_EVENT, setAccessToken } from '@/services/api';
 import type { AuthSession } from '@/types/auth';
 
 const SESSION_KEY = 'revive_session';
@@ -73,6 +73,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     },
     [],
   );
+
+  useEffect(() => {
+    const clearExpiredSession = () => updateSession(null);
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, clearExpiredSession);
+    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, clearExpiredSession);
+  }, [updateSession]);
 
   const value = useMemo(
     () => ({

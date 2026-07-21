@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, ChevronLeft, ChevronRight, Clock, RotateCcw, Search } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight, Clock, DoorOpen, RotateCcw, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -32,8 +32,10 @@ const appointmentSchema = z.object({
   branchId: z.string().min(1, 'Branch is required'),
   appointmentAt: z.string().min(1, 'Appointment time is required'),
   appointmentType: z.enum(['CLINIC_VISIT', 'VIDEO_CONSULTATION']),
+  resourceType: z.enum(['CONSULTATION', 'TREATMENT_ROOM']),
+  roomNumber: z.coerce.number().int().min(1).max(4).optional(),
   notes: z.string().optional(),
-});
+}).refine((value) => value.resourceType !== 'TREATMENT_ROOM' || Boolean(value.roomNumber), { message: 'Select a treatment room', path: ['roomNumber'] });
 
 type AppointmentFormValues = z.infer<typeof appointmentSchema>;
 
@@ -101,7 +103,7 @@ export function AppointmentsView() {
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
-  const [viewMode, setViewMode] = useState<'calendar' | 'today' | 'list'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'day' | 'rooms' | 'list'>('calendar');
 
   const branchesQuery = useQuery({
     queryKey: ['branches'],
@@ -157,7 +159,6 @@ export function AppointmentsView() {
   }, [appointments]);
 
   const selectedDayAppointments = appointmentsByDate[selectedDate] ?? [];
-  const todayAppointments = appointmentsByDate[localDateKey(new Date())] ?? [];
   const selectedDateLabel = formatDate(selectedDate);
   const appointmentCounts = {
     total: appointments.length,
@@ -165,6 +166,20 @@ export function AppointmentsView() {
     arrived: appointments.filter((appointment) => appointment.status === 'ARRIVED').length,
     pending: appointments.filter((appointment) => ['POSTPONED', 'NOT_ARRIVED'].includes(appointment.status)).length,
   };
+  const selectedRoomBookings = selectedDayAppointments.filter((appointment) => appointment.resourceType === 'TREATMENT_ROOM');
+  const occupiedRooms = new Set(selectedRoomBookings.map((appointment) => appointment.roomNumber).filter(Boolean)).size;
+  const roomMetrics = [
+    { label: 'Room bookings today', value: selectedRoomBookings.length },
+    { label: 'Rooms occupied', value: occupiedRooms },
+    { label: 'Rooms available', value: Math.max(4 - occupiedRooms, 0) },
+    { label: 'Room utilisation', value: `${Math.round((occupiedRooms / 4) * 100)}%` },
+  ];
+  const defaultMetrics = [
+    { label: 'This month', value: appointmentCounts.total },
+    { label: 'Confirmed', value: appointmentCounts.confirmed },
+    { label: 'Arrived', value: appointmentCounts.arrived },
+    { label: 'Action needed', value: appointmentCounts.pending },
+  ];
 
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema),
@@ -176,6 +191,8 @@ export function AppointmentsView() {
       branchId: activeBranchId,
       appointmentAt: '',
       appointmentType: 'CLINIC_VISIT',
+      resourceType: 'CONSULTATION',
+      roomNumber: undefined,
       notes: '',
     },
   });
@@ -199,6 +216,8 @@ export function AppointmentsView() {
         branchId: activeBranchId,
         appointmentAt: '',
         appointmentType: 'CLINIC_VISIT',
+        resourceType: 'CONSULTATION',
+        roomNumber: undefined,
         notes: '',
       });
       setShowAppointmentForm(false);
@@ -208,7 +227,7 @@ export function AppointmentsView() {
   });
 
   const updateAppointment = useMutation({
-    mutationFn: ({ id, values }: { id: string; values: Partial<AppointmentFormValues> & { status?: LeadStatus } }) =>
+    mutationFn: ({ id, values }: { id: string; values: Omit<Partial<AppointmentFormValues>, 'roomNumber'> & { status?: LeadStatus; roomNumber?: number | null } }) =>
       apiRequest<{ data: Appointment }>(`/appointments/${id}`, { method: 'PATCH', body: JSON.stringify(values) }),
     onSuccess: () => {
       setEditingAppointment(null);
@@ -228,6 +247,8 @@ export function AppointmentsView() {
       branchId: appointment.branchId,
       appointmentAt: toDateTimeLocal(appointment.appointmentAt),
       appointmentType: appointment.appointmentType,
+      resourceType: appointment.resourceType ?? 'CONSULTATION',
+      roomNumber: appointment.roomNumber ?? undefined,
       notes: appointment.notes ?? '',
     });
   }
@@ -240,6 +261,8 @@ export function AppointmentsView() {
           branchId: values.branchId,
           appointmentAt: values.appointmentAt,
           appointmentType: values.appointmentType,
+          resourceType: values.resourceType,
+          roomNumber: values.resourceType === 'TREATMENT_ROOM' ? values.roomNumber : null,
           notes: values.notes || undefined,
         },
       });
@@ -279,28 +302,28 @@ export function AppointmentsView() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <AppointmentMetric label="This month" value={appointmentCounts.total} />
-        <AppointmentMetric label="Confirmed" value={appointmentCounts.confirmed} />
-        <AppointmentMetric label="Arrived" value={appointmentCounts.arrived} />
-        <AppointmentMetric label="Action needed" value={appointmentCounts.pending} />
+        {(viewMode === 'rooms' ? roomMetrics : defaultMetrics).map((metric) => <AppointmentMetric key={metric.label} label={metric.label} value={metric.value} />)}
       </div>
 
       <Card>
         <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-semibold">
-              {viewMode === 'calendar' ? 'Universal Calendar' : viewMode === 'today' ? 'Today View' : 'List View'}
+              {viewMode === 'calendar' ? 'Universal Calendar' : viewMode === 'day' ? 'Day Schedule' : viewMode === 'rooms' ? 'Room Schedule' : 'List View'}
             </h2>
             <p className="text-sm text-muted-foreground">
               {new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(calendarMonth)} · {activeBranchId ? branches.find((branch) => branch.id === activeBranchId)?.name : 'All branches'}
             </p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[auto_auto_auto_1fr_180px_auto_auto_auto]">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button type="button" variant={viewMode === 'calendar' ? 'primary' : 'secondary'} onClick={() => setViewMode('calendar')}>
               Calendar
             </Button>
-            <Button type="button" variant={viewMode === 'today' ? 'primary' : 'secondary'} onClick={() => setViewMode('today')}>
-              Today
+            <Button type="button" variant={viewMode === 'day' ? 'primary' : 'secondary'} onClick={() => setViewMode('day')}>
+              Day schedule
+            </Button>
+            <Button type="button" variant={viewMode === 'rooms' ? 'primary' : 'secondary'} onClick={() => setViewMode('rooms')}>
+              <DoorOpen className="size-4" />Rooms
             </Button>
             <Button type="button" variant={viewMode === 'list' ? 'primary' : 'secondary'} onClick={() => setViewMode('list')}>
               List
@@ -325,7 +348,7 @@ export function AppointmentsView() {
               setCalendarMonth(today);
               setSelectedDate(localDateKey(today));
             }}>
-              Today
+              Current date
             </Button>
             <Button type="button" variant="secondary" className="w-10 px-0" aria-label="Next month" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
               <ChevronRight className="size-4" />
@@ -366,7 +389,7 @@ export function AppointmentsView() {
                 <div className="space-y-1">
                   {dayAppointments.slice(0, 4).map((appointment) => (
                     <div key={appointment.id} className={`truncate rounded-md px-2 py-1 text-xs ${statusClass(appointment.status)}`}>
-                      {formatTime(appointment.appointmentAt)} {appointment.lead?.name}
+                      {formatTime(appointment.appointmentAt)} {appointment.lead?.name}{appointment.resourceType === 'TREATMENT_ROOM' ? ` · R${appointment.roomNumber}` : ''}
                     </div>
                   ))}
                   {dayAppointments.length > 4 ? <div className="text-xs text-muted-foreground">+{dayAppointments.length - 4} more</div> : null}
@@ -377,7 +400,8 @@ export function AppointmentsView() {
           </div>
         ) : null}
 
-        {viewMode === 'today' ? <AppointmentList appointments={todayAppointments} onSelect={setSelectedAppointment} onEdit={startEdit} onStatusChange={(appointment, nextStatus) => updateAppointment.mutate({ id: appointment.id, values: { status: nextStatus } })} /> : null}
+        {viewMode === 'day' ? <AppointmentList appointments={selectedDayAppointments} onSelect={setSelectedAppointment} onEdit={startEdit} onStatusChange={(appointment, nextStatus) => updateAppointment.mutate({ id: appointment.id, values: { status: nextStatus } })} /> : null}
+        {viewMode === 'rooms' ? <RoomSchedule appointments={selectedDayAppointments} selectedDateLabel={selectedDateLabel} onSelect={setSelectedAppointment} /> : null}
         {viewMode === 'list' ? <AppointmentList appointments={appointments} onSelect={setSelectedAppointment} onEdit={startEdit} onStatusChange={(appointment, nextStatus) => updateAppointment.mutate({ id: appointment.id, values: { status: nextStatus } })} /> : null}
       </Card>
 
@@ -454,6 +478,7 @@ export function AppointmentsView() {
               <AppointmentDetail label="Branch" value={selectedAppointment.branch?.name ?? '-'} />
               <AppointmentDetail label="Status" value={selectedAppointment.status.replace('_', ' ')} />
               <AppointmentDetail label="Type" value={selectedAppointment.appointmentType.replace('_', ' ')} />
+              <AppointmentDetail label="Resource" value={selectedAppointment.resourceType === 'TREATMENT_ROOM' ? `Treatment room ${selectedAppointment.roomNumber}` : 'Consultation'} />
               <AppointmentDetail label="Source" value={selectedAppointment.lead?.source?.replace('_', ' ') ?? '-'} />
               <AppointmentDetail label="Notes" value={selectedAppointment.notes ?? '-'} />
             </div>
@@ -481,6 +506,23 @@ export function AppointmentsView() {
               <option value="WALK_IN">Walk-in</option>
             </Select>
           </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium">Visit purpose</span>
+            <Select {...form.register('resourceType')}>
+              <option value="CONSULTATION">Consultation</option>
+              <option value="TREATMENT_ROOM">Treatment / room booking</option>
+            </Select>
+          </label>
+          {form.watch('resourceType') === 'TREATMENT_ROOM' ? (
+            <label className="block space-y-2">
+              <span className="text-sm font-medium">Treatment room</span>
+              <Select {...form.register('roomNumber')}>
+                <option value="">Select room</option>
+                {[1, 2, 3, 4].map((room) => <option key={room} value={room}>Room {room}</option>)}
+              </Select>
+              {form.formState.errors.roomNumber ? <span className="text-xs text-red-600">{form.formState.errors.roomNumber.message}</span> : null}
+            </label>
+          ) : null}
           <label className="block space-y-2">
             <span className="text-sm font-medium">Patient name</span>
             <Input placeholder="Full name" {...form.register('name')} disabled={Boolean(editingAppointment)} />
@@ -543,6 +585,8 @@ export function AppointmentsView() {
                     branchId: activeBranchId,
                     appointmentAt: '',
                     appointmentType: 'CLINIC_VISIT',
+                    resourceType: 'CONSULTATION',
+                    roomNumber: undefined,
                     notes: '',
                   });
                 }}
@@ -564,6 +608,8 @@ export function AppointmentsView() {
                     branchId: activeBranchId,
                     appointmentAt: '',
                     appointmentType: 'CLINIC_VISIT',
+                    resourceType: 'CONSULTATION',
+                    roomNumber: undefined,
                     notes: '',
                   });
                 }}
@@ -580,7 +626,7 @@ export function AppointmentsView() {
   );
 }
 
-function AppointmentMetric({ label, value }: { label: string; value: number }) {
+function AppointmentMetric({ label, value }: { label: string; value: number | string }) {
   return (
     <Card className="p-4">
       <div className="text-sm text-muted-foreground">{label}</div>
@@ -616,6 +662,7 @@ function AppointmentList({
             <div className="font-medium">{appointment.lead?.name ?? 'Patient'}</div>
             <div className="text-xs text-muted-foreground">
               {appointment.lead?.mobile} · {appointment.branch?.name} · {appointment.lead?.source?.replace('_', ' ')}
+              {appointment.resourceType === 'TREATMENT_ROOM' ? ` · Room ${appointment.roomNumber}` : ' · Consultation'}
             </div>
           </div>
           <Select
@@ -646,6 +693,21 @@ function AppointmentList({
           No appointments found.
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function RoomSchedule({ appointments, selectedDateLabel, onSelect }: { appointments: Appointment[]; selectedDateLabel: string; onSelect: (appointment: Appointment) => void }) {
+  const roomAppointments = appointments.filter((appointment) => appointment.resourceType === 'TREATMENT_ROOM');
+  return (
+    <div className="mt-5">
+      <div className="mb-4 flex items-center justify-between"><div><h3 className="font-semibold">Treatment rooms · {selectedDateLabel}</h3><p className="text-sm text-muted-foreground">Four independent rooms can be occupied at the same time.</p></div><span className="text-sm text-muted-foreground">{roomAppointments.length} room bookings</span></div>
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        {[1, 2, 3, 4].map((room) => {
+          const bookings = roomAppointments.filter((appointment) => appointment.roomNumber === room);
+          return <div key={room} className="overflow-hidden rounded-xl border border-border bg-muted/20"><div className="flex items-center justify-between border-b border-border bg-surface px-4 py-3"><span className="flex items-center gap-2 font-semibold"><DoorOpen className="size-4 text-primary" />Room {room}</span><span className="rounded-full bg-muted px-2 py-1 text-xs">{bookings.length}</span></div><div className="space-y-2 p-3">{bookings.map((appointment) => <button key={appointment.id} type="button" onClick={() => onSelect(appointment)} className="w-full rounded-lg border border-border bg-surface p-3 text-left transition hover:border-primary/40"><div className="text-sm font-semibold">{formatTime(appointment.appointmentAt)}</div><div className="mt-1 truncate text-sm">{appointment.lead?.name ?? 'Patient'}</div><div className="text-xs text-muted-foreground">{appointment.status.replaceAll('_', ' ')}</div></button>)}{!bookings.length ? <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground">Room available</div> : null}</div></div>;
+        })}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { AppointmentType, EnquirySource, LeadStatus, Role } from '@prisma/client';
+import type { AppointmentResource, AppointmentType, EnquirySource, LeadStatus, Role } from '@prisma/client';
 import { LeadStatus as LeadStatusEnum, Role as RoleEnum } from '@prisma/client';
 import { appointmentRepository } from '../repositories/appointment.repository.js';
 import { branchRepository } from '../repositories/branch.repository.js';
@@ -84,10 +84,12 @@ export const appointmentService = {
     createdById: string;
     appointmentAt: Date;
     appointmentType: AppointmentType;
+    resourceType: AppointmentResource;
+    roomNumber?: number | null;
     notes?: string;
   }) {
     await ensureBranchExists(input.branchId);
-    const slotConflict = await appointmentRepository.findSlotConflict(input.branchId, input.appointmentAt);
+    const slotConflict = await appointmentRepository.findSlotConflict(input.branchId, input.appointmentAt, input.resourceType, input.roomNumber);
 
     if (slotConflict) {
       throw new HttpError(409, 'This slot already has an appointment.');
@@ -107,6 +109,8 @@ export const appointmentService = {
         createdById: input.createdById,
         appointmentAt: input.appointmentAt,
         appointmentType: input.appointmentType,
+        resourceType: input.resourceType,
+        roomNumber: input.roomNumber,
         notes: input.notes,
       });
       await timelineRepository.create({
@@ -126,6 +130,8 @@ export const appointmentService = {
       branchId: input.branchId,
       appointmentAt: input.appointmentAt,
       appointmentType: input.appointmentType,
+      resourceType: input.resourceType,
+      roomNumber: input.roomNumber,
       notes: input.notes,
     });
     await timelineRepository.create({
@@ -145,6 +151,8 @@ export const appointmentService = {
       branchId: string;
       appointmentAt: Date;
       appointmentType: AppointmentType;
+      resourceType: AppointmentResource;
+      roomNumber: number | null;
       status: LeadStatus;
       notes: string;
     }>,
@@ -157,10 +165,12 @@ export const appointmentService = {
       await ensureLeadCanBeScheduled(appointment.leadId, input.branchId);
     }
 
-    if (input.appointmentAt || input.branchId) {
+    if (input.appointmentAt || input.branchId || input.resourceType || input.roomNumber !== undefined) {
       const slotConflict = await appointmentRepository.findSlotConflict(
         input.branchId ?? appointment.branchId,
         input.appointmentAt ?? appointment.appointmentAt,
+        input.resourceType ?? appointment.resourceType,
+        input.resourceType === 'CONSULTATION' ? null : (input.roomNumber ?? appointment.roomNumber),
         id,
       );
 

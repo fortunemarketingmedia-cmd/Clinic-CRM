@@ -1,9 +1,11 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { CalendarDays, IndianRupee, PhoneCall, Plus, Search, TrendingUp, UserRoundCheck, Users } from 'lucide-react';
+import { Activity, ArrowUpRight, CalendarDays, IndianRupee, PhoneCall, Plus, Search, TrendingUp, UserRoundCheck, Users } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { ColumnChart, DonutChart, HorizontalBarChart, SegmentedTabs } from '@/components/ui/data-visuals';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 
@@ -32,6 +34,8 @@ type DashboardOverview = {
     id: string;
     appointmentAt: string;
     status: string;
+    resourceType?: 'CONSULTATION' | 'TREATMENT_ROOM';
+    roomNumber?: number | null;
     branch: { name: string };
     lead: { name: string; mobile: string; source: string };
   }>;
@@ -68,6 +72,7 @@ function formatDateTime(value: string) {
 export function DashboardView() {
   const { session } = useSessionStore();
   const isAdmin = session?.user.role === 'ADMIN';
+  const [dashboardTab, setDashboardTab] = useState<'PERFORMANCE' | 'OPERATIONS'>('PERFORMANCE');
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard-overview'],
@@ -113,6 +118,34 @@ export function DashboardView() {
         ))}
       </div>
 
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
+        <SegmentedTabs tabs={[{ label: 'Performance', value: 'PERFORMANCE' }, { label: 'Today’s operations', value: 'OPERATIONS', count: (dailyWork?.todaysFollowups.length ?? 0) + (dailyWork?.notArrivedPatients.length ?? 0) }]} value={dashboardTab} onChange={setDashboardTab} />
+        <Link href="/analytics" className="flex items-center gap-1 px-2 text-sm font-medium text-primary">Open detailed analytics <ArrowUpRight className="size-4" /></Link>
+      </div>
+
+      {dashboardTab === 'PERFORMANCE' ? (
+        <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+          <Card>
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div><h2 className="font-semibold">Branch performance</h2><p className="text-sm text-muted-foreground">Appointments compared with total enquiries</p></div>
+              <Activity className="size-5 text-primary" />
+            </div>
+            <ColumnChart data={(dashboardQuery.data?.data.byBranch ?? []).map((branch) => ({ label: branch.name, value: branch._count.appointments, secondaryValue: branch._count.leads }))} />
+            <div className="mt-4 flex gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-2"><i className="size-2.5 rounded-full bg-primary" />Appointments</span><span className="flex items-center gap-2"><i className="size-2.5 rounded-full bg-primary/25" />Enquiries</span></div>
+          </Card>
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
+            <Card>
+              <div className="mb-4"><h2 className="font-semibold">Appointment outcome</h2><p className="text-sm text-muted-foreground">Current service flow at a glance</p></div>
+              <DonutChart centerLabel="appointments" centerValue={totals?.appointments ?? 0} data={[{ label: 'Confirmed', value: totals?.confirmed ?? 0, color: '#6366f1' }, { label: 'Arrived', value: totals?.arrived ?? 0, color: '#14b8a6' }, { label: 'Not arrived', value: totals?.notArrived ?? 0, color: '#e73748' }]} />
+            </Card>
+            <Card>
+              <div className="mb-4"><h2 className="font-semibold">Lead funnel</h2><p className="text-sm text-muted-foreground">From enquiry to patient conversion</p></div>
+              <HorizontalBarChart data={[{ label: 'Lead intake', value: totals?.totalLeadIntake ?? totals?.leads ?? 0, color: '#6366f1' }, { label: 'Appointments', value: totals?.appointments ?? 0, color: '#f59e0b' }, { label: 'Arrived', value: totals?.arrived ?? 0, color: '#14b8a6' }, { label: 'Converted', value: totals?.convertedLeads ?? 0, color: '#e73748' }]} />
+            </Card>
+          </div>
+        </div>
+      ) : (
+
       <div className="grid gap-5 lg:grid-cols-3">
         {isAdmin ? (
           <>
@@ -128,6 +161,7 @@ export function DashboardView() {
           </>
         )}
       </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
         <Card>
@@ -158,7 +192,7 @@ export function DashboardView() {
                       </div>
                     </td>
                     <td className="px-4 py-3">{appointment.branch.name}</td>
-                    <td className="px-4 py-3">{appointment.status.replace('_', ' ')}</td>
+                    <td className="px-4 py-3"><div>{appointment.status.replace('_', ' ')}</div><div className="text-xs text-muted-foreground">{appointment.resourceType === 'TREATMENT_ROOM' ? `Room ${appointment.roomNumber}` : 'Consultation'}</div></td>
                   </tr>
                 ))}
                 {!dashboardQuery.isLoading && dashboardQuery.data?.data.upcomingAppointments.length === 0 ? (
