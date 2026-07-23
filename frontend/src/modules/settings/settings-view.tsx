@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ClipboardList, Database, Download, QrCode, Receipt, Save, Settings2, UserCog } from 'lucide-react';
+import { ChevronLeft, ClipboardList, Database, Download, QrCode, Save, Settings2, UserCog } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
@@ -31,12 +31,6 @@ const settingsSchema = z.object({
   openingHours: z.string().optional(),
   timezone: z.string().optional(),
   gstNumber: z.string().optional(),
-  invoicePrefix: z.string().min(1),
-  gstPercent: z.coerce.number().min(0).max(100),
-  invoiceTerms: z.string().optional(),
-  invoiceSignature: z.string().optional(),
-  invoiceFooter: z.string().optional(),
-  paymentInstructions: z.string().optional(),
   qrRegistrationEnabled: z.boolean(),
 });
 
@@ -47,7 +41,7 @@ type SettingsResponse = SettingsValues & {
 };
 
 type FieldMode = 'REQUIRED' | 'OPTIONAL' | 'HIDDEN';
-type SettingsSection = 'OVERVIEW' | 'CLINIC' | 'INTAKE' | 'BILLING' | 'TEAM' | 'DATA';
+type SettingsSection = 'OVERVIEW' | 'CLINIC' | 'INTAKE' | 'TEAM' | 'DATA';
 
 const patientFields = [
   'Name',
@@ -101,12 +95,6 @@ export function SettingsView() {
       openingHours: '',
       timezone: 'Asia/Kolkata',
       gstNumber: '',
-      invoicePrefix: 'REV-',
-      gstPercent: 0,
-      invoiceTerms: '',
-      invoiceSignature: '',
-      invoiceFooter: '',
-      paymentInstructions: '',
       qrRegistrationEnabled: true,
     },
   });
@@ -133,12 +121,6 @@ export function SettingsView() {
       openingHours: settings.openingHours ?? '',
       timezone: settings.timezone ?? 'Asia/Kolkata',
       gstNumber: settings.gstNumber ?? '',
-      invoicePrefix: settings.invoicePrefix ?? 'REV-',
-      gstPercent: Number(settings.gstPercent ?? 0),
-      invoiceTerms: settings.invoiceTerms ?? '',
-      invoiceSignature: settings.invoiceSignature ?? '',
-      invoiceFooter: settings.invoiceFooter ?? '',
-      paymentInstructions: settings.paymentInstructions ?? '',
       qrRegistrationEnabled: settings.qrRegistrationEnabled ?? true,
     });
     setFieldModes({ ...defaultFieldModes, ...(settings.patientFormConfig ?? {}) });
@@ -155,6 +137,7 @@ export function SettingsView() {
 
   async function exportPatients() {
     const response = await apiRequest<{ data: Patient[] }>('/patients');
+    await apiRequest('/security/exports', { method: 'POST', body: JSON.stringify({ resourceType: 'PATIENTS', format: 'CSV', rowCount: response.data.length, status: 'COMPLETED', purpose: 'Administrator requested clinic data export' }) });
     downloadCsv(
       'revive-patients.csv',
       response.data.map((patient) => ({
@@ -169,6 +152,7 @@ export function SettingsView() {
 
   async function exportLeads() {
     const response = await apiRequest<{ data: Lead[] }>('/leads');
+    await apiRequest('/security/exports', { method: 'POST', body: JSON.stringify({ resourceType: 'LEADS', format: 'CSV', rowCount: response.data.length, status: 'COMPLETED', purpose: 'Administrator requested clinic data export' }) });
     downloadCsv(
       'revive-leads.csv',
       response.data.map((lead) => ({
@@ -182,23 +166,17 @@ export function SettingsView() {
     );
   }
 
-  async function exportRevenue() {
-    const response = await apiRequest<{ data: { totals: Record<string, string | number> } }>('/analytics');
-    downloadCsv('revive-revenue.csv', [response.data.totals]);
-  }
-
   return (
     <section className="space-y-5">
       <div>
-        <div className="flex items-center gap-3">{activeSection !== 'OVERVIEW' ? <Button type="button" variant="secondary" className="w-10 px-0" onClick={() => setActiveSection('OVERVIEW')} aria-label="Back to settings"><ChevronLeft className="size-4" /></Button> : null}<div><h1 className="text-2xl font-semibold">{activeSection === 'OVERVIEW' ? 'Settings' : ({ CLINIC: 'Clinic profile', INTAKE: 'Patient intake', BILLING: 'Billing & invoices', TEAM: 'Team & access', DATA: 'Data & exports', OVERVIEW: 'Settings' } as const)[activeSection]}</h1><p className="text-sm text-muted-foreground">Configure the CRM in focused sections without an overwhelming long form.</p></div></div>
+        <div className="flex items-center gap-3">{activeSection !== 'OVERVIEW' ? <Button type="button" variant="secondary" className="w-10 px-0" onClick={() => setActiveSection('OVERVIEW')} aria-label="Back to settings"><ChevronLeft className="size-4" /></Button> : null}<div><h1 className="text-2xl font-semibold">{activeSection === 'OVERVIEW' ? 'Settings' : ({ CLINIC: 'Clinic profile', INTAKE: 'Patient intake', TEAM: 'Team & access', DATA: 'Data & exports', OVERVIEW: 'Settings' } as const)[activeSection]}</h1><p className="text-sm text-muted-foreground">Configure the CRM in focused sections without an overwhelming long form.</p></div></div>
       </div>
 
       {activeSection === 'OVERVIEW' ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <SettingsTile icon={Settings2} title="Clinic profile" description="Identity, contact details and business information" onClick={() => setActiveSection('CLINIC')} />
         <SettingsTile icon={ClipboardList} title="Patient intake" description="QR registration and patient form visibility" onClick={() => setActiveSection('INTAKE')} />
-        <SettingsTile icon={Receipt} title="Billing & invoices" description="GST, invoice numbering, terms and payment text" onClick={() => setActiveSection('BILLING')} />
         <SettingsTile icon={UserCog} title="Team & access" description="Users, roles and branch access" onClick={() => setActiveSection('TEAM')} />
-        <SettingsTile icon={Database} title="Data & exports" description="Export patient, lead and revenue records" onClick={() => setActiveSection('DATA')} />
+        <SettingsTile icon={Database} title="Data & exports" description="Export patient and lead records with governance logs" onClick={() => setActiveSection('DATA')} />
       </div> : null}
 
       {activeSection !== 'OVERVIEW' && activeSection !== 'TEAM' && activeSection !== 'DATA' ? <form className="space-y-5" onSubmit={form.handleSubmit((values) => saveSettings.mutate(values))}>
@@ -274,20 +252,6 @@ export function SettingsView() {
         </Card>
         </> : null}
 
-        {activeSection === 'BILLING' ? (
-        <Card>
-          <h2 className="text-base font-semibold">Invoice Settings</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Field label="Invoice Prefix"><Input {...form.register('invoicePrefix')} /></Field>
-            <Field label="GST %"><Input type="number" step="0.01" {...form.register('gstPercent')} /></Field>
-            <Field label="Terms & Conditions"><textarea className="min-h-24 w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary" {...form.register('invoiceTerms')} /></Field>
-            <Field label="Signature"><Input {...form.register('invoiceSignature')} /></Field>
-            <Field label="Footer"><Input {...form.register('invoiceFooter')} /></Field>
-            <Field label="Payment Instructions"><textarea className="min-h-24 w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary" {...form.register('paymentInstructions')} /></Field>
-          </div>
-        </Card>
-        ) : null}
-
         <Button type="submit" disabled={saveSettings.isPending}>
           <Save className="size-4" />
           Save Settings
@@ -301,7 +265,6 @@ export function SettingsView() {
         <h2 className="text-base font-semibold">Export CSV</h2>
         <div className="mt-4 flex flex-wrap gap-3">
           <Button type="button" variant="secondary" onClick={exportPatients}><Download className="size-4" />Export Patients</Button>
-          <Button type="button" variant="secondary" onClick={exportRevenue}><Download className="size-4" />Export Revenue</Button>
           <Button type="button" variant="secondary" onClick={exportLeads}><Download className="size-4" />Export Leads</Button>
         </div>
       </Card>

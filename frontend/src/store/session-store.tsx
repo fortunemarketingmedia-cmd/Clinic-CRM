@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { AUTH_UNAUTHORIZED_EVENT, setAccessToken } from '@/services/api';
+import { AUTH_UNAUTHORIZED_EVENT, restoreSession, setAccessToken } from '@/services/api';
 import type { AuthSession } from '@/types/auth';
 
 const SESSION_KEY = 'revive_session';
@@ -23,27 +23,42 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
-    try {
-      const storedSession = window.localStorage.getItem(SESSION_KEY);
-      const storedBranchId = window.localStorage.getItem(SELECTED_BRANCH_KEY);
+    async function hydrate() {
+      try {
+        const storedSession = window.localStorage.getItem(SESSION_KEY);
+        const storedBranchId = window.localStorage.getItem(SELECTED_BRANCH_KEY);
 
-      if (storedSession) {
-        const parsedSession = JSON.parse(storedSession) as AuthSession;
+        if (storedBranchId !== null) {
+          setSelectedBranchIdState(storedBranchId);
+        }
 
-        setSessionState(parsedSession);
-        setAccessToken(parsedSession.accessToken);
+        if (storedSession) {
+          try {
+            const parsedSession = JSON.parse(storedSession) as { user?: AuthSession['user'] };
+            if (parsedSession.user) {
+              try {
+                const refreshed = await restoreSession<AuthSession>();
+                if (refreshed) setSessionState(refreshed);
+                else window.localStorage.removeItem(SESSION_KEY);
+              } catch {
+                // Preserve the session marker and branch preference during transient outages.
+                setAccessToken(null);
+              }
+            } else {
+              window.localStorage.removeItem(SESSION_KEY);
+            }
+          } catch {
+            window.localStorage.removeItem(SESSION_KEY);
+            setAccessToken(null);
+          }
+        }
+      } catch {
+        setAccessToken(null);
+      } finally {
+        setHasHydrated(true);
       }
-
-      if (storedBranchId !== null) {
-        setSelectedBranchIdState(storedBranchId);
-      }
-    } catch {
-      window.localStorage.removeItem(SESSION_KEY);
-      window.localStorage.removeItem(SELECTED_BRANCH_KEY);
-      setAccessToken(null);
-    } finally {
-      setHasHydrated(true);
     }
+    void hydrate();
   }, []);
 
   const updateSelectedBranchId = useCallback((branchId: string | null) => {
@@ -57,28 +72,32 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.setItem(SELECTED_BRANCH_KEY, branchId);
   }, []);
 
-  const updateSession = useCallback(
-    (nextSession: AuthSession | null) => {
-      setSessionState(nextSession);
-      setAccessToken(nextSession?.accessToken ?? null);
+  const updateSession = useCallback((nextSession: AuthSession | null) => {
+    setSessionState(nextSession);
+    setAccessToken(nextSession?.accessToken ?? null);
 
-      if (nextSession) {
-        window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
-        return;
-      }
+    if (nextSession) {
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify({ user: nextSession.user }));
+      return;
+    }
 
-      window.localStorage.removeItem(SESSION_KEY);
-      window.localStorage.removeItem(SELECTED_BRANCH_KEY);
-      setSelectedBranchIdState(null);
-    },
-    [],
-  );
+    window.localStorage.removeItem(SESSION_KEY);
+    window.localStorage.removeItem(SELECTED_BRANCH_KEY);
+    setSelectedBranchIdState(null);
+  }, []);
 
   useEffect(() => {
     const clearExpiredSession = () => updateSession(null);
+    const syncLogout = (event: StorageEvent) => {
+      if (event.key === SESSION_KEY && event.newValue === null) updateSession(null);
+    };
 
     window.addEventListener(AUTH_UNAUTHORIZED_EVENT, clearExpiredSession);
-    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, clearExpiredSession);
+    window.addEventListener('storage', syncLogout);
+    return () => {
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, clearExpiredSession);
+      window.removeEventListener('storage', syncLogout);
+    };
   }, [updateSession]);
 
   const value = useMemo(

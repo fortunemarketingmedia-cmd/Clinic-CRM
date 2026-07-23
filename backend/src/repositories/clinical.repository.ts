@@ -31,8 +31,8 @@ export const clinicalRepository = {
           where: { id: data.packageId, patientId },
         });
         if (!treatmentPackage) throw new Error('Treatment package not found for this patient');
-        if (treatmentPackage.completedSessions >= treatmentPackage.totalSessions) {
-          throw new Error('All sessions in this package are already completed');
+        if (treatmentPackage.status !== 'ACTIVE' || treatmentPackage.completedSessions + treatmentPackage.reservedSessions >= treatmentPackage.totalSessions) {
+          throw new Error('An active package with remaining sessions is required');
         }
       }
 
@@ -41,10 +41,11 @@ export const clinicalRepository = {
       });
 
       if (data.packageId) {
-        await tx.treatmentPackage.update({
+        const updated = await tx.treatmentPackage.update({
           where: { id: data.packageId },
           data: { completedSessions: { increment: 1 } },
         });
+        await tx.packageSessionLedger.create({ data: { patientPackageId: updated.id, action: 'SESSION_CONSUMPTION', sessionDelta: -1, consumedDelta: 1, balanceRemaining: Math.max(0, updated.totalSessions - updated.completedSessions - updated.reservedSessions), effectiveAt: data.visitDate, notes: `Legacy session ${session.id} consumption`, metadata: { legacySessionId: session.id } } });
       }
 
       return tx.session.findUniqueOrThrow({
@@ -69,8 +70,10 @@ export const clinicalRepository = {
     amount: number;
     paidAmount: number;
   }) {
-    return prisma.treatmentPackage.create({
-      data: { patientId, ...data },
+    return prisma.$transaction(async (tx) => {
+      const created = await tx.treatmentPackage.create({ data: { patientId, ...data, outstandingAmount: Math.max(0, data.amount - data.paidAmount), status: data.paidAmount > 0 ? 'ACTIVE' : 'PENDING' } });
+      await tx.packageSessionLedger.create({ data: { patientPackageId: created.id, action: 'PURCHASE', sessionDelta: created.totalSessions, balanceRemaining: Math.max(0, created.totalSessions - created.completedSessions), amount: created.amount, notes: 'Legacy package creation' } });
+      return created;
     });
   },
 

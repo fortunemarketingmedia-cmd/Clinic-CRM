@@ -1,6 +1,7 @@
 import type { CookieOptions, Request, Response } from 'express';
 import { env } from '../config/env.js';
 import { authService } from '../services/auth.service.js';
+import { auditService } from '../services/audit.service.js';
 import { HttpError } from '../utils/http-error.js';
 import { loginSchema, logoutSchema, refreshTokenSchema } from '../validations/auth.validation.js';
 
@@ -35,7 +36,15 @@ function clearRefreshCookie(res: Response) {
 export const authController = {
   async login(req: Request, res: Response) {
     const input = loginSchema.parse(req.body);
-    const result = await authService.login(input.email, input.password, getRequestMeta(req));
+    let result;
+    try {
+      result = await authService.login(input.email, input.password, getRequestMeta(req), { code: input.mfaCode, recoveryCode: input.recoveryCode });
+    } catch (error) {
+      await auditService.record({ ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId }, { action: 'LOGIN_FAILED', entity: 'User' });
+      throw error;
+    }
+    if ('mfaRequired' in result) return res.status(202).json({ mfaRequired: true });
+    await auditService.record({ userId: result.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId }, { action: 'LOGIN', entity: 'User', entityId: result.user.id });
     setRefreshCookie(res, result.refreshToken);
     return res.json({
       user: result.user,
@@ -72,6 +81,7 @@ export const authController = {
     }
 
     await authService.logoutAll(req.user.id);
+    await auditService.record({ userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId }, { action: 'LOGOUT_ALL', entity: 'User', entityId: req.user.id });
     clearRefreshCookie(res);
     return res.status(204).send();
   },

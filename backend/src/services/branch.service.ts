@@ -1,9 +1,11 @@
 import { branchRepository } from '../repositories/branch.repository.js';
 import { HttpError } from '../utils/http-error.js';
+import type { Role } from '@prisma/client';
 
 export const branchService = {
-  listBranches() {
-    return branchRepository.list();
+  listBranches(user?: { id: string; role: Role }) {
+    if (!user || ['ADMIN', 'ORGANISATION_OWNER', 'CLINIC_ADMIN', 'AUDITOR'].includes(user.role)) return branchRepository.list();
+    return branchRepository.listForUser(user.id);
   },
 
   async updateBranch(id: string, input: { address?: string; phone?: string }) {

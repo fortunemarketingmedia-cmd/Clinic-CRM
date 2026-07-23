@@ -5,6 +5,7 @@ import { branchRepository } from '../repositories/branch.repository.js';
 import { leadRepository } from '../repositories/lead.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { HttpError } from '../utils/http-error.js';
+import { personService } from './person.service.js';
 
 async function ensureBranchExists(branchId?: string) {
   if (!branchId) return;
@@ -52,21 +53,23 @@ export const adLeadService = {
     }
 
     const admin = await userRepository.firstActiveAdmin();
-    const existingLead = await leadRepository.findOpenByMobile(input.mobile);
-    const crmLead =
-      existingLead ??
-      (admin && branchId
+    const person = branchId ? await personService.findOrCreate({ fullName: input.name, primaryMobile: input.mobile, email: input.email, preferredBranchId: branchId }) : null;
+    const crmLead = admin && branchId && person
         ? await leadRepository.create({
             name: input.name,
             mobile: input.mobile,
-            address: input.email ? `Email: ${input.email}` : undefined,
+            email: input.email,
             source: input.platform === 'GOOGLE' ? 'GOOGLE_ADS' : 'META_ADS',
             branchId,
             createdById: admin.id,
             appointmentType: 'CLINIC_VISIT',
             qrToken: leadRepository.createQrToken(),
+            personId: person.id,
+            ownerId: admin.id,
+            nextAction: 'Initial contact',
+            nextActionDueAt: new Date(),
           })
-        : null);
+        : null;
 
     return adLeadRepository.create({
       ...input,
@@ -84,6 +87,7 @@ export const adLeadService = {
     const admin = await userRepository.firstActiveAdmin();
     if (!admin) throw new HttpError(409, 'No active admin found for ad lead conversion');
 
+    const person = await personService.findOrCreate({ fullName: adLead.name, primaryMobile: adLead.mobile, email: adLead.email ?? undefined, preferredBranchId: input.branchId });
     const lead = await leadRepository.create({
       name: adLead.name,
       mobile: adLead.mobile,
@@ -94,6 +98,10 @@ export const adLeadService = {
       appointmentType: 'CLINIC_VISIT',
       appointmentAt: input.appointmentAt,
       qrToken: leadRepository.createQrToken(),
+      personId: person.id,
+      ownerId: admin.id,
+      nextAction: input.appointmentAt ? 'Confirm appointment' : 'Initial contact',
+      nextActionDueAt: input.appointmentAt ?? new Date(),
     });
 
     return adLeadRepository.linkLead(id, lead.id);

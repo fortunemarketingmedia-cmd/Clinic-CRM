@@ -15,12 +15,21 @@ export const createLeadSchema = z.object({
   branchId: z.string().min(1),
   appointmentType: z.nativeEnum(AppointmentType).default(AppointmentType.CLINIC_VISIT),
   appointmentAt: z.coerce.date().optional(),
+  ownerId: z.string().optional(),
+  nextAction: z.string().min(1).optional(),
+  nextActionDueAt: z.coerce.date().optional(),
 });
 
 export const updateLeadSchema = createLeadSchema
   .partial()
   .extend({
     status: z.nativeEnum(LeadStatus).optional(),
+    qualificationStatus: z.string().optional(),
+    qualificationNotes: z.string().optional(),
+    leadScore: z.coerce.number().int().min(0).max(100).optional(),
+    lostReason: z.string().optional(),
+    lostNotes: z.string().optional(),
+    disqualificationReason: z.string().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 
@@ -34,4 +43,5 @@ export const leadQuerySchema = z.object({
 export const duplicateLeadQuerySchema = z.object({
   mobile: z.string().optional(),
   email: z.string().email().optional(),
+  branchId: z.string().optional(),
 }).refine((value) => Boolean(value.mobile || value.email), 'Mobile or email is required');

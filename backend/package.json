@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "tsx watch --ignore ../node_modules --ignore node_modules src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "lint": "eslint src --ext .ts",
+    "test": "tsx --test src/**/*.test.ts",
+    "load:smoke": "node scripts/load-smoke.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, CalendarPlus, Edit3, Link2, Megaphone, PhoneCall, Plus, Search, Target, TrendingUp, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import Link from 'next/link';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -18,8 +19,17 @@ import type { Lead, LeadStatus, TimelineEvent } from '@/types/lead';
 
 const leadStatuses: Array<{ label: string; value: LeadStatus }> = [
   { label: 'New', value: 'NEW' },
-  { label: 'Confirmed', value: 'CONFIRMED' },
-  { label: 'Cancelled', value: 'CANCELLED' },
+  { label: 'Unassigned', value: 'UNASSIGNED' },
+  { label: 'Assigned', value: 'ASSIGNED' },
+  { label: 'Attempting contact', value: 'ATTEMPTING_CONTACT' },
+  { label: 'Connected', value: 'CONNECTED' },
+  { label: 'Qualified', value: 'QUALIFIED' },
+  { label: 'Appointment proposed', value: 'APPOINTMENT_PROPOSED' },
+  { label: 'Appointment booked', value: 'APPOINTMENT_BOOKED' },
+  { label: 'Nurturing', value: 'NURTURING' },
+  { label: 'Converted', value: 'CONVERTED' },
+  { label: 'Lost', value: 'LOST' },
+  { label: 'Disqualified', value: 'DISQUALIFIED' },
 ];
 
 const leadSchema = z.object({
@@ -205,13 +215,14 @@ export function LeadsView() {
   });
 
   const duplicateQuery = useQuery({
-    queryKey: ['lead-duplicates', form.watch('mobile'), form.watch('email')],
+    queryKey: ['lead-duplicates', form.watch('mobile'), form.watch('email'), form.watch('branchId')],
     queryFn: () => {
       const params = new URLSearchParams();
       const mobile = form.getValues('mobile').trim();
       const email = form.getValues('email')?.trim();
       if (mobile) params.set('mobile', mobile);
       if (email) params.set('email', email);
+      if (form.getValues('branchId')) params.set('branchId', form.getValues('branchId'));
       return apiRequest<{ data: { leads: Lead[]; patients: Array<{ id: string; patientNo: string; fullName: string; mobile: string }> } }>(
         `/leads/duplicates/search?${params.toString()}`,
       );
@@ -415,7 +426,7 @@ export function LeadsView() {
       sourceRows,
       statusRows,
       campaignRows: Array.from(campaignCounts.values()).sort((a, b) => b.value - a.value).slice(0, 5),
-      bookedOrConfirmed: leads.filter((lead) => ['BOOKED', 'CONFIRMED', 'ARRIVED', 'CONVERTED'].includes(lead.status)).length,
+      bookedOrConfirmed: leads.filter((lead) => ['APPOINTMENT_BOOKED', 'CONVERTED'].includes(lead.status)).length,
       adAttributed: leads.filter((lead) => lead.source === 'GOOGLE_ADS' || lead.source === 'META_ADS' || (lead.adLeads?.length ?? 0) > 0).length,
     };
   }, [adLeads, leads]);
@@ -428,9 +439,9 @@ export function LeadsView() {
     { label: 'Campaign Analytics', value: 'CAMPAIGN_ANALYTICS' },
   ];
   const journeyStages = [
-    { label: 'New enquiry', count: (leadsQuery.data?.data ?? []).filter((lead) => lead.status === 'NEW').length, color: '#6366f1' },
-    { label: 'Follow-up due', count: (leadsQuery.data?.data ?? []).filter((lead) => Boolean(lead.nextFollowupAt) && lead.status !== 'CONVERTED').length, color: '#f59e0b' },
-    { label: 'Appointment', count: (leadsQuery.data?.data ?? []).filter((lead) => ['BOOKED', 'CONFIRMED'].includes(lead.status)).length, color: '#0ea5e9' },
+    { label: 'New enquiry', count: (leadsQuery.data?.data ?? []).filter((lead) => ['NEW', 'UNASSIGNED', 'ASSIGNED'].includes(lead.status)).length, color: '#6366f1' },
+    { label: 'Follow-up due', count: (leadsQuery.data?.data ?? []).filter((lead) => Boolean(lead.nextActionDueAt ?? lead.nextFollowupAt) && !['CONVERTED', 'LOST', 'DISQUALIFIED'].includes(lead.status)).length, color: '#f59e0b' },
+    { label: 'Appointment', count: (leadsQuery.data?.data ?? []).filter((lead) => ['APPOINTMENT_PROPOSED', 'APPOINTMENT_BOOKED'].includes(lead.status)).length, color: '#0ea5e9' },
     { label: 'Converted', count: (leadsQuery.data?.data ?? []).filter((lead) => lead.status === 'CONVERTED').length, color: '#e73748' },
   ];
 
@@ -772,16 +783,15 @@ export function LeadsView() {
                 {leads.map((lead) => (
                   <tr key={lead.id} className="cursor-pointer border-t border-border hover:bg-muted/50" onClick={() => setSelectedLead(lead)}>
                     <td className="px-4 py-3 font-medium">
-                      <button
+                      <Link
                         className="text-left hover:text-primary"
-                        type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          startEdit(lead);
                         }}
+                        href={`/leads/${lead.id}`}
                       >
                         {lead.name}
-                      </button>
+                      </Link>
                       <div className="text-xs text-muted-foreground">
                         {lead.priority ?? 'MEDIUM'} · {lead.interestedTreatment ?? 'No treatment set'}
                       </div>

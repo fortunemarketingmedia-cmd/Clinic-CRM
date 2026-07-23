@@ -4,9 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
-  CircleDollarSign,
   ClipboardPlus,
   FileText,
   Monitor,
@@ -20,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -29,9 +28,8 @@ import { Select } from '@/components/ui/select';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment } from '@/types/appointment';
-import type { Invoice } from '@/types/billing';
 import type { Branch } from '@/types/branch';
-import type { Patient, PatientSession, PrescriptionMedicine, TreatmentPackage } from '@/types/patient';
+import type { Patient, PatientSession, PrescriptionMedicine } from '@/types/patient';
 
 const medicalSchema = z.object({
   referredBy: z.string().optional(),
@@ -58,17 +56,6 @@ const treatmentSchema = z.object({
   treatmentTaken: z.string().min(2, 'Treatment or consultation details are required'),
   notes: z.string().optional(),
   followupDate: z.string().optional(),
-  packageChoice: z.string().optional(),
-  newPackageName: z.string().optional(),
-  newPackageSessions: z.coerce.number().min(1).optional(),
-  newPackageAmount: z.coerce.number().min(0).optional(),
-  generateBill: z.boolean().default(false),
-  serviceAmount: z.coerce.number().min(0).default(0),
-  discount: z.coerce.number().min(0).default(0),
-  gstAmount: z.coerce.number().min(0).default(0),
-  paidAmount: z.coerce.number().min(0).default(0),
-  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'BANK_TRANSFER']).default('CASH'),
-  paymentReference: z.string().optional(),
 });
 
 const patientCreateSchema = z.object({
@@ -180,16 +167,6 @@ export function PatientsView() {
     queryFn: () => apiRequest<{ data: PatientSession[] }>(`/patients/${selectedPatient?.id}/sessions`),
     enabled: Boolean(selectedPatient?.id),
   });
-  const packagesQuery = useQuery({
-    queryKey: ['patient-packages', selectedPatient?.id],
-    queryFn: () => apiRequest<{ data: TreatmentPackage[] }>(`/patients/${selectedPatient?.id}/packages`),
-    enabled: Boolean(selectedPatient?.id),
-  });
-  const invoicesQuery = useQuery({
-    queryKey: ['patient-invoices', selectedPatient?.id],
-    queryFn: () => apiRequest<{ data: Invoice[] }>(`/billing/invoices?patientId=${selectedPatient?.id}`),
-    enabled: Boolean(selectedPatient?.id),
-  });
   const visitsQuery = useQuery({
     queryKey: ['patient-visits', selectedPatient?.mobile],
     queryFn: () => apiRequest<{ data: Appointment[] }>(`/appointments?search=${encodeURIComponent(selectedPatient?.mobile ?? '')}`),
@@ -209,17 +186,8 @@ export function PatientsView() {
       treatmentType: 'CONSULTATION',
       visitDate: '',
       doctorConsulted: '',
-      packageChoice: '',
-      generateBill: false,
-      serviceAmount: 0,
-      discount: 0,
-      gstAmount: 0,
-      paidAmount: 0,
-      paymentMode: 'CASH',
     },
   });
-  const packageChoice = treatmentForm.watch('packageChoice');
-  const generateBill = treatmentForm.watch('generateBill');
 
   useEffect(() => {
     if (formBranchId) createPatientForm.setValue('branchId', formBranchId);
@@ -284,26 +252,6 @@ export function PatientsView() {
   const createTreatment = useMutation({
     mutationFn: async (values: z.infer<typeof treatmentSchema>) => {
       if (!selectedPatient) throw new Error('Select a patient first');
-      let packageId = values.packageChoice || undefined;
-      let packageAmount = 0;
-      if (values.packageChoice === '__new') {
-        if (!values.newPackageName || !values.newPackageSessions) throw new Error('Package name and number of sessions are required');
-        const createdPackage = await apiRequest<{ data: TreatmentPackage }>(`/patients/${selectedPatient.id}/packages`, {
-          method: 'POST',
-          body: JSON.stringify({
-            branchId: selectedPatient.branchId,
-            name: values.newPackageName,
-            totalSessions: values.newPackageSessions,
-            amount: values.newPackageAmount ?? 0,
-            paidAmount: values.generateBill ? values.paidAmount : 0,
-          }),
-        });
-        packageId = createdPackage.data.id;
-        packageAmount = Number(createdPackage.data.amount);
-      } else if (packageId) {
-        packageAmount = Number(packagesQuery.data?.data.find((item) => item.id === packageId)?.amount ?? 0);
-      }
-
       const validPrescription = prescriptionEnabled
         ? prescription.filter((item) => item.medicine && item.dosage && item.frequency && item.duration)
         : [];
@@ -324,7 +272,6 @@ export function PatientsView() {
           prescription: validPrescription.length ? validPrescription : undefined,
           notes: values.notes || undefined,
           followupDate: values.followupDate || undefined,
-          packageId,
         }),
       });
 
@@ -344,45 +291,16 @@ export function PatientsView() {
         });
       }
 
-      if (values.generateBill) {
-        const invoice = await apiRequest<{ data: Invoice }>('/billing/invoices', {
-          method: 'POST',
-          body: JSON.stringify({
-            patientId: selectedPatient.id,
-            branchId: selectedPatient.branchId,
-            serviceName: values.newPackageName || values.treatmentTaken,
-            consultationFee: packageId ? 0 : values.serviceAmount,
-            packageFee: packageId ? (values.serviceAmount || packageAmount) : 0,
-            discount: values.discount,
-            gstAmount: values.gstAmount,
-            notes: `Created with treatment on ${new Date(values.visitDate).toLocaleString('en-IN')}`,
-          }),
-        });
-        if (values.paidAmount > 0) {
-          await apiRequest(`/billing/invoices/${invoice.data.id}/payments`, {
-            method: 'POST',
-            body: JSON.stringify({
-              patientId: selectedPatient.id,
-              amount: values.paidAmount,
-              mode: values.paymentMode,
-              reference: values.paymentReference || undefined,
-            }),
-          });
-        }
-      }
       return treatment.data;
     },
     onSuccess: () => {
-      treatmentForm.reset({ appointmentId: '', treatmentType: 'CONSULTATION', visitDate: '', doctorConsulted: '', packageChoice: '', generateBill: false, serviceAmount: 0, discount: 0, gstAmount: 0, paidAmount: 0, paymentMode: 'CASH' });
+      treatmentForm.reset({ appointmentId: '', treatmentType: 'CONSULTATION', visitDate: '', doctorConsulted: '' });
       setPrescriptionEnabled(false);
       setPrescription([blankMedicine()]);
       setTreatmentFile(null);
       setShowCreateTreatment(false);
       queryClient.invalidateQueries({ queryKey: ['patient-sessions'] });
       queryClient.invalidateQueries({ queryKey: ['patient-files'] });
-      queryClient.invalidateQueries({ queryKey: ['patient-packages'] });
-      queryClient.invalidateQueries({ queryKey: ['patient-invoices'] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
     },
   });
 
@@ -403,7 +321,7 @@ export function PatientsView() {
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><h1 className="text-2xl font-semibold">Patients</h1><p className="text-sm text-muted-foreground">Patient profiles, clinical details, treatments, prescriptions, packages, and billing.</p></div>
+        <div><h1 className="text-2xl font-semibold">Patients</h1><p className="text-sm text-muted-foreground">Patient profiles, clinical details, treatments, prescriptions, and files.</p></div>
         <Button type="button" onClick={() => setShowCreatePatient(true)}><Plus className="size-4" />Create Patient</Button>
       </div>
 
@@ -429,12 +347,12 @@ export function PatientsView() {
             <div className="space-y-6">
               <div className="sticky -top-6 z-10 flex flex-col gap-3 border-b border-border bg-surface py-3 sm:flex-row sm:items-start sm:justify-between">
                 <div><div className="mb-1 flex items-center gap-2"><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{selectedPatient.patientNo}</span><span className="text-xs text-muted-foreground">Created {formatDateTime(selectedPatient.createdAt)}</span></div><h2 className="text-2xl font-semibold">{selectedPatient.fullName}</h2><p className="text-sm text-muted-foreground">{selectedPatient.mobile} · {selectedPatient.branch?.name} · Source: {formatEnum(selectedPatient.lead?.source)}</p></div>
-                <div className="flex gap-2"><Button type="button" variant="secondary" onClick={() => setIsEditingPatient((value) => !value)}><Pencil className="size-4" />{isEditingPatient ? 'Close Edit' : 'Edit Patient'}</Button><Button type="button" variant="secondary" className="w-10 px-0" aria-label="Close profile" onClick={() => { setSelectedPatientId(null); setIsEditingPatient(false); }}><X className="size-4" /></Button></div>
+                <div className="flex gap-2"><Link href={`/patients/${selectedPatient.id}`} className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"><UserRound className="mr-2 size-4" />Patient 360</Link><Button type="button" variant="secondary" onClick={() => setIsEditingPatient((value) => !value)}><Pencil className="size-4" />{isEditingPatient ? 'Close Edit' : 'Edit Patient'}</Button><Button type="button" variant="secondary" className="w-10 px-0" aria-label="Close profile" onClick={() => { setSelectedPatientId(null); setIsEditingPatient(false); }}><X className="size-4" /></Button></div>
               </div>
 
               {isEditingPatient ? <form className="grid gap-3 rounded-xl border border-border bg-muted/20 p-4 lg:grid-cols-3" onSubmit={patientForm.handleSubmit((values) => updatePatient.mutate(values))}><Input placeholder="Full name" {...patientForm.register('fullName')} /><Input placeholder="Mobile" {...patientForm.register('mobile')} /><Input type="email" placeholder="Email" {...patientForm.register('email')} /><Input type="number" placeholder="Age" {...patientForm.register('age')} /><Select {...patientForm.register('sex')}><option value="">Sex</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></Select><Input placeholder="Address" {...patientForm.register('address')} /><Input placeholder="Occupation" {...patientForm.register('occupation')} /><Input placeholder="Marital status" {...patientForm.register('maritalStatus')} /><div className="lg:col-span-3"><Button type="submit" disabled={updatePatient.isPending}>Save Patient</Button></div></form> : null}
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><PatientSummary label="Patient since" value={formatDateTime(selectedPatient.createdAt)} /><PatientSummary label="Treatments" value={sessionsQuery.data?.data.length ?? 0} /><PatientSummary label="Active packages" value={packagesQuery.data?.data.filter((item) => item.completedSessions < item.totalSessions).length ?? 0} /><PatientSummary label="Invoices" value={invoicesQuery.data?.data.length ?? 0} /></div>
+              <div className="grid gap-3 sm:grid-cols-2"><PatientSummary label="Patient since" value={formatDateTime(selectedPatient.createdAt)} /><PatientSummary label="Treatments" value={sessionsQuery.data?.data.length ?? 0} /></div>
 
               <div className="flex gap-2 overflow-x-auto border-b border-border pb-3"><Button type="button" variant={activePatientTab === 'details' ? 'primary' : 'secondary'} onClick={() => setActivePatientTab('details')}><UserRound className="size-4" />Patient Details</Button><Button type="button" variant={activePatientTab === 'treatments' ? 'primary' : 'secondary'} onClick={() => setActivePatientTab('treatments')}><Stethoscope className="size-4" />Medical Treatments</Button></div>
 
@@ -453,16 +371,13 @@ export function PatientsView() {
 
               {activePatientTab === 'treatments' ? (
                 <div className="space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><SectionHeader title="Medical treatments" description="Consultations, video visits, treatment-room sessions, procedures, prescriptions, packages, and billing." /><Button type="button" onClick={openTreatmentForm}><ClipboardPlus className="size-4" />Create Treatment</Button></div>
-
-                  {packagesQuery.data?.data.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{packagesQuery.data.data.map((item) => <PackageCard key={item.id} item={item} />)}</div> : null}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><SectionHeader title="Medical treatments" description="Consultations, video visits, treatment-room sessions, procedures, prescriptions, and clinical files." /><Button type="button" onClick={openTreatmentForm}><ClipboardPlus className="size-4" />Create Treatment</Button></div>
 
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {sessionsQuery.data?.data.map((item) => <TreatmentCard key={item.id} treatment={item} onClick={() => setSelectedTreatment(item)} />)}
                     {!sessionsQuery.isLoading && !sessionsQuery.data?.data.length ? <div className="col-span-full rounded-xl border border-dashed border-border p-10 text-center"><Stethoscope className="mx-auto mb-3 size-8 text-muted-foreground" /><div className="font-medium">No treatments recorded</div><p className="mt-1 text-sm text-muted-foreground">Create the first treatment from an appointment, consultation, or room booking.</p></div> : null}
                   </div>
 
-                  <div><SectionHeader title="Billing history" description="Invoices created for this patient’s consultations, treatments, and packages." /><div className="mt-3 overflow-x-auto rounded-xl border border-border"><table className="w-full border-collapse text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr><th className="px-4 py-3">Invoice</th><th className="px-4 py-3">Service</th><th className="px-4 py-3">Total</th><th className="px-4 py-3">Paid</th><th className="px-4 py-3">Balance</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Print</th></tr></thead><tbody>{invoicesQuery.data?.data.map((invoice) => <tr key={invoice.id} className="border-t border-border"><td className="px-4 py-3 font-medium">{invoice.invoiceNo}</td><td className="px-4 py-3">{invoice.serviceName}</td><td className="px-4 py-3">₹{invoice.totalAmount}</td><td className="px-4 py-3">₹{invoice.paidAmount}</td><td className="px-4 py-3">₹{Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount)).toFixed(2)}</td><td className="px-4 py-3">{formatEnum(invoice.status)}</td><td className="px-4 py-3"><a className="font-medium text-primary" href={`http://localhost:4000/api/billing/invoices/${invoice.id}/pdf`} target="_blank" rel="noreferrer">Open PDF</a></td></tr>)}{!invoicesQuery.isLoading && !invoicesQuery.data?.data.length ? <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>No bills generated yet.</td></tr> : null}</tbody></table></div></div>
                 </div>
               ) : null}
             </div>
@@ -470,7 +385,7 @@ export function PatientsView() {
         </div>
       ) : null}
 
-      {showCreateTreatment && selectedPatient ? <TreatmentCreateModal patient={selectedPatient} appointments={visitsQuery.data?.data ?? []} packages={packagesQuery.data?.data ?? []} form={treatmentForm} packageChoice={packageChoice} generateBill={generateBill} prescriptionEnabled={prescriptionEnabled} setPrescriptionEnabled={setPrescriptionEnabled} prescription={prescription} setPrescription={setPrescription} file={treatmentFile} setFile={setTreatmentFile} mutation={createTreatment} onAppointmentChange={selectAppointment} onClose={() => setShowCreateTreatment(false)} /> : null}
+      {showCreateTreatment && selectedPatient ? <TreatmentCreateModal patient={selectedPatient} appointments={visitsQuery.data?.data ?? []} form={treatmentForm} prescriptionEnabled={prescriptionEnabled} setPrescriptionEnabled={setPrescriptionEnabled} prescription={prescription} setPrescription={setPrescription} file={treatmentFile} setFile={setTreatmentFile} mutation={createTreatment} onAppointmentChange={selectAppointment} onClose={() => setShowCreateTreatment(false)} /> : null}
       {selectedTreatment && selectedPatient ? <TreatmentDetailModal patient={selectedPatient} treatment={selectedTreatment} onClose={() => setSelectedTreatment(null)} /> : null}
     </section>
   );
@@ -488,18 +403,14 @@ function MedicalEditForm({ form, mutation }: { form: UseFormReturn<MedicalValues
   return <form className="grid gap-3 rounded-xl border border-border bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-3" onSubmit={form.handleSubmit((values: any) => mutation.mutate(values))}><Input placeholder="Referred by" {...form.register('referredBy')} /><Input placeholder="Skin concern" {...form.register('skinConcern')} /><Input placeholder="Hair concern" {...form.register('hairConcern')} /><Input placeholder="Medical history" {...form.register('medicalHistory')} /><Input placeholder="Current medications" {...form.register('currentMedications')} /><Input placeholder="Allergy to drugs" {...form.register('allergyToDrugs')} /><Input placeholder="Scar / keloid history" {...form.register('keloidOrHypertrophicScar')} /><Input placeholder="Products currently used" {...form.register('productsCurrentlyUsed')} /><Input placeholder="Menstrual history" {...form.register('menstrualHistory')} /><Input placeholder="Pregnancy status" {...form.register('pregnancyStatus')} /><Input placeholder="Clinical notes" {...form.register('notes')} /><div className="md:col-span-2 lg:col-span-3"><Button type="submit" disabled={mutation.isPending}><Stethoscope className="size-4" />Save Medical Details</Button></div></form>;
 }
 
-function TreatmentCreateModal({ patient, appointments, packages, form, packageChoice, generateBill, prescriptionEnabled, setPrescriptionEnabled, prescription, setPrescription, file, setFile, mutation, onAppointmentChange, onClose }: { patient: Patient; appointments: Appointment[]; packages: TreatmentPackage[]; form: UseFormReturn<TreatmentValues>; packageChoice?: string; generateBill?: boolean; prescriptionEnabled: boolean; setPrescriptionEnabled: (value: boolean) => void; prescription: PrescriptionMedicine[]; setPrescription: (items: PrescriptionMedicine[]) => void; file: File | null; setFile: (file: File | null) => void; mutation: MutationFor<TreatmentValues>; onAppointmentChange: (id: string) => void; onClose: () => void }) {
+function TreatmentCreateModal({ patient, appointments, form, prescriptionEnabled, setPrescriptionEnabled, prescription, setPrescription, file, setFile, mutation, onAppointmentChange, onClose }: { patient: Patient; appointments: Appointment[]; form: UseFormReturn<TreatmentValues>; prescriptionEnabled: boolean; setPrescriptionEnabled: (value: boolean) => void; prescription: PrescriptionMedicine[]; setPrescription: (items: PrescriptionMedicine[]) => void; file: File | null; setFile: (file: File | null) => void; mutation: MutationFor<TreatmentValues>; onAppointmentChange: (id: string) => void; onClose: () => void }) {
   const availableAppointments = appointments.filter((appointment) => appointment.lead?.patient?.id === patient.id || appointment.leadId === patient.leadId);
   return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-2 sm:p-4"><Card className="mx-auto max-w-5xl"><ModalHeader title="Create Treatment" description={`Record a complete treatment for ${patient.fullName}. Appointment and room details can be pulled in automatically.`} onClose={onClose} /><form className="space-y-6" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
     <FormSection number="1" title="Visit & treatment"><div className="grid gap-3 md:grid-cols-2"><Field label="Appointment / room booking (optional)"><Select {...form.register('appointmentId')} onChange={(event) => onAppointmentChange(event.target.value)}><option value="">Not linked to an appointment</option>{availableAppointments.map((item) => <option key={item.id} value={item.id}>{formatDateTime(item.appointmentAt)} · {item.appointmentType === 'VIDEO_CONSULTATION' ? 'Video consultation' : item.resourceType === 'TREATMENT_ROOM' ? `Room ${item.roomNumber ?? ''}` : 'Consultation'} · {formatEnum(item.status)}</option>)}</Select></Field><Field label="Treatment type"><Select {...form.register('treatmentType')}><option value="CONSULTATION">Consultation</option><option value="VIDEO_CONSULTATION">Video consultation</option><option value="TREATMENT_ROOM">Treatment room</option><option value="PROCEDURE">Procedure</option><option value="FOLLOW_UP">Follow-up</option><option value="OTHER">Other</option></Select></Field><Field label="Date & time" required><Input type="datetime-local" {...form.register('visitDate')} /></Field><Field label="Doctor / provider" required><Input placeholder="Doctor or treatment provider" {...form.register('doctorConsulted')} /></Field><Field label="Chief complaint"><Input placeholder="Reason for visit" {...form.register('chiefComplaint')} /></Field><Field label="Diagnosis"><Input placeholder="Clinical diagnosis" {...form.register('diagnosis')} /></Field><Field label="Treatment advised"><Input placeholder="Recommended plan" {...form.register('treatmentSuggested')} /></Field><Field label="Treatment performed" required><Input placeholder="Consultation, procedure, room treatment…" {...form.register('treatmentTaken')} /></Field><Field label="Follow-up date"><Input type="datetime-local" {...form.register('followupDate')} /></Field><Field label="Clinical notes"><Input placeholder="Observations, advice, precautions" {...form.register('notes')} /></Field></div></FormSection>
 
-    <FormSection number="2" title="Package & session"><Field label="Package (optional)"><Select {...form.register('packageChoice')}><option value="">No package / single treatment</option>{packages.map((item) => <option key={item.id} value={item.id} disabled={item.completedSessions >= item.totalSessions}>{item.name} · {item.completedSessions}/{item.totalSessions} sessions used</option>)}<option value="__new">+ Create a new package</option></Select></Field>{packageChoice === '__new' ? <div className="mt-3 grid gap-3 md:grid-cols-3"><Field label="Package name" required><Input placeholder="e.g. Laser package" {...form.register('newPackageName')} /></Field><Field label="Total sessions" required><Input type="number" min="1" {...form.register('newPackageSessions')} /></Field><Field label="Package amount"><Input type="number" min="0" step="0.01" {...form.register('newPackageAmount')} /></Field></div> : null}{packageChoice && packageChoice !== '__new' ? <p className="mt-2 text-xs text-muted-foreground">Saving this treatment will automatically mark one package session as completed.</p> : null}</FormSection>
+    <FormSection number="2" title="Prescription"><label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface p-3"><input type="checkbox" checked={prescriptionEnabled} onChange={(event) => setPrescriptionEnabled(event.target.checked)} /><span><span className="block text-sm font-medium">Generate a prescription</span><span className="block text-xs text-muted-foreground">Add medicine, dose, frequency, duration, and instructions. It can be printed from the treatment card.</span></span></label>{prescriptionEnabled ? <div className="mt-4 space-y-3"><datalist id="medicine-catalog"><option value="Paracetamol" /><option value="Cetirizine" /><option value="Amoxicillin" /><option value="Azithromycin" /><option value="Doxycycline" /><option value="Isotretinoin" /><option value="Tretinoin cream" /><option value="Clindamycin gel" /><option value="Minoxidil" /><option value="Vitamin D3" /></datalist>{prescription.map((item, index) => <div key={index} className="grid gap-2 rounded-lg border border-border p-3 md:grid-cols-[1.5fr_1fr_1fr_1fr_1.5fr_auto]"><Input list="medicine-catalog" placeholder="Medicine" value={item.medicine} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'medicine', event.target.value)} /><Select value={item.dosage} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'dosage', event.target.value)}><option value="">Dose</option><option>½ tablet</option><option>1 tablet</option><option>2 tablets</option><option>5 ml</option><option>10 ml</option><option>Apply thin layer</option><option>As directed</option></Select><Select value={item.frequency} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'frequency', event.target.value)}><option value="">Frequency</option><option>Once daily</option><option>Twice daily</option><option>Three times daily</option><option>At bedtime</option><option>As needed</option></Select><Input placeholder="Duration" value={item.duration} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'duration', event.target.value)} /><Input placeholder="Before/after food, precautions" value={item.instructions} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'instructions', event.target.value)} /><Button type="button" variant="ghost" className="w-10 px-0" aria-label="Remove medicine" onClick={() => setPrescription(prescription.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button></div>)}<Button type="button" variant="secondary" onClick={() => setPrescription([...prescription, blankMedicine()])}><Plus className="size-4" />Add Medicine</Button></div> : null}</FormSection>
 
-    <FormSection number="3" title="Prescription"><label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface p-3"><input type="checkbox" checked={prescriptionEnabled} onChange={(event) => setPrescriptionEnabled(event.target.checked)} /><span><span className="block text-sm font-medium">Generate a prescription</span><span className="block text-xs text-muted-foreground">Add medicine, dose, frequency, duration, and instructions. It can be printed from the treatment card.</span></span></label>{prescriptionEnabled ? <div className="mt-4 space-y-3"><datalist id="medicine-catalog"><option value="Paracetamol" /><option value="Cetirizine" /><option value="Amoxicillin" /><option value="Azithromycin" /><option value="Doxycycline" /><option value="Isotretinoin" /><option value="Tretinoin cream" /><option value="Clindamycin gel" /><option value="Minoxidil" /><option value="Vitamin D3" /></datalist>{prescription.map((item, index) => <div key={index} className="grid gap-2 rounded-lg border border-border p-3 md:grid-cols-[1.5fr_1fr_1fr_1fr_1.5fr_auto]"><Input list="medicine-catalog" placeholder="Medicine" value={item.medicine} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'medicine', event.target.value)} /><Select value={item.dosage} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'dosage', event.target.value)}><option value="">Dose</option><option>½ tablet</option><option>1 tablet</option><option>2 tablets</option><option>5 ml</option><option>10 ml</option><option>Apply thin layer</option><option>As directed</option></Select><Select value={item.frequency} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'frequency', event.target.value)}><option value="">Frequency</option><option>Once daily</option><option>Twice daily</option><option>Three times daily</option><option>At bedtime</option><option>As needed</option></Select><Input placeholder="Duration" value={item.duration} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'duration', event.target.value)} /><Input placeholder="Before/after food, precautions" value={item.instructions} onChange={(event) => updateMedicine(prescription, setPrescription, index, 'instructions', event.target.value)} /><Button type="button" variant="ghost" className="w-10 px-0" aria-label="Remove medicine" onClick={() => setPrescription(prescription.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button></div>)}<Button type="button" variant="secondary" onClick={() => setPrescription([...prescription, blankMedicine()])}><Plus className="size-4" />Add Medicine</Button></div> : null}</FormSection>
-
-    <FormSection number="4" title="Attachment"><Field label="Treatment file (optional)"><Input type="file" accept="image/*,.pdf,.doc,.docx" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></Field><p className="mt-2 text-xs text-muted-foreground">Images, reports, and documents up to 5 MB. {file ? `Selected: ${file.name}` : ''}</p></FormSection>
-
-    <FormSection number="5" title="Bill & payment"><label className="flex cursor-pointer items-center gap-3"><input type="checkbox" {...form.register('generateBill')} /><span className="text-sm font-medium">Generate an invoice with this treatment</span></label>{generateBill ? <div className="mt-4 grid gap-3 md:grid-cols-3"><Field label="Treatment / package amount"><Input type="number" min="0" step="0.01" {...form.register('serviceAmount')} /></Field><Field label="GST amount"><Input type="number" min="0" step="0.01" {...form.register('gstAmount')} /></Field><Field label="Discount"><Input type="number" min="0" step="0.01" {...form.register('discount')} /></Field><Field label="Payment received now"><Input type="number" min="0" step="0.01" {...form.register('paidAmount')} /></Field><Field label="Payment mode"><Select {...form.register('paymentMode')}><option value="CASH">Cash</option><option value="UPI">UPI</option><option value="CARD">Card</option><option value="BANK_TRANSFER">Bank transfer</option></Select></Field><Field label="Payment reference"><Input placeholder="Transaction / reference no." {...form.register('paymentReference')} /></Field></div> : null}</FormSection>
+    <FormSection number="3" title="Attachment"><Field label="Treatment file (optional)"><Input type="file" accept="image/*,.pdf,.doc,.docx" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></Field><p className="mt-2 text-xs text-muted-foreground">Images, reports, and documents up to 5 MB. {file ? `Selected: ${file.name}` : ''}</p></FormSection>
 
     {Object.keys(form.formState.errors).length ? <ErrorMessage message={Object.values(form.formState.errors)[0]?.message as string || 'Please check the required fields'} /> : null}{mutation.error ? <ErrorMessage message={mutation.error.message} /> : null}<div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-surface py-3"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving treatment…' : 'Save Treatment'}</Button></div>
   </form></Card></div>;
@@ -507,16 +418,11 @@ function TreatmentCreateModal({ patient, appointments, packages, form, packageCh
 
 function TreatmentCard({ treatment, onClick }: { treatment: PatientSession; onClick: () => void }) {
   const Icon = treatment.treatmentType === 'VIDEO_CONSULTATION' ? Monitor : treatment.treatmentType === 'TREATMENT_ROOM' || treatment.treatmentType === 'PROCEDURE' ? Stethoscope : UserRound;
-  return <button type="button" onClick={onClick} className="group rounded-xl border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"><div className="flex items-start justify-between"><span className="rounded-lg bg-primary/10 p-2 text-primary"><Icon className="size-5" /></span><ChevronRight className="size-5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" /></div><div className="mt-4 text-xs font-semibold uppercase tracking-wide text-primary">{treatmentLabels[treatment.treatmentType] ?? formatEnum(treatment.treatmentType)}</div><h3 className="mt-1 font-semibold">{treatment.treatmentTaken || treatment.treatmentSuggested || 'Clinical visit'}</h3><div className="mt-3 space-y-1 text-sm text-muted-foreground"><div className="flex items-center gap-2"><CalendarDays className="size-4" />{formatDateTime(treatment.visitDate)}</div>{treatment.doctorConsulted ? <div>Dr. / Provider: {treatment.doctorConsulted}</div> : null}{treatment.package ? <div className="font-medium text-foreground">Package: {treatment.package.name}</div> : null}</div><div className="mt-4 flex flex-wrap gap-2">{treatment.prescription?.length ? <Badge>Prescription</Badge> : null}{treatment.files?.length ? <Badge>{treatment.files.length} attachment{treatment.files.length === 1 ? '' : 's'}</Badge> : null}{treatment.followupDate ? <Badge>Follow-up set</Badge> : null}</div></button>;
+  return <button type="button" onClick={onClick} className="group rounded-xl border border-border bg-surface p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"><div className="flex items-start justify-between"><span className="rounded-lg bg-primary/10 p-2 text-primary"><Icon className="size-5" /></span><ChevronRight className="size-5 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" /></div><div className="mt-4 text-xs font-semibold uppercase tracking-wide text-primary">{treatmentLabels[treatment.treatmentType] ?? formatEnum(treatment.treatmentType)}</div><h3 className="mt-1 font-semibold">{treatment.treatmentTaken || treatment.treatmentSuggested || 'Clinical visit'}</h3><div className="mt-3 space-y-1 text-sm text-muted-foreground"><div className="flex items-center gap-2"><CalendarDays className="size-4" />{formatDateTime(treatment.visitDate)}</div>{treatment.doctorConsulted ? <div>Dr. / Provider: {treatment.doctorConsulted}</div> : null}</div><div className="mt-4 flex flex-wrap gap-2">{treatment.prescription?.length ? <Badge>Prescription</Badge> : null}{treatment.files?.length ? <Badge>{treatment.files.length} attachment{treatment.files.length === 1 ? '' : 's'}</Badge> : null}{treatment.followupDate ? <Badge>Follow-up set</Badge> : null}</div></button>;
 }
 
 function TreatmentDetailModal({ patient, treatment, onClose }: { patient: Patient; treatment: PatientSession; onClose: () => void }) {
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3"><Card className="mx-auto max-w-4xl"><ModalHeader title={treatment.treatmentTaken || treatmentLabels[treatment.treatmentType]} description={`${treatmentLabels[treatment.treatmentType]} · ${formatDateTime(treatment.visitDate)}`} onClose={onClose} /><div className="grid gap-4 md:grid-cols-2"><InfoCard title="Clinical details"><div className="space-y-4"><Detail label="Doctor / provider" value={treatment.doctorConsulted ?? '-'} /><Detail label="Chief complaint" value={treatment.chiefComplaint ?? '-'} /><Detail label="Diagnosis" value={treatment.diagnosis ?? '-'} /><Detail label="Treatment advised" value={treatment.treatmentSuggested ?? '-'} /><Detail label="Treatment performed" value={treatment.treatmentTaken ?? '-'} /><Detail label="Clinical notes" value={treatment.notes ?? '-'} /><Detail label="Follow-up" value={treatment.followupDate ? formatDateTime(treatment.followupDate) : '-'} /></div></InfoCard><InfoCard title="Package & files"><div className="space-y-4"><Detail label="Package" value={treatment.package?.name ?? 'Single treatment'} />{treatment.files?.length ? treatment.files.map((file) => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm font-medium hover:bg-muted"><FileText className="size-4 text-primary" />{file.name}</a>) : <p className="text-sm text-muted-foreground">No files attached.</p>}</div></InfoCard></div>{treatment.prescription?.length ? <div className="mt-5 rounded-xl border border-border p-4"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Prescription</h3><p className="text-xs text-muted-foreground">{treatment.prescription.length} medicine{treatment.prescription.length === 1 ? '' : 's'}</p></div><Button type="button" variant="secondary" onClick={() => printPrescription(patient, treatment)}><Printer className="size-4" />Print Prescription</Button></div><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">Dose</th><th className="p-3">Frequency</th><th className="p-3">Duration</th><th className="p-3">Instructions</th></tr></thead><tbody>{treatment.prescription.map((item, index) => <tr key={`${item.medicine}-${index}`} className="border-t border-border"><td className="p-3 font-medium">{item.medicine}</td><td className="p-3">{item.dosage}</td><td className="p-3">{item.frequency}</td><td className="p-3">{item.duration}</td><td className="p-3">{item.instructions || '-'}</td></tr>)}</tbody></table></div></div> : treatment.medicinesPrescribed ? <InfoCard title="Prescription"><p className="text-sm">{treatment.medicinesPrescribed}</p></InfoCard> : null}</Card></div>;
-}
-
-function PackageCard({ item }: { item: TreatmentPackage }) {
-  const percentage = Math.min(100, Math.round((item.completedSessions / item.totalSessions) * 100));
-  return <div className="rounded-xl border border-border bg-muted/20 p-4"><div className="flex items-start justify-between"><div><div className="font-semibold">{item.name}</div><div className="mt-1 text-xs text-muted-foreground">{item.completedSessions} of {item.totalSessions} sessions completed</div></div>{percentage === 100 ? <CheckCircle2 className="size-5 text-emerald-600" /> : <CircleDollarSign className="size-5 text-primary" />}</div><div className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${percentage}%` }} /></div><div className="mt-3 flex justify-between text-xs"><span>₹{item.amount}</span><span className="text-muted-foreground">Paid ₹{item.paidAmount}</span></div></div>;
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3"><Card className="mx-auto max-w-4xl"><ModalHeader title={treatment.treatmentTaken || treatmentLabels[treatment.treatmentType]} description={`${treatmentLabels[treatment.treatmentType]} · ${formatDateTime(treatment.visitDate)}`} onClose={onClose} /><div className="grid gap-4 md:grid-cols-2"><InfoCard title="Clinical details"><div className="space-y-4"><Detail label="Doctor / provider" value={treatment.doctorConsulted ?? '-'} /><Detail label="Chief complaint" value={treatment.chiefComplaint ?? '-'} /><Detail label="Diagnosis" value={treatment.diagnosis ?? '-'} /><Detail label="Treatment advised" value={treatment.treatmentSuggested ?? '-'} /><Detail label="Treatment performed" value={treatment.treatmentTaken ?? '-'} /><Detail label="Clinical notes" value={treatment.notes ?? '-'} /><Detail label="Follow-up" value={treatment.followupDate ? formatDateTime(treatment.followupDate) : '-'} /></div></InfoCard><InfoCard title="Clinical files"><div className="space-y-4">{treatment.files?.length ? treatment.files.map((file) => <a key={file.id} href={file.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm font-medium hover:bg-muted"><FileText className="size-4 text-primary" />{file.name}</a>) : <p className="text-sm text-muted-foreground">No files attached.</p>}</div></InfoCard></div>{treatment.prescription?.length ? <div className="mt-5 rounded-xl border border-border p-4"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Prescription</h3><p className="text-xs text-muted-foreground">{treatment.prescription.length} medicine{treatment.prescription.length === 1 ? '' : 's'}</p></div><Button type="button" variant="secondary" onClick={() => printPrescription(patient, treatment)}><Printer className="size-4" />Print Prescription</Button></div><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">Dose</th><th className="p-3">Frequency</th><th className="p-3">Duration</th><th className="p-3">Instructions</th></tr></thead><tbody>{treatment.prescription.map((item, index) => <tr key={`${item.medicine}-${index}`} className="border-t border-border"><td className="p-3 font-medium">{item.medicine}</td><td className="p-3">{item.dosage}</td><td className="p-3">{item.frequency}</td><td className="p-3">{item.duration}</td><td className="p-3">{item.instructions || '-'}</td></tr>)}</tbody></table></div></div> : treatment.medicinesPrescribed ? <InfoCard title="Prescription"><p className="text-sm">{treatment.medicinesPrescribed}</p></InfoCard> : null}</Card></div>;
 }
 
 function FormSection({ number, title, children }: { number: string; title: string; children: React.ReactNode }) { return <section className="rounded-xl border border-border bg-muted/10 p-4"><div className="mb-4 flex items-center gap-2"><span className="flex size-7 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{number}</span><h3 className="font-semibold">{title}</h3></div>{children}</section>; }

@@ -22,4 +22,4 @@ export const qrRegistrationSchema = z.object({
   menstrualHistory: z.string().optional(),
   pregnancyStatus: z.string().optional(),
   notes: z.string().optional(),
-});
+}).passthrough();

@@ -17,6 +17,7 @@ export const timelineRepository = {
   },
 
   create(data: {
+    personId?: string;
     leadId?: string;
     patientId?: string;
     type: string;
@@ -33,6 +34,7 @@ export const timelineRepository = {
         metadata: data.metadata,
         leadId: data.leadId,
         patientId: data.patientId,
+        personId: data.personId,
         createdById: data.createdById,
       },
     });

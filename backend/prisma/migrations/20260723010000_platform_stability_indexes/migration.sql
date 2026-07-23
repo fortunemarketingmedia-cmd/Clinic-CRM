@@ -1,0 +1,14 @@
+CREATE INDEX "Lead_branchId_createdAt_idx" ON "Lead"("branchId", "createdAt");
+CREATE INDEX "Lead_branchId_status_createdAt_idx" ON "Lead"("branchId", "status", "createdAt");
+CREATE INDEX "Lead_branchId_source_createdAt_idx" ON "Lead"("branchId", "source", "createdAt");
+CREATE INDEX "Lead_createdById_idx" ON "Lead"("createdById");
+CREATE INDEX "Appointment_branchId_status_appointmentAt_idx" ON "Appointment"("branchId", "status", "appointmentAt");
+CREATE INDEX "Appointment_serviceId_idx" ON "Appointment"("serviceId");
+CREATE INDEX "Appointment_counsellorId_appointmentAt_idx" ON "Appointment"("counsellorId", "appointmentAt");
+CREATE INDEX "Patient_branchId_createdAt_idx" ON "Patient"("branchId", "createdAt");
+CREATE INDEX "Patient_branchId_status_createdAt_idx" ON "Patient"("branchId", "status", "createdAt");
+CREATE INDEX "ClinicalEncounter_branchId_createdAt_idx" ON "ClinicalEncounter"("branchId", "createdAt");
+CREATE INDEX "TreatmentPlan_branchId_createdAt_idx" ON "TreatmentPlan"("branchId", "createdAt");
+CREATE INDEX "AttributionTouch_branchId_occurredAt_idx" ON "AttributionTouch"("branchId", "occurredAt");
+CREATE INDEX "AttributionTouch_campaignId_occurredAt_idx" ON "AttributionTouch"("campaignId", "occurredAt");
+CREATE INDEX "LoginEvent_success_createdAt_ipAddress_idx" ON "LoginEvent"("success", "createdAt", "ipAddress");

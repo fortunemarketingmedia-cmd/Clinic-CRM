@@ -1,74 +1,83 @@
-import type { PaymentMode } from '@prisma/client';
-import { InvoiceStatus } from '@prisma/client';
+import crypto from 'node:crypto';
+import type { CashClosingStatus, CreditNoteStatus, EstimateStatus, InvoiceStatus, PackageLedgerAction, PatientPackageStatus, PaymentMode, Prisma, RefundStatus } from '@prisma/client';
 import { prisma } from '../config/db.js';
 
-function getInvoiceStatus(totalAmount: number, paidAmount: number) {
-  if (paidAmount <= 0) return InvoiceStatus.DRAFT;
-  if (paidAmount >= totalAmount) return InvoiceStatus.PAID;
-  return InvoiceStatus.PARTIAL;
-}
+const invoiceInclude = { patient: true, branch: true, items: { orderBy: { sortOrder: 'asc' as const } }, payments: { orderBy: { paidAt: 'desc' as const } }, paymentAllocations: true, refunds: true, creditNotes: true, discountApproval: true, createdBy: { select: { id: true, name: true } }, collectionOwner: { select: { id: true, name: true } } };
+const estimateInclude = { patient: true, branch: true, items: { orderBy: { sortOrder: 'asc' as const } }, invoice: { select: { id: true, invoiceNo: true } }, createdBy: { select: { id: true, name: true } } };
+const packageInclude = { patient: true, branch: true, packageMaster: true, ledgerEntries: { orderBy: { effectiveAt: 'desc' as const } } };
 
 export const billingRepository = {
-  listInvoices(filters: { branchId?: string; patientId?: string }) {
-    return prisma.invoice.findMany({
-      where: filters,
-      include: { patient: true, branch: true, payments: true },
-      orderBy: { invoiceDate: 'desc' },
-    });
-  },
+  nextNumber(prefix: string) { return `${prefix}-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`; },
+  findPatient(id: string) { return prisma.patient.findUnique({ where: { id }, select: { id: true, branchId: true, fullName: true, patientNo: true, leadId: true, personId: true } }); },
 
-  findInvoice(id: string) {
-    return prisma.invoice.findUnique({
-      where: { id },
-      include: { patient: true, branch: true, payments: true },
-    });
-  },
+  listEstimates(filters: { branchId?: string; patientId?: string; status?: EstimateStatus }) { return prisma.estimate.findMany({ where: filters, include: estimateInclude, orderBy: { estimateDate: 'desc' } }); },
+  findEstimate(id: string) { return prisma.estimate.findUnique({ where: { id }, include: estimateInclude }); },
+  createEstimate(data: Prisma.EstimateUncheckedCreateInput, items: Prisma.EstimateItemUncheckedCreateWithoutEstimateInput[]) { return prisma.estimate.create({ data: { ...data, items: { create: items } }, include: estimateInclude }); },
+  updateEstimateStatus(id: string, status: EstimateStatus) { return prisma.estimate.update({ where: { id }, data: { status }, include: estimateInclude }); },
 
-  async nextInvoiceNo(prefix: string) {
-    const count = await prisma.invoice.count();
-    return `${prefix}-${String(count + 1).padStart(5, '0')}`;
-  },
+  listInvoices(filters: { branchId?: string; patientId?: string; status?: InvoiceStatus }) { return prisma.invoice.findMany({ where: filters, include: invoiceInclude, orderBy: { invoiceDate: 'desc' } }); },
+  findInvoice(id: string) { return prisma.invoice.findUnique({ where: { id }, include: invoiceInclude }); },
+  createInvoice(data: Prisma.InvoiceUncheckedCreateInput, items: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[], approval?: Omit<Prisma.DiscountApprovalUncheckedCreateWithoutInvoiceInput, 'invoiceId'>) { return prisma.invoice.create({ data: { ...data, items: { create: items }, discountApproval: approval ? { create: approval } : undefined }, include: invoiceInclude }); },
+  convertEstimate(estimateId: string, data: Prisma.InvoiceUncheckedCreateInput, items: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[], approval?: Omit<Prisma.DiscountApprovalUncheckedCreateWithoutInvoiceInput, 'invoiceId'>) { return prisma.$transaction(async (tx) => { const invoice = await tx.invoice.create({ data: { ...data, estimateId, items: { create: items }, discountApproval: approval ? { create: approval } : undefined }, include: invoiceInclude }); await tx.estimate.update({ where: { id: estimateId }, data: { status: 'CONVERTED' } }); return invoice; }); },
+  updateInvoice(id: string, data: Prisma.InvoiceUncheckedUpdateInput) { return prisma.invoice.update({ where: { id }, data, include: invoiceInclude }); },
+  markOverdue(branchId?: string) { return prisma.invoice.updateMany({ where: { branchId, status: 'ISSUED', outstandingAmount: { gt: 0 }, dueDate: { lt: new Date() } }, data: { status: 'OVERDUE' } }); },
+  listOutstanding(branchId?: string) { return prisma.invoice.findMany({ where: { branchId, status: { in: ['ISSUED', 'PARTIAL', 'OVERDUE'] }, outstandingAmount: { gt: 0 } }, include: invoiceInclude, orderBy: [{ dueDate: 'asc' }, { invoiceDate: 'asc' }] }); },
 
-  createInvoice(data: {
-    invoiceNo: string;
-    patientId: string;
-    branchId: string;
-    serviceName: string;
-    consultationFee: number;
-    packageFee: number;
-    discount: number;
-    gstAmount: number;
-    totalAmount: number;
-    notes?: string;
-  }) {
-    return prisma.invoice.create({
-      data,
-      include: { patient: true, branch: true, payments: true },
-    });
-  },
+  listPayments(filters: { branchId?: string; patientId?: string; invoiceId?: string }) { return prisma.payment.findMany({ where: { branchId: filters.branchId, patientId: filters.patientId, OR: filters.invoiceId ? [{ invoiceId: filters.invoiceId }, { allocations: { some: { invoiceId: filters.invoiceId } } }] : undefined }, include: { patient: true, branch: true, allocations: { include: { invoice: { select: { id: true, invoiceNo: true } } } }, collectedBy: { select: { id: true, name: true } }, reversedBy: { select: { id: true, name: true } }, refunds: true }, orderBy: { paidAt: 'desc' } }); },
+  findPayment(id: string) { return prisma.payment.findUnique({ where: { id }, include: { allocations: true, refunds: true, patient: true, branch: true } }); },
+  findPaymentByNo(paymentNo: string) { return prisma.payment.findUnique({ where: { paymentNo }, include: { allocations: true } }); },
+  async createPayment(data: Prisma.PaymentUncheckedCreateInput, allocations: Array<{ invoiceId: string; amount: number }>) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.create({ data: { ...data, invoiceId: allocations[0]?.invoiceId, allocatedAmount: allocations.reduce((sum, item) => sum + item.amount, 0), allocations: { create: allocations } }, include: { allocations: true } }); for (const allocation of allocations) await recalculateInvoice(tx, allocation.invoiceId); return payment; }, { isolationLevel: 'Serializable' }); },
+  async allocatePayment(paymentId: string, invoiceId: string, amount: number) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { allocations: true } }); const allocation = await tx.paymentAllocation.upsert({ where: { paymentId_invoiceId: { paymentId, invoiceId } }, create: { paymentId, invoiceId, amount }, update: { amount: { increment: amount } } }); await tx.payment.update({ where: { id: paymentId }, data: { allocatedAmount: { increment: amount }, invoiceId: payment.invoiceId ?? invoiceId } }); await recalculateInvoice(tx, invoiceId); return allocation; }, { isolationLevel: 'Serializable' }); },
+  async reversePayment(id: string, reversedById: string, reason: string) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.update({ where: { id }, data: { status: 'REVERSED', reversedAt: new Date(), reversedById, reversalReason: reason }, include: { allocations: true } }); for (const allocation of payment.allocations) await recalculateInvoice(tx, allocation.invoiceId); return payment; }, { isolationLevel: 'Serializable' }); },
+  async applyGatewayEvent(id: string, eventId: string, status: 'COMPLETED' | 'FAILED', reference?: string) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.update({ where: { id }, data: { gatewayEventId: eventId, gatewayVerified: true, status, reference: reference ?? undefined }, include: { allocations: true } }); for (const allocation of payment.allocations) await recalculateInvoice(tx, allocation.invoiceId); return payment; }); },
 
-  addPayment(invoiceId: string, data: {
-    patientId: string;
-    amount: number;
-    mode: PaymentMode;
-    paidAt?: Date;
-    reference?: string;
-    notes?: string;
-  }) {
-    return prisma.$transaction(async (tx) => {
-      const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
-      const payment = await tx.payment.create({
-        data: { invoiceId, ...data },
-      });
-      const paidAmount = Number(invoice.paidAmount) + data.amount;
-      await tx.invoice.update({
-        where: { id: invoiceId },
-        data: {
-          paidAmount,
-          status: getInvoiceStatus(Number(invoice.totalAmount), paidAmount),
-        },
-      });
-      return payment;
-    });
-  },
+  listRefunds(filters: { branchId?: string; status?: RefundStatus }) { return prisma.refund.findMany({ where: filters, include: { invoice: true, payment: true, patient: true, branch: true, requestedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }); },
+  findRefund(id: string) { return prisma.refund.findUnique({ where: { id }, include: { invoice: true, payment: { include: { refunds: true } }, patient: true, branch: true } }); },
+  createRefund(data: Prisma.RefundUncheckedCreateInput) { return prisma.refund.create({ data, include: { invoice: true, payment: true, patient: true, branch: true } }); },
+  decideRefund(id: string, approved: boolean, approvedById: string, notes?: string) { return prisma.refund.update({ where: { id }, data: { status: approved ? 'APPROVED' : 'REJECTED', approvedById, approvedAt: new Date(), approvalNotes: notes }, include: { invoice: true, payment: true } }); },
+  async processRefund(id: string, refundMethod: PaymentMode, transactionReference: string) { return prisma.$transaction(async (tx) => { const refund = await tx.refund.update({ where: { id }, data: { status: 'PROCESSED', refundMethod, transactionReference, processedAt: new Date() }, include: { invoice: true } }); await recalculateInvoice(tx, refund.invoiceId); return refund; }); },
+
+  listCreditNotes(filters: { branchId?: string; status?: CreditNoteStatus }) { return prisma.creditNote.findMany({ where: filters, include: { invoice: true, patient: true, branch: true, issuedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }); },
+  findCreditNote(id: string) { return prisma.creditNote.findUnique({ where: { id }, include: { invoice: true } }); },
+  createCreditNote(data: Prisma.CreditNoteUncheckedCreateInput) { return prisma.creditNote.create({ data, include: { invoice: true, patient: true, branch: true } }); },
+  async applyCreditNote(id: string, issuedById: string) { return prisma.$transaction(async (tx) => { const note = await tx.creditNote.update({ where: { id }, data: { status: 'APPLIED', issuedById, issuedAt: new Date(), appliedAt: new Date() }, include: { invoice: true } }); await recalculateInvoice(tx, note.invoiceId); return note; }); },
+
+  listDiscountApprovals(branchId?: string) { return prisma.discountApproval.findMany({ where: { invoice: { branchId }, status: 'PENDING' }, include: { invoice: { include: { patient: true, branch: true } }, requestedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } }); },
+  findDiscountApproval(id: string) { return prisma.discountApproval.findUnique({ where: { id }, include: { invoice: true } }); },
+  decideDiscount(id: string, approved: boolean, approvedById: string, notes?: string) { return prisma.discountApproval.update({ where: { id }, data: { status: approved ? 'APPROVED' : 'REJECTED', approvedById, decisionNotes: notes, decidedAt: new Date() }, include: { invoice: true } }); },
+
+  listPackageMasters(branchId?: string) { return prisma.packageMaster.findMany({ where: { OR: branchId ? [{ branchId: null }, { branchId }] : undefined }, include: { branch: true }, orderBy: { name: 'asc' } }); },
+  findPackageMaster(id: string) { return prisma.packageMaster.findUnique({ where: { id } }); },
+  createPackageMaster(data: Prisma.PackageMasterUncheckedCreateInput) { return prisma.packageMaster.create({ data, include: { branch: true } }); },
+  updatePackageMaster(id: string, data: Prisma.PackageMasterUncheckedUpdateInput) { return prisma.packageMaster.update({ where: { id }, data, include: { branch: true } }); },
+  listPatientPackages(filters: { patientId?: string; branchId?: string; status?: PatientPackageStatus }) { return prisma.treatmentPackage.findMany({ where: filters, include: packageInclude, orderBy: { purchaseDate: 'desc' } }); },
+  findPatientPackage(id: string) { return prisma.treatmentPackage.findUnique({ where: { id }, include: packageInclude }); },
+  purchasePackage(data: Prisma.TreatmentPackageUncheckedCreateInput, actorId: string) { return prisma.$transaction(async (tx) => { const purchased = await tx.treatmentPackage.create({ data }); await tx.packageSessionLedger.create({ data: { patientPackageId: purchased.id, action: 'PURCHASE', sessionDelta: purchased.totalSessions, balanceRemaining: purchased.totalSessions, amount: purchased.amount, notes: 'Package purchased', createdById: actorId } }); return tx.treatmentPackage.findUniqueOrThrow({ where: { id: purchased.id }, include: packageInclude }); }); },
+  async applyPackageAction(id: string, action: PackageLedgerAction, input: { sessions: number; procedureSessionId?: string; referencePackageId?: string; targetPatientId?: string; targetBranchId?: string; amount?: number; effectiveAt?: Date; extensionDays?: number; notes: string; metadata?: Prisma.InputJsonValue }, actorId: string) { return prisma.$transaction(async (tx) => { const current = await tx.treatmentPackage.findUniqueOrThrow({ where: { id } }); let reservedDelta = 0; let consumedDelta = 0; let completedSessions = current.completedSessions; let reservedSessions = current.reservedSessions; let status = current.status; let expiryDate = current.expiryDate; let patientId = current.patientId; let branchId = current.branchId;
+      if (action === 'RESERVATION') { reservedSessions += input.sessions; reservedDelta = input.sessions; }
+      if (action === 'SESSION_CONSUMPTION') { const released = Math.min(reservedSessions, input.sessions); reservedSessions -= released; reservedDelta = -released; completedSessions += input.sessions; consumedDelta = input.sessions; if (completedSessions >= current.totalSessions) status = 'COMPLETED'; }
+      if (action === 'SESSION_REVERSAL') { completedSessions = Math.max(0, completedSessions - input.sessions); consumedDelta = -input.sessions; if (status === 'COMPLETED') status = 'ACTIVE'; }
+      if (action === 'PAUSE') status = 'PAUSED';
+      if (action === 'EXTENSION') { status = status === 'EXPIRED' || status === 'PAUSED' ? 'ACTIVE' : status; expiryDate = new Date((expiryDate ?? new Date()).getTime() + (input.extensionDays ?? 0) * 86_400_000); }
+      if (action === 'TRANSFER') { patientId = input.targetPatientId ?? patientId; branchId = input.targetBranchId ?? branchId; }
+      if (action === 'REFUND') status = 'REFUNDED';
+      if (action === 'EXPIRY_ADJUSTMENT') status = 'EXPIRED';
+      const remaining = Math.max(0, current.totalSessions - completedSessions - reservedSessions); await tx.treatmentPackage.update({ where: { id }, data: { patientId, branchId, completedSessions, reservedSessions, status, expiryDate } }); await tx.packageSessionLedger.create({ data: { patientPackageId: id, action, sessionDelta: action === 'SESSION_CONSUMPTION' ? -input.sessions : action === 'SESSION_REVERSAL' ? input.sessions : 0, reservedDelta, consumedDelta, balanceRemaining: remaining, procedureSessionId: input.procedureSessionId, referencePackageId: input.referencePackageId, amount: input.amount, effectiveAt: input.effectiveAt, notes: input.notes, metadata: input.metadata, createdById: actorId } }); return tx.treatmentPackage.findUniqueOrThrow({ where: { id }, include: packageInclude }); }, { isolationLevel: 'Serializable' }); },
+
+  listCashClosings(filters: { branchId?: string; status?: CashClosingStatus }) { return prisma.dailyCashClosing.findMany({ where: filters, include: { branch: true, submittedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } }, orderBy: { closingDate: 'desc' } }); },
+  findCashClosing(id: string) { return prisma.dailyCashClosing.findUnique({ where: { id }, include: { branch: true } }); },
+  paymentTotals(branchId: string, start: Date, end: Date) { return prisma.payment.groupBy({ by: ['mode'], where: { branchId, status: 'COMPLETED', paidAt: { gte: start, lt: end } }, _sum: { amount: true } }); },
+  refundTotal(branchId: string, start: Date, end: Date) { return prisma.refund.aggregate({ where: { branchId, status: 'PROCESSED', processedAt: { gte: start, lt: end } }, _sum: { amount: true } }); },
+  createCashClosing(data: Prisma.DailyCashClosingUncheckedCreateInput) { return prisma.dailyCashClosing.create({ data, include: { branch: true } }); },
+  updateCashClosing(id: string, data: Prisma.DailyCashClosingUncheckedUpdateInput) { return prisma.dailyCashClosing.update({ where: { id }, data, include: { branch: true, submittedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } } }); },
 };
+
+async function recalculateInvoice(tx: Prisma.TransactionClient, invoiceId: string) {
+  const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+  const allocations = await tx.paymentAllocation.aggregate({ where: { invoiceId, payment: { status: 'COMPLETED' } }, _sum: { amount: true } });
+  const refunds = await tx.refund.aggregate({ where: { invoiceId, status: 'PROCESSED' }, _sum: { amount: true } });
+  const credits = await tx.creditNote.aggregate({ where: { invoiceId, status: 'APPLIED' }, _sum: { amount: true } });
+  const paidAmount = Math.max(0, Number(allocations._sum.amount ?? 0) - Number(refunds._sum.amount ?? 0)); const outstandingAmount = Math.max(0, Number(invoice.totalAmount) - paidAmount - Number(credits._sum.amount ?? 0));
+  let status: InvoiceStatus = invoice.status; if (!['DRAFT', 'CANCELLED'].includes(status)) status = outstandingAmount <= 0 ? (Number(refunds._sum.amount ?? 0) >= Number(invoice.totalAmount) ? 'REFUNDED' : 'PAID') : paidAmount > 0 ? 'PARTIAL' : invoice.dueDate && invoice.dueDate < new Date() ? 'OVERDUE' : 'ISSUED';
+  await tx.invoice.update({ where: { id: invoiceId }, data: { paidAmount, outstandingAmount, status } });
+}

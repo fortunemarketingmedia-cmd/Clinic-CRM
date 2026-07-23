@@ -1,0 +1,2 @@
+import { AppShell } from '@/components/layout/app-shell'; import { AuthGate } from '@/components/layout/auth-gate'; import { RoleGate } from '@/components/layout/role-gate'; import { AutomationBuilderView } from '@/modules/automations/automation-builder-view';
+export default function AutomationsPage() { return <AuthGate><AppShell><RoleGate allowed={['ADMIN']}><AutomationBuilderView /></RoleGate></AppShell></AuthGate>; }

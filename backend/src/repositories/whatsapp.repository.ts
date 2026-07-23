@@ -1,37 +1,91 @@
+import { randomUUID } from 'node:crypto';
+import type { DurableJobStatus, DurableJobType, Prisma, WhatsAppAutomationTrigger, WhatsAppBroadcastStatus, WhatsAppConsentCategory, WhatsAppConversationStatus, WhatsAppTemplateStatus } from '@prisma/client';
 import { prisma } from '../config/db.js';
 
+const conversationInclude = { phoneNumber: { include: { account: { select: { id: true, name: true, businessAccountId: true, status: true } }, branch: true } }, person: true, lead: true, patient: true, appointment: true, invoice: true, package: true, assignedTo: { select: { id: true, name: true, role: true } }, messages: { orderBy: { createdAt: 'desc' as const }, take: 1 } };
+const messageInclude = { template: true, createdBy: { select: { id: true, name: true } }, replyTo: true };
+const broadcastInclude = { account: { select: { id: true, name: true, status: true } }, phoneNumber: true, branch: true, template: true, createdBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } }, recipients: true };
+
 export const whatsappRepository = {
-  list() {
-    return prisma.whatsAppLog.findMany({ orderBy: { createdAt: 'desc' }, take: 100 });
-  },
+  listLegacyLogs() { return prisma.whatsAppLog.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }); },
+  listAccounts() { return prisma.whatsAppAccount.findMany({ include: { phoneNumbers: { include: { branch: true } }, _count: { select: { templates: true, webhookEvents: true, failureLogs: true } } }, orderBy: { createdAt: 'desc' } }); },
+  findAccount(id: string) { return prisma.whatsAppAccount.findUnique({ where: { id }, include: { phoneNumbers: { include: { branch: true } } } }); },
+  findAccountByBusinessId(businessAccountId: string) { return prisma.whatsAppAccount.findUnique({ where: { businessAccountId }, include: { phoneNumbers: true } }); },
+  listActiveAccounts() { return prisma.whatsAppAccount.findMany({ where: { status: 'CONNECTED' }, include: { phoneNumbers: true } }); },
+  upsertAccount(businessAccountId: string, data: Prisma.WhatsAppAccountUncheckedCreateInput) { return prisma.whatsAppAccount.upsert({ where: { businessAccountId }, create: data, update: { name: data.name, appId: data.appId, accessTokenCiphertext: data.accessTokenCiphertext, appSecretCiphertext: data.appSecretCiphertext, verifyTokenCiphertext: data.verifyTokenCiphertext, apiVersion: data.apiVersion, tokenExpiresAt: data.tokenExpiresAt, status: data.status, lastFailureReason: null } }); },
+  updateAccount(id: string, data: Prisma.WhatsAppAccountUpdateInput) { return prisma.whatsAppAccount.update({ where: { id }, data }); },
+  upsertPhoneNumber(phoneNumberId: string, data: Prisma.WhatsAppPhoneNumberUncheckedCreateInput) { return prisma.whatsAppPhoneNumber.upsert({ where: { phoneNumberId }, create: data, update: { branchId: data.branchId, displayPhoneNumber: data.displayPhoneNumber, normalizedPhone: data.normalizedPhone, verifiedName: data.verifiedName, qualityRating: data.qualityRating, messagingLimit: data.messagingLimit, active: data.active, isDefault: data.isDefault } }); },
+  listPhoneNumbers(branchId?: string) { return prisma.whatsAppPhoneNumber.findMany({ where: { branchId, active: true }, include: { branch: true, account: { select: { id: true, name: true, status: true, businessAccountId: true } } }, orderBy: [{ isDefault: 'desc' }, { displayPhoneNumber: 'asc' }] }); },
+  findPhoneNumber(id: string) { return prisma.whatsAppPhoneNumber.findUnique({ where: { id }, include: { account: true, branch: true } }); },
+  findPhoneNumberByProviderId(phoneNumberId: string) { return prisma.whatsAppPhoneNumber.findUnique({ where: { phoneNumberId }, include: { account: true, branch: true } }); },
 
-  create(data: { mobile: string; templateName: string; message: string; audience?: string }) {
-    return prisma.whatsAppLog.create({ data });
-  },
+  listTemplates(filters: { branchId?: string; status?: WhatsAppTemplateStatus; accountId?: string }) { return prisma.whatsAppTemplate.findMany({ where: { accountId: filters.accountId, status: filters.status, OR: filters.branchId ? [{ branchId: filters.branchId }, { branchId: null }] : undefined }, include: { branch: true, account: { select: { id: true, name: true, status: true } }, _count: { select: { messages: true, broadcasts: true } } }, orderBy: [{ active: 'desc' }, { group: 'asc' }, { displayName: 'asc' }] }); },
+  findTemplate(id: string) { return prisma.whatsAppTemplate.findUnique({ where: { id }, include: { account: true, branch: true } }); },
+  createTemplate(data: Prisma.WhatsAppTemplateUncheckedCreateInput) { return prisma.whatsAppTemplate.create({ data, include: { branch: true, account: { select: { id: true, name: true, status: true } } } }); },
+  updateTemplate(id: string, data: Prisma.WhatsAppTemplateUpdateInput) { return prisma.whatsAppTemplate.update({ where: { id }, data, include: { branch: true, account: { select: { id: true, name: true, status: true } } } }); },
+  incrementTemplate(id: string, field: 'sentCount' | 'deliveredCount' | 'readCount' | 'failedCount') { return prisma.whatsAppTemplate.update({ where: { id }, data: { [field]: { increment: 1 } } }); },
+  upsertProviderTemplate(input: { accountId: string; providerTemplateId?: string; name: string; displayName: string; language: string; category: Prisma.WhatsAppTemplateUncheckedCreateInput['category']; status: WhatsAppTemplateStatus; body: string; buttons?: Prisma.InputJsonValue; rejectionReason?: string }) { return prisma.whatsAppTemplate.upsert({ where: { accountId_name_language: { accountId: input.accountId, name: input.name, language: input.language } }, create: { ...input, group: 'GENERAL', active: input.status === 'APPROVED' }, update: { providerTemplateId: input.providerTemplateId, displayName: input.displayName, category: input.category, status: input.status, body: input.body, buttons: input.buttons, rejectionReason: input.rejectionReason, active: input.status === 'APPROVED', lastSyncedAt: new Date() } }); },
 
-  async broadcast(data: { audience: 'LEADS' | 'PATIENTS' | 'ALL'; templateName: string; message: string }) {
-    const [leads, patients] = await Promise.all([
-      data.audience === 'LEADS' || data.audience === 'ALL'
-        ? prisma.lead.findMany({ where: { status: { notIn: ['CONVERTED', 'CANCELLED'] } }, select: { mobile: true } })
-        : Promise.resolve([]),
-      data.audience === 'PATIENTS' || data.audience === 'ALL'
-        ? prisma.patient.findMany({ select: { mobile: true } })
-        : Promise.resolve([]),
-    ]);
+  listConversations(filters: { branchId?: string; status?: WhatsAppConversationStatus; assignedToId?: string; unassigned?: boolean; unread?: boolean; search?: string; failed?: boolean }) { return prisma.whatsAppConversation.findMany({ where: { branchId: filters.branchId, status: filters.status, assignedToId: filters.unassigned ? null : filters.assignedToId, unreadCount: filters.unread ? { gt: 0 } : undefined, OR: filters.search ? [{ contactName: { contains: filters.search, mode: 'insensitive' } }, { normalizedMobile: { contains: filters.search } }, { patient: { fullName: { contains: filters.search, mode: 'insensitive' } } }, { lead: { name: { contains: filters.search, mode: 'insensitive' } } }] : undefined, messages: filters.failed ? { some: { status: 'FAILED' } } : undefined }, include: conversationInclude, orderBy: { lastMessageAt: 'desc' }, take: 200 }); },
+  findConversation(id: string) { return prisma.whatsAppConversation.findUnique({ where: { id }, include: { ...conversationInclude, messages: { include: messageInclude, orderBy: { createdAt: 'asc' }, take: 500 } } }); },
+  findConversationByPhone(phoneNumberId: string, normalizedMobile: string) { return prisma.whatsAppConversation.findUnique({ where: { phoneNumberId_normalizedMobile: { phoneNumberId, normalizedMobile } }, include: conversationInclude }); },
+  updateConversation(id: string, data: Prisma.WhatsAppConversationUpdateInput) { return prisma.whatsAppConversation.update({ where: { id }, data, include: conversationInclude }); },
+  findContact(normalizedMobile: string) { const local = normalizedMobile.slice(-10); return prisma.person.findFirst({ where: { OR: [{ normalizedMobile: local }, { normalizedAlternateMobile: local }] }, include: { leads: { orderBy: { createdAt: 'desc' }, take: 1 }, patient: true } }); },
+  createConversation(data: Prisma.WhatsAppConversationUncheckedCreateInput) { return prisma.whatsAppConversation.create({ data, include: conversationInclude }); },
+  createInboundMessage(data: Prisma.WhatsAppMessageUncheckedCreateInput) { return prisma.$transaction(async (tx) => { const message = await tx.whatsAppMessage.create({ data }); await tx.whatsAppConversation.update({ where: { id: data.conversationId }, data: { status: 'WAITING_FOR_CLINIC', unreadCount: { increment: 1 }, lastMessageAt: new Date(), lastInboundAt: new Date(), sessionExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) } }); return message; }); },
+  createOutboundMessage(data: Prisma.WhatsAppMessageUncheckedCreateInput) { return prisma.$transaction(async (tx) => { const message = await tx.whatsAppMessage.create({ data }); await tx.whatsAppConversation.update({ where: { id: data.conversationId }, data: { status: 'WAITING_FOR_PATIENT', lastMessageAt: new Date(), lastOutboundAt: new Date() } }); return message; }); },
+  createInternalNote(data: Prisma.WhatsAppMessageUncheckedCreateInput) { return prisma.whatsAppMessage.create({ data, include: messageInclude }); },
+  findMessage(id: string) { return prisma.whatsAppMessage.findUnique({ where: { id }, include: { conversation: true, phoneNumber: { include: { account: true } }, template: true, broadcastRecipient: true } }); },
+  findMessageByProviderId(providerMessageId: string) { return prisma.whatsAppMessage.findUnique({ where: { providerMessageId }, include: { broadcastRecipient: true } }); },
+  updateMessage(id: string, data: Prisma.WhatsAppMessageUpdateInput) { return prisma.whatsAppMessage.update({ where: { id }, data, include: messageInclude }); },
+  markConversationRead(id: string) { return prisma.whatsAppConversation.update({ where: { id }, data: { unreadCount: 0 } }); },
 
-    const mobiles = Array.from(new Set([...leads, ...patients].map((record) => record.mobile).filter(Boolean)));
+  createWebhookEvent(data: Prisma.WhatsAppWebhookEventUncheckedCreateInput) { return prisma.whatsAppWebhookEvent.create({ data }); },
+  findWebhookByHash(eventHash: string) { return prisma.whatsAppWebhookEvent.findUnique({ where: { eventHash } }); },
+  findWebhookEvent(id: string) { return prisma.whatsAppWebhookEvent.findUnique({ where: { id }, include: { account: true } }); },
+  updateWebhookEvent(id: string, data: Prisma.WhatsAppWebhookEventUpdateInput) { return prisma.whatsAppWebhookEvent.update({ where: { id }, data }); },
+  listWebhookEvents(accountId?: string) { return prisma.whatsAppWebhookEvent.findMany({ where: { accountId }, orderBy: { receivedAt: 'desc' }, take: 200 }); },
 
-    if (mobiles.length === 0) {
-      return [];
-    }
+  recordConsent(data: Prisma.WhatsAppOptInUncheckedCreateInput) { return prisma.whatsAppOptIn.create({ data }); },
+  latestConsent(normalizedPhone: string, category: WhatsAppConsentCategory) { return prisma.whatsAppOptIn.findFirst({ where: { normalizedPhone, category }, orderBy: { consentedAt: 'desc' } }); },
+  consentHistory(normalizedPhone?: string) { return prisma.whatsAppOptIn.findMany({ where: { normalizedPhone }, include: { person: true }, orderBy: { consentedAt: 'desc' }, take: 300 }); },
+  optOutAllPromotional(normalizedPhone: string, phoneNumber: string, reason: string, personId?: string) { return prisma.$transaction(['MARKETING_MESSAGES', 'PROMOTIONAL_BROADCASTS'].map((category) => prisma.whatsAppOptIn.create({ data: { normalizedPhone, phoneNumber, personId, category: category as WhatsAppConsentCategory, granted: false, source: 'INBOUND_OPT_OUT', consentTextVersion: 'opt-out-v1', withdrawnAt: new Date(), withdrawalReason: reason } }))); },
 
-    return prisma.whatsAppLog.createManyAndReturn({
-      data: mobiles.map((mobile) => ({
-        mobile,
-        templateName: data.templateName,
-        message: data.message,
-        audience: data.audience,
-      })),
+  listAutomations(branchId?: string) { return prisma.whatsAppAutomation.findMany({ where: { OR: branchId ? [{ branchId }, { branchId: null }] : undefined }, include: { branch: true, template: true }, orderBy: [{ trigger: 'asc' }, { sequenceStep: 'asc' }] }); },
+  findAutomation(id: string) { return prisma.whatsAppAutomation.findUnique({ where: { id }, include: { template: true } }); },
+  findAutomations(trigger: WhatsAppAutomationTrigger, branchId?: string) { return prisma.whatsAppAutomation.findMany({ where: { trigger, active: true, OR: branchId ? [{ branchId }, { branchId: null }] : [{ branchId: null }] }, include: { template: true }, orderBy: { sequenceStep: 'asc' } }); },
+  async upsertAutomation(data: Prisma.WhatsAppAutomationUncheckedCreateInput) {
+    const existing = await prisma.whatsAppAutomation.findFirst({
+      where: { trigger: data.trigger, branchId: data.branchId ?? null, sequenceStep: data.sequenceStep ?? 1 },
+    });
+    const include = { branch: true, template: true };
+    if (!existing) return prisma.whatsAppAutomation.create({ data, include });
+    return prisma.whatsAppAutomation.update({
+      where: { id: existing.id },
+      data: { name: data.name, templateId: data.templateId, delayMinutes: data.delayMinutes, stopConditions: data.stopConditions, quietHoursStart: data.quietHoursStart, quietHoursEnd: data.quietHoursEnd, active: data.active },
+      include,
     });
   },
+
+  listBroadcasts(branchId?: string, status?: WhatsAppBroadcastStatus) { return prisma.whatsAppBroadcast.findMany({ where: { branchId, status }, include: broadcastInclude, orderBy: { createdAt: 'desc' } }); },
+  findBroadcast(id: string) { return prisma.whatsAppBroadcast.findUnique({ where: { id }, include: broadcastInclude }); },
+  createBroadcast(data: Prisma.WhatsAppBroadcastUncheckedCreateInput) { return prisma.whatsAppBroadcast.create({ data, include: broadcastInclude }); },
+  updateBroadcast(id: string, data: Prisma.WhatsAppBroadcastUpdateInput) { return prisma.whatsAppBroadcast.update({ where: { id }, data, include: broadcastInclude }); },
+  async buildBroadcastRecipients(id: string, segmentation: { branchId?: string; leadStages?: string[]; leadSources?: string[]; patientStatuses?: string[]; treatmentInterest?: string; packageStatuses?: string[]; packageExpiryBefore?: Date; lastVisitBefore?: Date }) { const [leads, patients] = await Promise.all([prisma.lead.findMany({ where: { branchId: segmentation.branchId, status: segmentation.leadStages?.length ? { in: segmentation.leadStages as Prisma.EnumLeadStatusFilter['in'] } : undefined, source: segmentation.leadSources?.length ? { in: segmentation.leadSources as Prisma.EnumEnquirySourceFilter['in'] } : undefined, interestedTreatment: segmentation.treatmentInterest ? { contains: segmentation.treatmentInterest, mode: 'insensitive' } : undefined }, select: { id: true, personId: true, mobile: true } }), prisma.patient.findMany({ where: { branchId: segmentation.branchId, status: segmentation.patientStatuses?.length ? { in: segmentation.patientStatuses as Prisma.EnumPatientStatusFilter['in'] } : undefined, lastVisitAt: segmentation.lastVisitBefore ? { lte: segmentation.lastVisitBefore } : undefined, packages: segmentation.packageStatuses?.length || segmentation.packageExpiryBefore ? { some: { status: segmentation.packageStatuses?.length ? { in: segmentation.packageStatuses as Prisma.EnumPatientPackageStatusFilter['in'] } : undefined, expiryDate: segmentation.packageExpiryBefore ? { lte: segmentation.packageExpiryBefore } : undefined } } : undefined }, select: { id: true, personId: true, mobile: true } })]); const seen = new Set<string>(); const recipients = [...leads.map((item) => ({ leadId: item.id, personId: item.personId, phoneNumber: item.mobile })), ...patients.map((item) => ({ patientId: item.id, personId: item.personId, phoneNumber: item.mobile }))].filter((item) => { const normalized = item.phoneNumber.replace(/\D/g, ''); if (!normalized || seen.has(normalized)) return false; seen.add(normalized); return true; }).map((item) => ({ ...item, normalizedPhone: item.phoneNumber.replace(/\D/g, ''), broadcastId: id })); if (recipients.length) await prisma.whatsAppBroadcastRecipient.createMany({ data: recipients, skipDuplicates: true }); await prisma.whatsAppBroadcast.update({ where: { id }, data: { recipientCount: recipients.length } }); return prisma.whatsAppBroadcastRecipient.findMany({ where: { broadcastId: id } }); },
+  updateRecipient(id: string, data: Prisma.WhatsAppBroadcastRecipientUncheckedUpdateInput) { return prisma.whatsAppBroadcastRecipient.update({ where: { id }, data }); },
+  listBroadcastRecipients(broadcastId: string) { return prisma.whatsAppBroadcastRecipient.findMany({ where: { broadcastId }, include: { broadcast: { include: { template: true, phoneNumber: { include: { account: true } } } } }, orderBy: { createdAt: 'asc' } }); },
+  incrementBroadcast(id: string, field: 'submittedCount' | 'deliveredCount' | 'readCount' | 'replyCount' | 'failedCount' | 'optOutCount') { return prisma.whatsAppBroadcast.update({ where: { id }, data: { [field]: { increment: 1 } } }); },
+
+  createJob(data: Prisma.DurableJobUncheckedCreateInput) { return prisma.durableJob.upsert({ where: { idempotencyKey: data.idempotencyKey }, create: data, update: {} }); },
+  cancelJobs(referenceType: string, referenceId: string) { return prisma.durableJob.updateMany({ where: { status: { in: ['QUEUED', 'RETRY'] }, payload: { path: ['referenceType'], equals: referenceType }, AND: { payload: { path: ['referenceId'], equals: referenceId } } }, data: { status: 'CANCELLED', cancelledAt: new Date() } }); },
+  listJobs(status?: DurableJobStatus) { return prisma.durableJob.findMany({ where: { status }, orderBy: { runAt: 'asc' }, take: 300 }); },
+  async claimJob(workerId: string, types: DurableJobType[]) { return prisma.$transaction(async (tx) => { const candidate = await tx.durableJob.findFirst({ where: { type: { in: types }, status: { in: ['QUEUED', 'RETRY'] }, runAt: { lte: new Date() }, OR: [{ lockExpiresAt: null }, { lockExpiresAt: { lt: new Date() } }] }, orderBy: [{ runAt: 'asc' }, { createdAt: 'asc' }] }); if (!candidate) return null; const claimed = await tx.durableJob.updateMany({ where: { id: candidate.id, status: { in: ['QUEUED', 'RETRY'] }, OR: [{ lockExpiresAt: null }, { lockExpiresAt: { lt: new Date() } }] }, data: { status: 'RUNNING', lockedAt: new Date(), lockedBy: workerId, lockExpiresAt: new Date(Date.now() + 60_000), attempts: { increment: 1 } } }); return claimed.count ? tx.durableJob.findUnique({ where: { id: candidate.id } }) : null; }, { isolationLevel: 'Serializable' }); },
+  completeJob(id: string) { return prisma.durableJob.update({ where: { id }, data: { status: 'COMPLETED', completedAt: new Date(), lockedAt: null, lockedBy: null, lockExpiresAt: null, lastError: null } }); },
+  retryJob(id: string, error: string, runAt: Date, dead: boolean) { return prisma.durableJob.update({ where: { id }, data: { status: dead ? 'DEAD' : 'RETRY', runAt, lastError: error, lockedAt: null, lockedBy: null, lockExpiresAt: null } }); },
+  createFailureLog(data: Prisma.WhatsAppFailureLogUncheckedCreateInput) { return prisma.whatsAppFailureLog.create({ data }); },
+  listFailureLogs(accountId?: string) { return prisma.whatsAppFailureLog.findMany({ where: { accountId }, include: { message: true, job: true }, orderBy: { occurredAt: 'desc' }, take: 300 }); },
+  findAppointmentContext(id: string) { return prisma.appointment.findUnique({ where: { id }, include: { branch: true, doctor: true, lead: { include: { person: true, patient: true } } } }); },
+  findLeadContext(id: string) { return prisma.lead.findUnique({ where: { id }, include: { branch: true, person: true, patient: true, owner: true, appointments: { orderBy: { appointmentAt: 'desc' }, take: 1 } } }); },
+  updateAppointmentFromWhatsApp(id: string, data: Prisma.AppointmentUpdateInput) { return prisma.appointment.update({ where: { id }, data }); },
+  id() { return randomUUID(); },
 };

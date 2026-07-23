@@ -1,3 +1,4 @@
+import type { Role } from '@prisma/client';
 import { prisma } from '../config/db.js';
 
 export const userRepository = {
@@ -10,12 +11,12 @@ export const userRepository = {
   },
 
   countActiveAdmins() {
-    return prisma.user.count({ where: { role: 'ADMIN', status: 'ACTIVE' } });
+    return prisma.user.count({ where: { accessLevel: 'ADMIN', status: 'ACTIVE' } });
   },
 
   firstActiveAdmin() {
     return prisma.user.findFirst({
-      where: { role: 'ADMIN', status: 'ACTIVE' },
+      where: { accessLevel: 'ADMIN', status: 'ACTIVE' },
       orderBy: { createdAt: 'asc' },
     });
   },
@@ -28,8 +29,10 @@ export const userRepository = {
         name: true,
         email: true,
         role: true,
+        accessLevel: true,
         status: true,
         createdAt: true,
+        branchAccess: { include: { branch: true } },
       },
     });
   },
@@ -38,19 +41,17 @@ export const userRepository = {
     name: string;
     email: string;
     passwordHash: string;
-    role: 'ADMIN' | 'RECEPTIONIST';
+    role: Role;
     status: 'ACTIVE' | 'INACTIVE';
+    branchIds: string[];
   }) {
-    return prisma.user.create({
-      data,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        createdAt: true,
-      },
+    return prisma.$transaction(async (tx) => {
+      const { branchIds, ...userData } = data;
+      const effectiveBranchIds = branchIds.length ? branchIds : (await tx.branch.findMany({ select: { id: true } })).map((branch) => branch.id);
+      return tx.user.create({
+        data: { ...userData, accessLevel: userData.role === 'ADMIN' ? 'ADMIN' : 'RECEPTIONIST', branchAccess: { create: effectiveBranchIds.map((branchId, index) => ({ branchId, isPrimary: index === 0 })) } },
+        select: { id: true, name: true, email: true, role: true, accessLevel: true, status: true, createdAt: true, branchAccess: { include: { branch: true } } },
+      });
     });
   },
 
@@ -58,21 +59,32 @@ export const userRepository = {
     id: string,
     data: Partial<{
       name: string;
-      role: 'ADMIN' | 'RECEPTIONIST';
+      role: Role;
       status: 'ACTIVE' | 'INACTIVE';
+      branchIds: string[];
     }>,
   ) {
-    return prisma.user.update({
+    return prisma.$transaction(async (tx) => {
+      const { branchIds, ...userData } = data;
+      const accessLevel = userData.role ? (userData.role === 'ADMIN' ? 'ADMIN' : 'RECEPTIONIST') : undefined;
+      if (branchIds) {
+        await tx.userBranch.deleteMany({ where: { userId: id } });
+        await tx.userBranch.createMany({ data: branchIds.map((branchId, index) => ({ userId: id, branchId, isPrimary: index === 0 })) });
+      }
+      return tx.user.update({
       where: { id },
-      data,
+      data: { ...userData, accessLevel },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        accessLevel: true,
         status: true,
         createdAt: true,
+        branchAccess: { include: { branch: true } },
       },
+      });
     });
   },
 

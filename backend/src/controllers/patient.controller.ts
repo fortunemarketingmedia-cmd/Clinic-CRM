@@ -9,21 +9,29 @@ import {
   updatePatientSchema,
 } from '../validations/patient.validation.js';
 import { qrRegistrationSchema } from '../validations/qr.validation.js';
+import { auditService } from '../services/audit.service.js';
+import { accessService } from '../services/access.service.js';
 
 export const patientController = {
   async list(req: Request, res: Response) {
     if (!req.user) throw new HttpError(401, 'Authentication required');
     const query = patientQuerySchema.parse(req.query);
+    await accessService.assertBranchAccess(req.user.id, req.user.role, query.branchId);
     const patients = await patientService.listPatients({ ...query, role: req.user.role });
     return res.json({ data: patients });
   },
 
   async get(req: Request, res: Response) {
-    const patient = await patientService.getPatient(req.params.id);
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    const patient = await patientService.getPatient(req.params.id, req.user.role);
+    await accessService.assertBranchAccess(req.user.id, req.user.role, patient.branchId);
     return res.json({ data: patient });
   },
 
   async timeline(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    const patient = await patientService.getPatient(req.params.id, req.user.role);
+    await accessService.assertBranchAccess(req.user.id, req.user.role, patient.branchId);
     const timeline = await patientService.getPatientTimeline(req.params.id);
     return res.json({ data: timeline });
   },
@@ -41,14 +49,21 @@ export const patientController = {
   },
 
   async update(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    const existing = await patientService.getPatient(req.params.id, req.user.role);
+    await accessService.assertBranchAccess(req.user.id, req.user.role, existing.branchId);
     const input = updatePatientSchema.parse(req.body);
     const patient = await patientService.updatePatient(req.params.id, input);
     return res.json({ data: patient });
   },
 
   async upsertMedicalProfile(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    const existing = await patientService.getPatient(req.params.id, req.user.role);
+    await accessService.assertBranchAccess(req.user.id, req.user.role, existing.branchId);
     const input = medicalProfileSchema.parse(req.body);
-    const profile = await patientService.upsertMedicalProfile(req.params.id, input);
+    const profile = await patientService.upsertMedicalProfile(req.params.id, input, req.user.id);
+    await auditService.record({ userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId }, { action: 'MEDICAL_PROFILE_UPDATED', entity: 'Patient', entityId: req.params.id });
     return res.json({ data: profile });
   },
 
@@ -59,7 +74,7 @@ export const patientController = {
 
   async submitQrRegistration(req: Request, res: Response) {
     const input = qrRegistrationSchema.parse(req.body);
-    const patient = await patientService.submitQrRegistration(req.params.token, input);
+    const patient = await patientService.submitQrRegistration(req.params.token, input, { ipAddress: req.ip, deviceMetadata: req.header('user-agent') });
     return res.json({ data: patient });
   },
 };

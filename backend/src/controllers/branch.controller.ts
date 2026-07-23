@@ -8,8 +8,8 @@ const updateBranchSchema = z.object({
 });
 
 export const branchController = {
-  async list(_req: Request, res: Response) {
-    const branches = await branchService.listBranches();
+  async list(req: Request, res: Response) {
+    const branches = await branchService.listBranches(req.user);
     return res.json({ data: branches });
   },
 

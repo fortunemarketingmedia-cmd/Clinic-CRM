@@ -29,13 +29,13 @@ export const leadRepository = {
             ]
           : undefined,
       },
-      include: { branch: true, adLeads: true, patient: true },
+      include: { branch: true, adLeads: true, patient: true, person: true, owner: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
     });
   },
 
   findById(id: string) {
-    return prisma.lead.findUnique({ where: { id }, include: { branch: true, adLeads: true, patient: true } });
+    return prisma.lead.findUnique({ where: { id }, include: { branch: true, adLeads: true, patient: true, person: { include: { patient: true } }, owner: { select: { id: true, name: true } }, appointments: { include: { service: true, doctor: { select: { id: true, name: true } }, resource: true }, orderBy: { appointmentAt: 'desc' } }, followUps: { include: { assignedUser: { select: { id: true, name: true } } }, orderBy: { dueAt: 'desc' } }, tasks: { include: { assignedUser: { select: { id: true, name: true } } }, orderBy: { dueAt: 'desc' } }, callLogs: { orderBy: { startedAt: 'desc' } }, scoreHistory: { orderBy: { createdAt: 'desc' } } } });
   },
 
   findOpenByMobile(mobile: string) {
@@ -46,11 +46,12 @@ export const leadRepository = {
     });
   },
 
-  findDuplicates(input: { mobile?: string; email?: string }) {
+  findDuplicates(input: { mobile?: string; email?: string; branchId?: string }) {
     return prisma.$transaction(async (tx) => {
       const [leads, patients] = await Promise.all([
         tx.lead.findMany({
           where: {
+            branchId: input.branchId,
             OR: [
               input.mobile ? { mobile: input.mobile } : undefined,
               input.email ? { email: { equals: input.email, mode: 'insensitive' } } : undefined,
@@ -62,6 +63,7 @@ export const leadRepository = {
         }),
         tx.patient.findMany({
           where: {
+            branchId: input.branchId,
             OR: [
               input.mobile ? { mobile: input.mobile } : undefined,
               input.email ? { email: { equals: input.email, mode: 'insensitive' } } : undefined,
@@ -97,8 +99,12 @@ export const leadRepository = {
     appointmentType: AppointmentType;
     appointmentAt?: Date;
     qrToken: string;
+    personId: string;
+    ownerId: string;
+    nextAction: string;
+    nextActionDueAt: Date;
   }) {
-    return prisma.lead.create({ data, include: { branch: true, adLeads: true, patient: true } });
+    return prisma.lead.create({ data: { ...data, status: 'ASSIGNED' }, include: { branch: true, adLeads: true, patient: true, person: true, owner: { select: { id: true, name: true } } } });
   },
 
   update(
@@ -118,12 +124,22 @@ export const leadRepository = {
       appointmentType: AppointmentType;
       appointmentAt: Date;
       status: LeadStatus;
+      ownerId: string;
+      nextAction: string;
+      nextActionDueAt: Date;
+      qualificationStatus: string;
+      qualificationNotes: string;
+      leadScore: number;
+      lostReason: string;
+      lostNotes: string;
+      disqualificationReason: string;
+      convertedAt: Date;
     }>,
   ) {
     return prisma.$transaction(async (tx) => {
-      const lead = await tx.lead.update({ where: { id }, data, include: { branch: true, adLeads: true, patient: true } });
+      const lead = await tx.lead.update({ where: { id }, data, include: { branch: true, adLeads: true, patient: true, person: true, owner: { select: { id: true, name: true } } } });
 
-      if (lead.status === 'CONFIRMED' && lead.appointmentAt) {
+      if ((lead.status === 'APPOINTMENT_BOOKED' || lead.status === 'CONFIRMED') && lead.appointmentAt) {
         const existingAppointment = await tx.appointment.findFirst({ where: { leadId: lead.id } });
 
         if (existingAppointment) {
@@ -133,7 +149,7 @@ export const leadRepository = {
               branchId: lead.branchId,
               appointmentAt: lead.appointmentAt,
               appointmentType: lead.appointmentType,
-              status: 'CONFIRMED',
+              status: 'SCHEDULED',
             },
           });
         } else {
@@ -143,7 +159,7 @@ export const leadRepository = {
               branchId: lead.branchId,
               appointmentAt: lead.appointmentAt,
               appointmentType: lead.appointmentType,
-              status: 'CONFIRMED',
+              status: 'SCHEDULED',
             },
           });
         }

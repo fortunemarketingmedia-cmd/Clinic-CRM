@@ -24,11 +24,10 @@ Revive CRM should be built as a production system from the first version, even w
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` must be strong random values.
 - `COOKIE_DOMAIN` and CORS must match the deployed frontend/backend domains.
 
-## Current Production Gaps
+## Environment-owned go-live work
 
-- PostgreSQL is not connected locally yet.
-- Migrations are generated but not applied to a live database yet.
-- Meta WhatsApp Business API delivery is represented by logs/templates, but live Meta credentials are not connected yet.
-- File upload metadata is implemented, but production object storage is not connected yet.
-- Request logging exists in development logs, but production log shipping/retention is not configured yet.
-- Lead forms and appointment workflows are not complete yet.
+- Provision managed PostgreSQL and production object storage; the repository cannot provision vendor infrastructure by itself.
+- Register live Meta/Google apps, webhook subscriptions, OAuth redirect URLs, business verification, ad accounts, conversion datasets/actions, and least-privilege credentials.
+- Connect structured logs to the clinic's selected monitoring/alerting provider and configure on-call destinations.
+- Schedule encrypted backups, perform and record a disposable restore drill, and approve retention/deletion policy with the clinic's legal/compliance owner.
+- Complete penetration testing, privacy/legal review, provider sandbox acceptance, and a clinic user-acceptance run before production traffic.

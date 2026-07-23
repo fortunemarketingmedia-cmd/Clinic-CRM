@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { clinicalController } from '../controllers/clinical.controller.js';
 import { patientController } from '../controllers/patient.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/role.js';
+import { Role } from '@prisma/client';
 
 export const patientRoutes = Router();
 
@@ -31,15 +33,15 @@ patientRoutes.patch('/:id', (req, res, next) => {
   patientController.update(req, res).catch(next);
 });
 
-patientRoutes.put('/:id/medical-profile', (req, res, next) => {
+patientRoutes.put('/:id/medical-profile', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR), (req, res, next) => {
   patientController.upsertMedicalProfile(req, res).catch(next);
 });
 
-patientRoutes.get('/:id/sessions', (req, res, next) => {
+patientRoutes.get('/:id/sessions', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
   clinicalController.listSessions(req, res).catch(next);
 });
 
-patientRoutes.post('/:id/sessions', (req, res, next) => {
+patientRoutes.post('/:id/sessions', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
   clinicalController.createSession(req, res).catch(next);
 });
 
@@ -51,10 +53,10 @@ patientRoutes.post('/:id/packages', (req, res, next) => {
   clinicalController.createPackage(req, res).catch(next);
 });
 
-patientRoutes.get('/:id/files', (req, res, next) => {
+patientRoutes.get('/:id/files', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
   clinicalController.listFiles(req, res).catch(next);
 });
 
-patientRoutes.post('/:id/files', (req, res, next) => {
+patientRoutes.post('/:id/files', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
   clinicalController.createFile(req, res).catch(next);
 });

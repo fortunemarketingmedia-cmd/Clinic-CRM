@@ -10,7 +10,7 @@ import type { Branch } from '@/types/branch';
 export function BranchToggle() {
   const { session, selectedBranchId, setSelectedBranchId, hasHydrated } = useSessionStore();
 
-  const isAdmin = session?.user.role === 'ADMIN';
+  const isAdmin = Boolean(session && ['ADMIN', 'ORGANISATION_OWNER', 'CLINIC_ADMIN', 'AUDITOR'].includes(session.user.role));
 
   const branchesQuery = useQuery({
     queryKey: ['branches'],

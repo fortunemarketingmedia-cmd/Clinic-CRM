@@ -1,11 +1,25 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { Activity, ArrowUpRight, CalendarDays, IndianRupee, PhoneCall, Plus, Search, TrendingUp, UserRoundCheck, Users } from 'lucide-react';
+import {
+  Activity,
+  ArrowUpRight,
+  CalendarDays,
+  PhoneCall,
+  Plus,
+  Search,
+  UserRoundCheck,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { ColumnChart, DonutChart, HorizontalBarChart, SegmentedTabs } from '@/components/ui/data-visuals';
+import {
+  ColumnChart,
+  DonutChart,
+  HorizontalBarChart,
+  SegmentedTabs,
+} from '@/components/ui/data-visuals';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 
@@ -29,7 +43,12 @@ type DashboardOverview = {
     convertedLeads: number;
     leadConversion: number;
   };
-  byBranch: Array<{ id: string; name: string; activeLeads: number; _count: { leads: number; appointments: number; patients: number; invoices: number } }>;
+  byBranch: Array<{
+    id: string;
+    name: string;
+    activeLeads: number;
+    _count: { leads: number; appointments: number; patients: number; invoices: number };
+  }>;
   upcomingAppointments: Array<{
     id: string;
     appointmentAt: string;
@@ -47,18 +66,31 @@ type DashboardOverview = {
     branch: { name: string };
   }>;
   dailyWork?: {
-    todaysFollowups: Array<{ id: string; name: string; mobile: string; nextFollowupAt?: string | null }>;
-    missedFollowups: Array<{ id: string; name: string; mobile: string; nextFollowupAt?: string | null }>;
+    todaysFollowups: Array<{
+      id: string;
+      name: string;
+      mobile: string;
+      nextFollowupAt?: string | null;
+    }>;
+    missedFollowups: Array<{
+      id: string;
+      name: string;
+      mobile: string;
+      nextFollowupAt?: string | null;
+    }>;
     newLeadsNotContacted: Array<{ id: string; name: string; mobile: string }>;
-    postponedAppointments: Array<{ id: string; appointmentAt: string; lead: { name: string; mobile: string } }>;
-    notArrivedPatients: Array<{ id: string; appointmentAt: string; lead: { name: string; mobile: string } }>;
-    pendingPaymentInvoices: Array<{ id: string; invoiceNo: string; totalAmount: string | number; paidAmount: string | number; patient: { fullName: string; mobile: string } }>;
+    postponedAppointments: Array<{
+      id: string;
+      appointmentAt: string;
+      lead: { name: string; mobile: string };
+    }>;
+    notArrivedPatients: Array<{
+      id: string;
+      appointmentAt: string;
+      lead: { name: string; mobile: string };
+    }>;
   };
 };
-
-function money(value?: string | number) {
-  return `Rs ${Number(value ?? 0).toLocaleString('en-IN')}`;
-}
 
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('en-IN', {
@@ -85,11 +117,19 @@ export function DashboardView() {
     ? [
         { label: 'Patients', value: totals?.patients ?? 0, icon: UserRoundCheck },
         { label: 'Total Leads', value: totals?.leads ?? 0, icon: Users },
-        { label: "Today's Revenue", value: money(totals?.todayRevenue), icon: IndianRupee },
-        { label: 'Monthly Revenue', value: money(totals?.monthlyRevenue), icon: TrendingUp },
+        {
+          label: "Today's Appointments",
+          value: totals?.todayAppointments ?? 0,
+          icon: CalendarDays,
+        },
+        { label: 'Lead Conversion', value: `${totals?.leadConversion ?? 0}%`, icon: Activity },
       ]
     : [
-        { label: "Today's Appointments", value: totals?.todayAppointments ?? 0, icon: CalendarDays },
+        {
+          label: "Today's Appointments",
+          value: totals?.todayAppointments ?? 0,
+          icon: CalendarDays,
+        },
         { label: 'Waiting Patients', value: totals?.confirmed ?? 0, icon: UserRoundCheck },
         { label: 'New Leads', value: totals?.leads ?? 0, icon: Users },
         { label: "Today's Follow-ups", value: totals?.pendingFollowups ?? 0, icon: PhoneCall },
@@ -98,9 +138,13 @@ export function DashboardView() {
   return (
     <section className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{isAdmin ? 'Owner Dashboard' : 'Reception Dashboard'}</h1>
+        <h1 className="text-2xl font-semibold">
+          {isAdmin ? 'Owner Dashboard' : 'Reception Dashboard'}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          {isAdmin ? 'Main clinic performance, appointments, patients, and revenue.' : 'Today and upcoming work for front desk operations.'}
+          {isAdmin
+            ? 'Main clinic performance, appointments, patients, and lead conversion.'
+            : 'Today and upcoming work for front desk operations.'}
         </p>
       </div>
 
@@ -119,54 +163,155 @@ export function DashboardView() {
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
-        <SegmentedTabs tabs={[{ label: 'Performance', value: 'PERFORMANCE' }, { label: 'Today’s operations', value: 'OPERATIONS', count: (dailyWork?.todaysFollowups.length ?? 0) + (dailyWork?.notArrivedPatients.length ?? 0) }]} value={dashboardTab} onChange={setDashboardTab} />
-        <Link href="/analytics" className="flex items-center gap-1 px-2 text-sm font-medium text-primary">Open detailed analytics <ArrowUpRight className="size-4" /></Link>
+        <SegmentedTabs
+          tabs={[
+            { label: 'Performance', value: 'PERFORMANCE' },
+            {
+              label: 'Today’s operations',
+              value: 'OPERATIONS',
+              count:
+                (dailyWork?.todaysFollowups.length ?? 0) +
+                (dailyWork?.notArrivedPatients.length ?? 0),
+            },
+          ]}
+          value={dashboardTab}
+          onChange={setDashboardTab}
+        />
+        <Link
+          href="/reports"
+          className="flex items-center gap-1 px-2 text-sm font-medium text-primary"
+        >
+          Open detailed analytics <ArrowUpRight className="size-4" />
+        </Link>
       </div>
 
       {dashboardTab === 'PERFORMANCE' ? (
         <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
           <Card>
             <div className="mb-5 flex items-start justify-between gap-3">
-              <div><h2 className="font-semibold">Branch performance</h2><p className="text-sm text-muted-foreground">Appointments compared with total enquiries</p></div>
+              <div>
+                <h2 className="font-semibold">Branch performance</h2>
+                <p className="text-sm text-muted-foreground">
+                  Appointments compared with total enquiries
+                </p>
+              </div>
               <Activity className="size-5 text-primary" />
             </div>
-            <ColumnChart data={(dashboardQuery.data?.data.byBranch ?? []).map((branch) => ({ label: branch.name, value: branch._count.appointments, secondaryValue: branch._count.leads }))} />
-            <div className="mt-4 flex gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-2"><i className="size-2.5 rounded-full bg-primary" />Appointments</span><span className="flex items-center gap-2"><i className="size-2.5 rounded-full bg-primary/25" />Enquiries</span></div>
+            <ColumnChart
+              data={(dashboardQuery.data?.data.byBranch ?? []).map((branch) => ({
+                label: branch.name,
+                value: branch._count.appointments,
+                secondaryValue: branch._count.leads,
+              }))}
+            />
+            <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-2">
+                <i className="size-2.5 rounded-full bg-primary" />
+                Appointments
+              </span>
+              <span className="flex items-center gap-2">
+                <i className="size-2.5 rounded-full bg-primary/25" />
+                Enquiries
+              </span>
+            </div>
           </Card>
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-1">
             <Card>
-              <div className="mb-4"><h2 className="font-semibold">Appointment outcome</h2><p className="text-sm text-muted-foreground">Current service flow at a glance</p></div>
-              <DonutChart centerLabel="appointments" centerValue={totals?.appointments ?? 0} data={[{ label: 'Confirmed', value: totals?.confirmed ?? 0, color: '#6366f1' }, { label: 'Arrived', value: totals?.arrived ?? 0, color: '#14b8a6' }, { label: 'Not arrived', value: totals?.notArrived ?? 0, color: '#e73748' }]} />
+              <div className="mb-4">
+                <h2 className="font-semibold">Appointment outcome</h2>
+                <p className="text-sm text-muted-foreground">Current service flow at a glance</p>
+              </div>
+              <DonutChart
+                centerLabel="appointments"
+                centerValue={totals?.appointments ?? 0}
+                data={[
+                  { label: 'Confirmed', value: totals?.confirmed ?? 0, color: '#6366f1' },
+                  { label: 'Arrived', value: totals?.arrived ?? 0, color: '#14b8a6' },
+                  { label: 'Not arrived', value: totals?.notArrived ?? 0, color: '#e73748' },
+                ]}
+              />
             </Card>
             <Card>
-              <div className="mb-4"><h2 className="font-semibold">Lead funnel</h2><p className="text-sm text-muted-foreground">From enquiry to patient conversion</p></div>
-              <HorizontalBarChart data={[{ label: 'Lead intake', value: totals?.totalLeadIntake ?? totals?.leads ?? 0, color: '#6366f1' }, { label: 'Appointments', value: totals?.appointments ?? 0, color: '#f59e0b' }, { label: 'Arrived', value: totals?.arrived ?? 0, color: '#14b8a6' }, { label: 'Converted', value: totals?.convertedLeads ?? 0, color: '#e73748' }]} />
+              <div className="mb-4">
+                <h2 className="font-semibold">Lead funnel</h2>
+                <p className="text-sm text-muted-foreground">From enquiry to patient conversion</p>
+              </div>
+              <HorizontalBarChart
+                data={[
+                  {
+                    label: 'Lead intake',
+                    value: totals?.totalLeadIntake ?? totals?.leads ?? 0,
+                    color: '#6366f1',
+                  },
+                  { label: 'Appointments', value: totals?.appointments ?? 0, color: '#f59e0b' },
+                  { label: 'Arrived', value: totals?.arrived ?? 0, color: '#14b8a6' },
+                  { label: 'Converted', value: totals?.convertedLeads ?? 0, color: '#e73748' },
+                ]}
+              />
             </Card>
           </div>
         </div>
       ) : (
-
-      <div className="grid gap-5 lg:grid-cols-3">
-        {isAdmin ? (
-          <>
-            <WorkQueue title="Pending payment reminders" rows={dailyWork?.pendingPaymentInvoices.map((invoice) => `${invoice.patient.fullName} · ${money(Number(invoice.totalAmount) - Number(invoice.paidAmount))} pending`) ?? []} />
-            <WorkQueue title="Campaign follow-ups today" rows={dailyWork?.todaysFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []} />
-            <WorkQueue title="Not arrived patients" rows={dailyWork?.notArrivedPatients.map((appointment) => `${appointment.lead.name} · ${formatDateTime(appointment.appointmentAt)}`) ?? []} />
-          </>
-        ) : (
-          <>
-            <WorkQueue title="Today's follow-ups" rows={dailyWork?.todaysFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []} />
-            <WorkQueue title="Missed follow-ups" rows={dailyWork?.missedFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []} />
-            <WorkQueue title="New leads not contacted" rows={dailyWork?.newLeadsNotContacted.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []} />
-          </>
-        )}
-      </div>
+        <div className="grid gap-5 lg:grid-cols-3">
+          {isAdmin ? (
+            <>
+              <WorkQueue
+                title="Postponed appointments"
+                rows={
+                  dailyWork?.postponedAppointments.map(
+                    (appointment) =>
+                      `${appointment.lead.name} · ${formatDateTime(appointment.appointmentAt)}`,
+                  ) ?? []
+                }
+              />
+              <WorkQueue
+                title="Campaign follow-ups today"
+                rows={
+                  dailyWork?.todaysFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []
+                }
+              />
+              <WorkQueue
+                title="Not arrived patients"
+                rows={
+                  dailyWork?.notArrivedPatients.map(
+                    (appointment) =>
+                      `${appointment.lead.name} · ${formatDateTime(appointment.appointmentAt)}`,
+                  ) ?? []
+                }
+              />
+            </>
+          ) : (
+            <>
+              <WorkQueue
+                title="Today's follow-ups"
+                rows={
+                  dailyWork?.todaysFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []
+                }
+              />
+              <WorkQueue
+                title="Missed follow-ups"
+                rows={
+                  dailyWork?.missedFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []
+                }
+              />
+              <WorkQueue
+                title="New leads not contacted"
+                rows={
+                  dailyWork?.newLeadsNotContacted.map((lead) => `${lead.name} · ${lead.mobile}`) ??
+                  []
+                }
+              />
+            </>
+          )}
+        </div>
       )}
 
       <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
         <Card>
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">{isAdmin ? 'Appointment Records' : 'Upcoming Appointments'}</h2>
+            <h2 className="text-base font-semibold">
+              {isAdmin ? 'Appointment Records' : 'Upcoming Appointments'}
+            </h2>
             <a className="text-sm text-primary" href="/appointments">
               Open calendar
             </a>
@@ -184,7 +329,9 @@ export function DashboardView() {
               <tbody>
                 {dashboardQuery.data?.data.upcomingAppointments.map((appointment) => (
                   <tr key={appointment.id} className="border-t border-border">
-                    <td className="px-4 py-3 text-muted-foreground">{formatDateTime(appointment.appointmentAt)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {formatDateTime(appointment.appointmentAt)}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{appointment.lead.name}</div>
                       <div className="text-xs text-muted-foreground">
@@ -192,10 +339,18 @@ export function DashboardView() {
                       </div>
                     </td>
                     <td className="px-4 py-3">{appointment.branch.name}</td>
-                    <td className="px-4 py-3"><div>{appointment.status.replace('_', ' ')}</div><div className="text-xs text-muted-foreground">{appointment.resourceType === 'TREATMENT_ROOM' ? `Room ${appointment.roomNumber}` : 'Consultation'}</div></td>
+                    <td className="px-4 py-3">
+                      <div>{appointment.status.replace('_', ' ')}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {appointment.resourceType === 'TREATMENT_ROOM'
+                          ? `Room ${appointment.roomNumber}`
+                          : 'Consultation'}
+                      </div>
+                    </td>
                   </tr>
                 ))}
-                {!dashboardQuery.isLoading && dashboardQuery.data?.data.upcomingAppointments.length === 0 ? (
+                {!dashboardQuery.isLoading &&
+                dashboardQuery.data?.data.upcomingAppointments.length === 0 ? (
                   <tr>
                     <td className="px-4 py-8 text-center text-muted-foreground" colSpan={4}>
                       No upcoming appointments.
@@ -208,28 +363,40 @@ export function DashboardView() {
         </Card>
 
         <Card>
-          <h2 className="text-base font-semibold">{isAdmin ? 'Branch Comparison' : 'Quick Actions'}</h2>
+          <h2 className="text-base font-semibold">
+            {isAdmin ? 'Branch Comparison' : 'Quick Actions'}
+          </h2>
           <div className="mt-4 grid gap-3">
             {isAdmin ? (
               dashboardQuery.data?.data.byBranch.map((branch) => (
                 <div key={branch.id} className="rounded-md border border-border px-3 py-2 text-sm">
                   <div className="font-medium">{branch.name}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {branch.activeLeads} active leads · {branch._count.patients} patients · {branch._count.appointments} appointments
+                    {branch.activeLeads} active leads · {branch._count.patients} patients ·{' '}
+                    {branch._count.appointments} appointments
                   </div>
                 </div>
               ))
             ) : (
               <>
-                <Link className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted" href="/leads">
+                <Link
+                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"
+                  href="/leads"
+                >
                   <Plus className="size-4 text-primary" />
                   Quick Add Lead
                 </Link>
-                <Link className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted" href="/appointments">
+                <Link
+                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"
+                  href="/appointments"
+                >
                   <CalendarDays className="size-4 text-primary" />
                   Quick Book Appointment
                 </Link>
-                <Link className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted" href="/patients">
+                <Link
+                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"
+                  href="/patients"
+                >
                   <Search className="size-4 text-primary" />
                   Quick Search
                 </Link>
@@ -241,8 +408,8 @@ export function DashboardView() {
               <h3 className="text-sm font-semibold">Business Snapshot</h3>
               <div className="mt-3 space-y-2">
                 <SnapshotRow label="Lead Conversion" value={`${totals?.leadConversion ?? 0}%`} />
-                <SnapshotRow label="Total Revenue" value={money(totals?.revenue)} />
-                <SnapshotRow label="Collected" value={money(totals?.collected)} />
+                <SnapshotRow label="Total Appointments" value={totals?.appointments ?? 0} />
+                <SnapshotRow label="This Month" value={totals?.monthAppointments ?? 0} />
               </div>
             </div>
           ) : null}
@@ -268,7 +435,10 @@ function WorkQueue({ title, rows }: { title: string; rows: string[] }) {
       <div className="mt-3 space-y-2">
         {rows.length ? (
           rows.slice(0, 5).map((row) => (
-            <div key={row} className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
+            <div
+              key={row}
+              className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground"
+            >
               {row}
             </div>
           ))

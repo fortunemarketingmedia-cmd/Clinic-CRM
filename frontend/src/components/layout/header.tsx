@@ -16,7 +16,7 @@ export function Header() {
         <div className="font-medium">{session?.user.name ?? 'Team member'}</div>
       </div>
       <div className="flex items-center gap-3">
-        {session?.user.role === 'RECEPTIONIST' ? <BranchToggle /> : null}
+        {session ? <BranchToggle /> : null}
         <Button
           aria-label="Logout"
           title="Logout"

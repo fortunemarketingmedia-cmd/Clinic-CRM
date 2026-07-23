@@ -1,10 +1,13 @@
-import type { Role, Sex } from '@prisma/client';
+import type { Prisma, Role, Sex } from '@prisma/client';
 import { LeadStatus, Role as RoleEnum } from '@prisma/client';
 import { branchRepository } from '../repositories/branch.repository.js';
 import { leadRepository } from '../repositories/lead.repository.js';
-import { patientRepository } from '../repositories/patient.repository.js';
+import { patientRepository, type MedicalProfileData } from '../repositories/patient.repository.js';
 import { timelineRepository } from '../repositories/timeline.repository.js';
 import { HttpError } from '../utils/http-error.js';
+import { personService } from './person.service.js';
+import { formsRepository } from '../repositories/forms.repository.js';
+import { validateSubmission, type SnapshotField } from './form-policy.js';
 
 function requireBranchForReceptionist(role: Role, branchId?: string) {
   if (role === RoleEnum.RECEPTIONIST && !branchId) {
@@ -18,6 +21,14 @@ async function ensureBranchExists(branchId?: string) {
   if (!branch) throw new HttpError(404, 'Branch not found');
 }
 
+async function registrationTemplate(branchId?: string) { return formsRepository.findPublishedRegistrationTemplate(branchId); }
+
+async function recordRegistrationSubmission(patientId: string, branchId: string, values: Record<string, unknown>, metadata?: { ipAddress?: string; deviceMetadata?: string }) {
+  const template = await registrationTemplate(branchId); if (!template?.versions[0]) return;
+  const snapshot = template.versions[0].snapshot as { fields?: SnapshotField[] }; validateSubmission(snapshot.fields ?? [], values);
+  await formsRepository.createSubmission({ templateId: template.id, templateVersionId: template.versions[0].id, patientId, values: values as Prisma.InputJsonValue, status: 'SUBMITTED', ipAddress: metadata?.ipAddress, deviceMetadata: metadata?.deviceMetadata });
+}
+
 export const patientService = {
   async listPatients(filters: { branchId?: string; search?: string; role: Role }) {
     requireBranchForReceptionist(filters.role, filters.branchId);
@@ -25,10 +36,14 @@ export const patientService = {
     return patientRepository.list(filters);
   },
 
-  async getPatient(id: string) {
+  async getPatient(id: string, role?: Role) {
     const patient = await patientRepository.findById(id);
     if (!patient) throw new HttpError(404, 'Patient not found');
-    return patient;
+    const clinicalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.DOCTOR, RoleEnum.THERAPIST];
+    if (role && !clinicalRoles.includes(role)) {
+      return { ...patient, medicalProfile: undefined, sessions: undefined, files: undefined };
+    }
+    return { ...patient, files: undefined };
   },
 
   async getPatientTimeline(id: string) {
@@ -50,6 +65,19 @@ export const patientService = {
     const lead = await leadRepository.findById(input.leadId);
     if (!lead) throw new HttpError(404, 'Lead not found');
 
+    if (lead.person?.patient) {
+      await leadRepository.update(lead.id, { status: LeadStatus.CONVERTED, convertedAt: new Date() });
+      await timelineRepository.create({
+        personId: lead.person.id,
+        leadId: lead.id,
+        patientId: lead.person.patient.id,
+        type: 'LEAD_CONVERTED',
+        title: 'Repeat enquiry connected to existing patient',
+        description: lead.person.patient.patientNo,
+      });
+      return this.getPatient(lead.person.patient.id);
+    }
+
     const existingPatient = await patientRepository.findByLeadId(input.leadId);
     if (existingPatient) throw new HttpError(409, 'Patient already exists for this lead');
 
@@ -64,6 +92,7 @@ export const patientService = {
 
     const patient = await patientRepository.convertLead({
       leadId: lead.id,
+      personId: lead.personId ?? undefined,
       branchId: lead.branchId,
       patientNo: await patientRepository.nextPatientNo(),
       qrToken: patientRepository.createQrToken(),
@@ -112,8 +141,10 @@ export const patientService = {
     const duplicates = await patientRepository.findDuplicates({ mobile: input.mobile, email: input.email });
     if (duplicates.length) throw new HttpError(409, 'A patient profile already exists with the same mobile or email');
 
+    const person = await personService.findOrCreate({ fullName: input.fullName, primaryMobile: input.mobile, email: input.email, address: input.address, preferredBranchId: input.branchId });
     const patient = await patientRepository.createFromClinicQr({
       branchId: input.branchId,
+      personId: person.id,
       patientNo: await patientRepository.nextPatientNo(),
       qrToken: patientRepository.createQrToken(),
       fullName: input.fullName,
@@ -172,9 +203,10 @@ export const patientService = {
     return patient;
   },
 
-  async upsertMedicalProfile(patientId: string, input: Record<string, string | undefined>) {
+  async upsertMedicalProfile(patientId: string, input: MedicalProfileData & { reasonForChange?: string }, updatedById?: string) {
     await this.getPatient(patientId);
-    const profile = await patientRepository.upsertMedicalProfile(patientId, input);
+    const { reasonForChange, ...medicalData } = input;
+    const profile = await patientRepository.upsertMedicalProfile(patientId, medicalData, updatedById, reasonForChange);
     const patient = await this.getPatient(patientId);
     await timelineRepository.create({
       leadId: patient.leadId,
@@ -194,6 +226,7 @@ export const patientService = {
         branch: null,
         branches: await branchRepository.list(),
         medicalProfile: null,
+        formTemplate: await registrationTemplate(),
       };
     }
 
@@ -206,6 +239,7 @@ export const patientService = {
         mobile: lead.patient?.mobile ?? lead.mobile,
         branch: lead.branch,
         medicalProfile: null,
+        formTemplate: await registrationTemplate(lead.branchId),
       };
     }
 
@@ -218,6 +252,7 @@ export const patientService = {
       mobile: patient.mobile,
       branch: patient.branch,
       medicalProfile: patient.medicalProfile,
+      formTemplate: await registrationTemplate(patient.branchId),
     };
   },
 
@@ -245,6 +280,7 @@ export const patientService = {
       pregnancyStatus?: string;
       notes?: string;
     },
+    submissionMetadata?: { ipAddress?: string; deviceMetadata?: string },
   ) {
     if (qrToken === 'clinic') {
       if (!input.branchId) {
@@ -256,8 +292,10 @@ export const patientService = {
       const duplicates = await patientRepository.findDuplicates({ mobile: input.mobile, email: input.email });
       if (duplicates.length) throw new HttpError(409, 'A patient profile already exists with the same mobile or email');
 
+      const person = await personService.findOrCreate({ fullName: input.fullName, primaryMobile: input.mobile, email: input.email, address: input.address, preferredBranchId: input.branchId });
       const patient = await patientRepository.createFromClinicQr({
         branchId: input.branchId,
+        personId: person.id,
         patientNo: await patientRepository.nextPatientNo(),
         qrToken: patientRepository.createQrToken(),
         fullName: input.fullName,
@@ -289,6 +327,7 @@ export const patientService = {
         title: 'QR form submitted',
         description: patient.patientNo,
       });
+      await recordRegistrationSubmission(patient.id, patient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
       return patient;
     }
 
@@ -328,6 +367,7 @@ export const patientService = {
           type: 'QR_FORM_SUBMITTED',
           title: 'QR form submitted',
         });
+        await recordRegistrationSubmission(patient.id, patient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
         return patient;
       }
 
@@ -339,6 +379,7 @@ export const patientService = {
 
       const patient = await patientRepository.convertLeadWithProfile({
         leadId: lead.id,
+        personId: lead.personId ?? undefined,
         branchId: lead.branchId,
         patientNo: await patientRepository.nextPatientNo(),
         qrToken: patientRepository.createQrToken(),
@@ -371,6 +412,7 @@ export const patientService = {
         title: 'QR form submitted',
         description: patient.patientNo,
       });
+      await recordRegistrationSubmission(patient.id, patient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
       return patient;
     }
 
@@ -409,6 +451,7 @@ export const patientService = {
       type: 'QR_FORM_SUBMITTED',
       title: 'QR form submitted',
     });
+    await recordRegistrationSubmission(updatedPatient.id, updatedPatient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
     return updatedPatient;
   },
 };

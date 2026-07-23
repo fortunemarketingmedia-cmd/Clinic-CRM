@@ -4,8 +4,9 @@ import { userRepository } from '../repositories/user.repository.js';
 import { HttpError } from '../utils/http-error.js';
 
 export const userService = {
-  listUsers() {
-    return userRepository.list();
+  async listUsers() {
+    const users = await userRepository.list();
+    return users.map((user) => ({ ...user, role: user.accessLevel }));
   },
 
   async createUser(input: {
@@ -14,6 +15,7 @@ export const userService = {
     password: string;
     role: Role;
     status: 'ACTIVE' | 'INACTIVE';
+    branchIds: string[];
   }) {
     const existing = await userRepository.findByEmail(input.email);
 
@@ -23,13 +25,15 @@ export const userService = {
 
     const passwordHash = await bcrypt.hash(input.password, 12);
 
-    return userRepository.create({
+    const user = await userRepository.create({
       name: input.name,
       email: input.email,
       passwordHash,
       role: input.role,
       status: input.status,
+      branchIds: input.branchIds,
     });
+    return { ...user, role: user.accessLevel };
   },
 
   async updateUser(
@@ -38,6 +42,7 @@ export const userService = {
       name: string;
       role: Role;
       status: 'ACTIVE' | 'INACTIVE';
+      branchIds: string[];
     }>,
   ) {
     const user = await userRepository.findById(id);
@@ -46,7 +51,8 @@ export const userService = {
       throw new HttpError(404, 'User not found');
     }
 
-    return userRepository.update(id, input);
+    const updated = await userRepository.update(id, input);
+    return { ...updated, role: updated.accessLevel };
   },
 
   async deleteUser(id: string) {
@@ -56,7 +62,7 @@ export const userService = {
       throw new HttpError(404, 'User not found');
     }
 
-    if (user.role === Role.ADMIN && user.status === 'ACTIVE') {
+    if (user.accessLevel === 'ADMIN' && user.status === 'ACTIVE') {
       const activeAdmins = await userRepository.countActiveAdmins();
 
       if (activeAdmins <= 1) {

@@ -26,6 +26,14 @@ leadRoutes.get('/:id/timeline', (req, res, next) => {
   leadController.timeline(req, res).catch(next);
 });
 
+leadRoutes.get('/:id/score-history', (req, res, next) => {
+  leadController.scoreHistory(req, res).catch(next);
+});
+
+leadRoutes.post('/:id/recalculate-score', (req, res, next) => {
+  leadController.recalculateScore(req, res).catch(next);
+});
+
 leadRoutes.patch('/:id', (req, res, next) => {
   leadController.update(req, res).catch(next);
 });

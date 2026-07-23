@@ -16,15 +16,46 @@ const envSchema = z.object({
   COOKIE_DOMAIN: z.string().optional(),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
   FRONTEND_URLS: z.string().optional(),
+  FILE_STORAGE_ROOT: z.string().optional(),
+  FILE_ACCESS_SECRET: z.string().min(16).optional(),
+  PAYMENT_GATEWAY_SECRET: z.string().min(16).optional(),
+  INTEGRATION_ENCRYPTION_KEY: z.string().min(32).optional(),
+  WHATSAPP_GRAPH_API_URL: z.string().url().default('https://graph.facebook.com'),
+  WHATSAPP_JOB_POLL_MS: z.coerce.number().int().min(1000).default(5000),
+  WHATSAPP_BROADCAST_APPROVAL_THRESHOLD: z.coerce.number().int().positive().default(100),
+  WHATSAPP_WORKER_ID: z.string().default('revive-whatsapp-worker'),
+  META_GRAPH_API_URL: z.string().url().default('https://graph.facebook.com'),
+  META_GRAPH_API_VERSION: z
+    .string()
+    .regex(/^v\d+\.\d+$/)
+    .default('v23.0'),
+  GOOGLE_ADS_API_URL: z.string().url().default('https://googleads.googleapis.com'),
+  GOOGLE_ADS_API_VERSION: z
+    .string()
+    .regex(/^v\d+$/)
+    .default('v20'),
+  GOOGLE_OAUTH_TOKEN_URL: z.string().url().default('https://oauth2.googleapis.com/token'),
+  GOOGLE_OAUTH_AUTH_URL: z.string().url().default('https://accounts.google.com/o/oauth2/v2/auth'),
+  BACKEND_PUBLIC_URL: z.string().url().default('http://localhost:4000'),
+  INTEGRATION_JOB_POLL_MS: z.coerce.number().int().min(1000).default(10000),
+  INTEGRATION_WORKER_ID: z.string().default('revive-integration-worker'),
+  PROVIDER_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(20000),
+  SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(10000),
+  MFA_ISSUER: z.string().default('Revive Clinic CRM'),
 });
 
 const parsedEnv = envSchema.parse(process.env);
+if (parsedEnv.NODE_ENV === 'production' && !parsedEnv.INTEGRATION_ENCRYPTION_KEY) {
+  throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production');
+}
 
 export const env = {
   ...parsedEnv,
   FRONTEND_ORIGINS: [
     parsedEnv.FRONTEND_URL,
-    ...(parsedEnv.FRONTEND_URLS?.split(',').map((origin) => origin.trim()).filter(Boolean) ?? []),
+    ...(parsedEnv.FRONTEND_URLS?.split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean) ?? []),
     ...(parsedEnv.NODE_ENV === 'development'
       ? ['http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001']
       : []),

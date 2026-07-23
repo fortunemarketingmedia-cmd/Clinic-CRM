@@ -31,8 +31,8 @@ export const clinicalService = {
       const packages = await clinicalRepository.listPackages(patientId);
       const treatmentPackage = packages.find((item) => item.id === input.packageId);
       if (!treatmentPackage) throw new HttpError(400, 'Treatment package does not belong to this patient');
-      if (treatmentPackage.completedSessions >= treatmentPackage.totalSessions) {
-        throw new HttpError(409, 'All sessions in this package are already completed');
+      if (treatmentPackage.status !== 'ACTIVE' || treatmentPackage.completedSessions + treatmentPackage.reservedSessions >= treatmentPackage.totalSessions) {
+        throw new HttpError(409, 'An active package with remaining sessions is required');
       }
     }
     const session = await clinicalRepository.createSession(patientId, input);

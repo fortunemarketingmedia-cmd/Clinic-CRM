@@ -9,14 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { SignaturePad } from '@/components/ui/signature-pad';
 import { publicApiRequest } from '@/services/public-api';
+import type { FormField, FormTemplate } from '@/types/forms';
 
 const qrSchema = z.object({
   branchId: z.string().optional(),
   referredBy: z.string().optional(),
   fullName: z.string().min(2, 'Full name is required'),
-  age: z.coerce.number().int().positive().optional(),
-  sex: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+  age: z.preprocess((value) => value === '' ? undefined : value, z.coerce.number().int().positive().optional()),
+  sex: z.preprocess((value) => value === '' ? undefined : value, z.enum(['MALE', 'FEMALE', 'OTHER']).optional()),
   mobile: z.string().min(8, 'Contact number is required'),
   address: z.string().optional(),
   maritalStatus: z.string().optional(),
@@ -31,7 +33,7 @@ const qrSchema = z.object({
   menstrualHistory: z.string().optional(),
   pregnancyStatus: z.string().optional(),
   notes: z.string().optional(),
-});
+}).catchall(z.unknown());
 
 type QrFormValues = z.infer<typeof qrSchema>;
 
@@ -41,6 +43,7 @@ type RegistrationPreview = {
   mobile: string;
   branch: { name: string } | null;
   branches?: Array<{ id: string; name: string }>;
+  formTemplate?: FormTemplate | null;
 };
 
 export function QrRegistrationForm({ token }: { token: string }) {
@@ -86,6 +89,10 @@ export function QrRegistrationForm({ token }: { token: string }) {
     );
   }
 
+  const template = registrationQuery.data?.data.formTemplate;
+  const currentValues = form.watch();
+  const fields = (template?.fields ?? []).filter((field) => isVisible(field, currentValues)).sort((a, b) => a.sortOrder - b.sortOrder);
+
   return (
     <Card className="w-full max-w-3xl">
       <div className="mb-6">
@@ -104,29 +111,14 @@ export function QrRegistrationForm({ token }: { token: string }) {
             ))}
           </Select>
         ) : null}
-        <Input placeholder="Referred by" {...form.register('referredBy')} />
-        <Input placeholder="Full name" {...form.register('fullName')} />
-        <Input type="number" placeholder="Age" {...form.register('age')} />
-        <Select {...form.register('sex')}>
-          <option value="">Sex</option>
-          <option value="MALE">Male</option>
-          <option value="FEMALE">Female</option>
-          <option value="OTHER">Other</option>
-        </Select>
-        <Input placeholder="Contact number" {...form.register('mobile')} />
-        <Input placeholder="Address" {...form.register('address')} />
-        <Input placeholder="Marital status" {...form.register('maritalStatus')} />
-        <Input placeholder="Occupation" {...form.register('occupation')} />
-        <Input placeholder="Skin concern" {...form.register('skinConcern')} />
-        <Input placeholder="Hair concern" {...form.register('hairConcern')} />
-        <Input placeholder="Medical history" {...form.register('medicalHistory')} />
-        <Input placeholder="Current medications" {...form.register('currentMedications')} />
-        <Input placeholder="Allergy to drugs" {...form.register('allergyToDrugs')} />
-        <Input placeholder="Keloid / hypertrophic scar history" {...form.register('keloidOrHypertrophicScar')} />
-        <Input placeholder="Products currently used" {...form.register('productsCurrentlyUsed')} />
-        <Input placeholder="Menstrual history" {...form.register('menstrualHistory')} />
-        <Input placeholder="Pregnancy status" {...form.register('pregnancyStatus')} />
-        <Input placeholder="Other notes" {...form.register('notes')} />
+        {fields.length ? fields.map((field) => (
+          <QrTemplateField
+            key={field.id ?? field.key}
+            field={field}
+            register={form.register}
+            setValue={(value) => form.setValue(field.key, value, { shouldDirty: true, shouldValidate: true })}
+          />
+        )) : <LegacyRegistrationFields register={form.register} />}
         {submitRegistration.error ? (
           <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2">
             {submitRegistration.error.message}
@@ -140,4 +132,30 @@ export function QrRegistrationForm({ token }: { token: string }) {
       </form>
     </Card>
   );
+}
+
+type Register = ReturnType<typeof useForm<QrFormValues>>['register'];
+
+function QrTemplateField({ field, register, setValue }: { field: FormField; register: Register; setValue: (value: unknown) => void }) {
+  const input = register(field.key);
+  const label = <span className="text-sm font-medium">{field.label}{field.required ? ' *' : ''}</span>;
+  if (field.type === 'CHECKBOX' || field.type === 'DECLARATION') return <label className="flex items-start gap-2 rounded-md border p-3 md:col-span-2"><input type="checkbox" disabled={field.readOnly} {...input} /><span>{label}{field.helpText ? <span className="mt-1 block text-xs text-muted-foreground">{field.helpText}</span> : null}</span></label>;
+  if (field.type === 'DROPDOWN' || field.type === 'RADIO') return <label className="grid gap-1.5">{label}<Select disabled={field.readOnly} {...input}><option value="">Select</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option.replaceAll('_', ' ')}</option>)}</Select></label>;
+  if (field.type === 'MULTI_SELECT') return <label className="grid gap-1.5">{label}<select multiple disabled={field.readOnly} className="min-h-24 rounded-md border bg-background p-2 text-sm" {...input}>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
+  if (field.type === 'SIGNATURE') return <div className="grid gap-1.5 md:col-span-2">{label}<SignaturePad onChange={setValue} disabled={field.readOnly} /></div>;
+  if (field.type === 'FILE_UPLOAD' || field.type === 'IMAGE_UPLOAD') return <label className="grid gap-1.5">{label}<Input type="file" accept={field.type === 'IMAGE_UPLOAD' ? 'image/*' : undefined} disabled={field.readOnly} onChange={(event) => setValue(event.target.files?.[0]?.name ?? '')} /></label>;
+  return <label className="grid gap-1.5">{label}<Input type={field.type === 'NUMBER' ? 'number' : field.type === 'DATE' ? 'date' : 'text'} placeholder={field.placeholder ?? undefined} readOnly={field.readOnly} {...input} />{field.helpText ? <span className="text-xs text-muted-foreground">{field.helpText}</span> : null}</label>;
+}
+
+function isVisible(field: FormField, values: Record<string, unknown>) {
+  if (field.hidden) return false;
+  if (!field.condition) return true;
+  const actual = values[field.condition.field];
+  if (field.condition.operator === 'EQUALS') return actual === field.condition.value;
+  if (field.condition.operator === 'NOT_EQUALS') return actual !== field.condition.value;
+  return String(actual ?? '').includes(String(field.condition.value ?? ''));
+}
+
+function LegacyRegistrationFields({ register }: { register: Register }) {
+  return <><Input placeholder="Referred by" {...register('referredBy')} /><Input placeholder="Full name" {...register('fullName')} /><Input type="number" placeholder="Age" {...register('age')} /><Select {...register('sex')}><option value="">Sex</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></Select><Input placeholder="Contact number" {...register('mobile')} /><Input placeholder="Address" {...register('address')} /><Input placeholder="Marital status" {...register('maritalStatus')} /><Input placeholder="Occupation" {...register('occupation')} /><Input placeholder="Skin concern" {...register('skinConcern')} /><Input placeholder="Hair concern" {...register('hairConcern')} /><Input placeholder="Medical history" {...register('medicalHistory')} /><Input placeholder="Current medications" {...register('currentMedications')} /><Input placeholder="Allergy to drugs" {...register('allergyToDrugs')} /><Input placeholder="Keloid / hypertrophic scar history" {...register('keloidOrHypertrophicScar')} /><Input placeholder="Products currently used" {...register('productsCurrentlyUsed')} /><Input placeholder="Menstrual history" {...register('menstrualHistory')} /><Input placeholder="Pregnancy status" {...register('pregnancyStatus')} /><Input placeholder="Other notes" {...register('notes')} /></>;
 }

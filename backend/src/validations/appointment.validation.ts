@@ -1,4 +1,4 @@
-import { AppointmentResource, AppointmentType, EnquirySource, LeadStatus } from '@prisma/client';
+import { AppointmentResource, AppointmentStatus, AppointmentType, EnquirySource } from '@prisma/client';
 import { z } from 'zod';
 
 export const createAppointmentSchema = z.object({
@@ -13,6 +13,16 @@ export const createAppointmentSchema = z.object({
   resourceType: z.nativeEnum(AppointmentResource).default(AppointmentResource.CONSULTATION),
   roomNumber: z.coerce.number().int().min(1).max(4).optional(),
   notes: z.string().optional(),
+  serviceId: z.string().optional(),
+  durationMinutes: z.coerce.number().int().min(5).max(480).optional(),
+  bufferMinutes: z.coerce.number().int().min(0).max(120).optional(),
+  doctorId: z.string().optional(),
+  therapistId: z.string().optional(),
+  counsellorId: z.string().optional(),
+  resourceId: z.string().optional(),
+  equipmentId: z.string().optional(),
+  bookingSource: z.string().optional(),
+  bookingChannel: z.string().optional(),
 }).refine((value) => Boolean(value.leadId || (value.name && value.mobile)), {
   message: 'Either an existing lead or appointment contact details are required',
 }).refine((value) => value.resourceType !== AppointmentResource.TREATMENT_ROOM || Boolean(value.roomNumber), {
@@ -27,14 +37,25 @@ export const updateAppointmentSchema = z
     appointmentType: z.nativeEnum(AppointmentType).optional(),
     resourceType: z.nativeEnum(AppointmentResource).optional(),
     roomNumber: z.coerce.number().int().min(1).max(4).nullable().optional(),
-    status: z.nativeEnum(LeadStatus).optional(),
+    status: z.nativeEnum(AppointmentStatus).optional(),
     notes: z.string().optional(),
+    serviceId: z.string().nullable().optional(),
+    durationMinutes: z.coerce.number().int().min(5).max(480).optional(),
+    bufferMinutes: z.coerce.number().int().min(0).max(120).optional(),
+    doctorId: z.string().nullable().optional(),
+    therapistId: z.string().nullable().optional(),
+    counsellorId: z.string().nullable().optional(),
+    resourceId: z.string().nullable().optional(),
+    equipmentId: z.string().nullable().optional(),
+    cancellationReason: z.string().optional(),
+    noShowReason: z.string().optional(),
+    rescheduleReason: z.string().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 
 export const appointmentQuerySchema = z.object({
   branchId: z.string().optional(),
-  status: z.nativeEnum(LeadStatus).optional(),
+  status: z.nativeEnum(AppointmentStatus).optional(),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
   search: z.string().optional(),

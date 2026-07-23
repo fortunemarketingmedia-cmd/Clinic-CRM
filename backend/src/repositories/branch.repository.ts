@@ -5,6 +5,10 @@ export const branchRepository = {
     return prisma.branch.findMany({ orderBy: { name: 'asc' } });
   },
 
+  listForUser(userId: string) {
+    return prisma.branch.findMany({ where: { userAccess: { some: { userId } } }, orderBy: { name: 'asc' } });
+  },
+
   exists(id: string) {
     return prisma.branch.findUnique({ where: { id }, select: { id: true } });
   },

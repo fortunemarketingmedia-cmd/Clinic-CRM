@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
 
 type PatientInput = {
+  personId?: string;
   fullName: string;
   mobile: string;
   email?: string;
@@ -12,6 +13,14 @@ type PatientInput = {
   occupation?: string;
   maritalStatus?: string;
 };
+
+export type MedicalProfileData = Partial<{
+  referredBy: string; skinConcern: string; hairConcern: string; medicalHistory: string; surgicalHistory: string;
+  currentMedications: string; allergyToDrugs: string; productAllergies: string; foodAllergies: string;
+  keloidOrHypertrophicScar: string; previousAestheticProcedures: string; productsCurrentlyUsed: string;
+  hairProductsUsed: string; menstrualHistory: string; pregnancyStatus: string; breastfeedingStatus: string;
+  familyHistory: string; smokingStatus: string; alcoholHistory: string; clinicalAlerts: string; criticalAlert: boolean; notes: string;
+}>;
 
 export const patientRepository = {
   list(filters: { branchId?: string; search?: string }) {
@@ -83,12 +92,12 @@ export const patientRepository = {
 
       await tx.lead.update({
         where: { id: data.leadId },
-        data: { status: 'CONVERTED' },
+        data: { status: 'CONVERTED', convertedAt: new Date() },
       });
 
       await tx.appointment.updateMany({
         where: { leadId: data.leadId },
-        data: { status: 'CONVERTED' },
+        data: { status: 'COMPLETED' },
       });
 
       return patient;
@@ -128,12 +137,12 @@ export const patientRepository = {
 
       await tx.lead.update({
         where: { id: data.leadId },
-        data: { status: 'CONVERTED' },
+        data: { status: 'CONVERTED', convertedAt: new Date() },
       });
 
       await tx.appointment.updateMany({
         where: { leadId: data.leadId },
-        data: { status: 'CONVERTED' },
+        data: { status: 'COMPLETED' },
       });
 
       return patient;
@@ -150,7 +159,7 @@ export const patientRepository = {
   ) {
     return prisma.$transaction(async (tx) => {
       const createdBy = await tx.user.findFirst({
-        where: { role: 'ADMIN', status: 'ACTIVE' },
+        where: { accessLevel: 'ADMIN', status: 'ACTIVE' },
         orderBy: { createdAt: 'asc' },
       });
 
@@ -169,6 +178,11 @@ export const patientRepository = {
           status: 'CONVERTED',
           branchId: data.branchId,
           createdById: createdBy.id,
+          personId: data.personId,
+          ownerId: createdBy.id,
+          nextAction: 'Clinical registration complete',
+          nextActionDueAt: new Date(),
+          convertedAt: new Date(),
           appointmentAt: new Date(),
           appointmentType: 'CLINIC_VISIT',
         },
@@ -177,6 +191,7 @@ export const patientRepository = {
       return tx.patient.create({
         data: {
           leadId: lead.id,
+          personId: data.personId,
           branchId: data.branchId,
           patientNo: data.patientNo,
           qrToken: data.qrToken,
@@ -236,11 +251,24 @@ export const patientRepository = {
     });
   },
 
-  upsertMedicalProfile(patientId: string, data: Record<string, string | undefined>) {
-    return prisma.medicalProfile.upsert({
-      where: { patientId },
-      update: data,
-      create: { patientId, ...data },
+  upsertMedicalProfile(patientId: string, data: MedicalProfileData, updatedById?: string, reason?: string) {
+    return prisma.$transaction(async (tx) => {
+      const previous = await tx.medicalProfile.findUnique({ where: { patientId } });
+      const profile = await tx.medicalProfile.upsert({
+        where: { patientId },
+        update: data,
+        create: { patientId, ...data },
+      });
+      await tx.medicalProfileVersion.create({
+        data: {
+          medicalProfileId: profile.id,
+          previousValue: previous ?? undefined,
+          updatedValue: profile,
+          updatedById,
+          reason,
+        },
+      });
+      return profile;
     });
   },
 };

@@ -1,10 +1,10 @@
-import type { AppointmentResource, AppointmentType, EnquirySource, LeadStatus } from '@prisma/client';
+import type { AppointmentResource, AppointmentStatus, AppointmentType, EnquirySource } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
 
 type AppointmentFilters = {
   branchId?: string;
-  status?: LeadStatus;
+  status?: AppointmentStatus;
   dateFrom?: Date;
   dateTo?: Date;
   search?: string;
@@ -15,23 +15,19 @@ export const appointmentRepository = {
     const pastAppointments = await prisma.appointment.findMany({
       where: {
         status: 'CONFIRMED',
-        appointmentAt: { lt: new Date() },
+        OR: [{ endAt: { lt: new Date() } }, { endAt: null, appointmentAt: { lt: new Date() } }],
       },
-      select: { leadId: true },
+      select: { id: true },
     });
 
     if (!pastAppointments.length) return;
 
-    const leadIds = pastAppointments.map((appointment) => appointment.leadId);
+    const appointmentIds = pastAppointments.map((appointment) => appointment.id);
 
     await prisma.$transaction([
       prisma.appointment.updateMany({
-        where: { leadId: { in: leadIds }, status: 'CONFIRMED', appointmentAt: { lt: new Date() } },
-        data: { status: 'NOT_ARRIVED' },
-      }),
-      prisma.lead.updateMany({
-        where: { id: { in: leadIds }, status: 'CONFIRMED' },
-        data: { status: 'NOT_ARRIVED' },
+        where: { id: { in: appointmentIds }, status: 'CONFIRMED' },
+        data: { status: 'NO_SHOW', noShowReason: 'Automatically marked after confirmed appointment time passed' },
       }),
     ]);
   },
@@ -62,6 +58,11 @@ export const appointmentRepository = {
       include: {
         branch: true,
         lead: { include: { patient: true } },
+        service: true,
+        doctor: { select: { id: true, name: true } },
+        therapist: { select: { id: true, name: true } },
+        resource: true,
+        equipment: true,
       },
       orderBy: { appointmentAt: 'asc' },
     });
@@ -73,6 +74,11 @@ export const appointmentRepository = {
       include: {
         branch: true,
         lead: { include: { patient: true } },
+        service: true,
+        doctor: { select: { id: true, name: true } },
+        therapist: { select: { id: true, name: true } },
+        resource: true,
+        equipment: true,
       },
     });
   },
@@ -85,7 +91,7 @@ export const appointmentRepository = {
         resourceType,
         roomNumber: resourceType === 'TREATMENT_ROOM' ? roomNumber : null,
         id: excludeId ? { not: excludeId } : undefined,
-        status: { notIn: ['CANCELLED', 'CONVERTED'] },
+        status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
       },
       include: {
         branch: true,
@@ -110,6 +116,18 @@ export const appointmentRepository = {
     resourceType: AppointmentResource;
     roomNumber?: number | null;
     notes?: string;
+    personId: string;
+    serviceId?: string;
+    durationMinutes: number;
+    bufferMinutes: number;
+    endAt: Date;
+    doctorId?: string;
+    therapistId?: string;
+    counsellorId?: string;
+    resourceId?: string;
+    equipmentId?: string;
+    bookingSource?: string;
+    bookingChannel?: string;
   }) {
     return prisma.$transaction(async (tx) => {
       const lead = await tx.lead.create({
@@ -121,9 +139,13 @@ export const appointmentRepository = {
           source: data.source,
           branchId: data.branchId,
           createdById: data.createdById,
+          personId: data.personId,
           appointmentAt: data.appointmentAt,
           appointmentType: data.appointmentType,
-          status: 'CONFIRMED',
+          status: 'APPOINTMENT_BOOKED',
+          ownerId: data.createdById,
+          nextAction: 'Confirm appointment',
+          nextActionDueAt: data.appointmentAt,
         },
       });
 
@@ -136,7 +158,18 @@ export const appointmentRepository = {
           resourceType: data.resourceType,
           roomNumber: data.resourceType === 'TREATMENT_ROOM' ? data.roomNumber : null,
           notes: data.notes,
-          status: 'CONFIRMED',
+          status: 'SCHEDULED',
+          serviceId: data.serviceId,
+          durationMinutes: data.durationMinutes,
+          bufferMinutes: data.bufferMinutes,
+          endAt: data.endAt,
+          doctorId: data.doctorId,
+          therapistId: data.therapistId,
+          counsellorId: data.counsellorId,
+          resourceId: data.resourceId,
+          equipmentId: data.equipmentId,
+          bookingSource: data.bookingSource,
+          bookingChannel: data.bookingChannel,
         },
       });
 
@@ -145,6 +178,11 @@ export const appointmentRepository = {
         include: {
           branch: true,
           lead: { include: { patient: true } },
+          service: true,
+          doctor: { select: { id: true, name: true } },
+          therapist: { select: { id: true, name: true } },
+          resource: true,
+          equipment: true,
         },
       });
     });
@@ -158,12 +196,23 @@ export const appointmentRepository = {
     resourceType: AppointmentResource;
     roomNumber?: number | null;
     notes?: string;
+    serviceId?: string;
+    durationMinutes: number;
+    bufferMinutes: number;
+    endAt: Date;
+    doctorId?: string;
+    therapistId?: string;
+    counsellorId?: string;
+    resourceId?: string;
+    equipmentId?: string;
+    bookingSource?: string;
+    bookingChannel?: string;
   }) {
     return prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.create({
         data: {
           ...data,
-          status: 'CONFIRMED',
+          status: 'SCHEDULED',
         },
       });
 
@@ -173,7 +222,7 @@ export const appointmentRepository = {
           branchId: data.branchId,
           appointmentAt: data.appointmentAt,
           appointmentType: data.appointmentType,
-          status: 'CONFIRMED',
+          status: 'APPOINTMENT_BOOKED',
         },
       });
 
@@ -182,6 +231,11 @@ export const appointmentRepository = {
         include: {
           branch: true,
           lead: { include: { patient: true } },
+          service: true,
+          doctor: { select: { id: true, name: true } },
+          therapist: { select: { id: true, name: true } },
+          resource: true,
+          equipment: true,
         },
       });
     });
@@ -195,8 +249,29 @@ export const appointmentRepository = {
       appointmentType: AppointmentType;
       resourceType: AppointmentResource;
       roomNumber: number | null;
-      status: LeadStatus;
+      status: AppointmentStatus;
       notes: string;
+      serviceId: string | null;
+      durationMinutes: number;
+      bufferMinutes: number;
+      endAt: Date;
+      doctorId: string | null;
+      therapistId: string | null;
+      counsellorId: string | null;
+      resourceId: string | null;
+      equipmentId: string | null;
+      cancellationReason: string;
+      noShowReason: string;
+      rescheduleReason: string;
+      rescheduleCount: number;
+      arrivalAt: Date;
+      checkInAt: Date;
+      waitingStartedAt: Date;
+      consultationStartedAt: Date;
+      consultationCompletedAt: Date;
+      treatmentStartedAt: Date;
+      treatmentCompletedAt: Date;
+      checkoutAt: Date;
     }>,
   ) {
     return prisma.$transaction(async (tx) => {
@@ -211,7 +286,6 @@ export const appointmentRepository = {
           branchId: appointment.branchId,
           appointmentAt: appointment.appointmentAt,
           appointmentType: appointment.appointmentType,
-          status: appointment.status,
         },
       });
 
@@ -220,6 +294,11 @@ export const appointmentRepository = {
         include: {
           branch: true,
           lead: { include: { patient: true } },
+          service: true,
+          doctor: { select: { id: true, name: true } },
+          therapist: { select: { id: true, name: true } },
+          resource: true,
+          equipment: true,
         },
       });
     });

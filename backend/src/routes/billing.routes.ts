@@ -3,21 +3,41 @@ import { billingController } from '../controllers/billing.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 
 export const billingRoutes = Router();
-
+billingRoutes.post('/payments/gateway-callback', (req, res, next) => { billingController.gatewayCallback(req, res).catch(next); });
 billingRoutes.use(requireAuth);
-
-billingRoutes.get('/invoices', (req, res, next) => {
-  billingController.listInvoices(req, res).catch(next);
-});
-
-billingRoutes.post('/invoices', (req, res, next) => {
-  billingController.createInvoice(req, res).catch(next);
-});
-
-billingRoutes.post('/invoices/:id/payments', (req, res, next) => {
-  billingController.addPayment(req, res).catch(next);
-});
-
-billingRoutes.get('/invoices/:id/pdf', (req, res, next) => {
-  billingController.pdf(req, res).catch(next);
-});
+billingRoutes.get('/estimates', (req, res, next) => { billingController.listEstimates(req, res).catch(next); });
+billingRoutes.post('/estimates', (req, res, next) => { billingController.createEstimate(req, res).catch(next); });
+billingRoutes.patch('/estimates/:id/status', (req, res, next) => { billingController.updateEstimateStatus(req, res).catch(next); });
+billingRoutes.post('/estimates/:id/convert', (req, res, next) => { billingController.convertEstimate(req, res).catch(next); });
+billingRoutes.get('/invoices', (req, res, next) => { billingController.listInvoices(req, res).catch(next); });
+billingRoutes.post('/invoices', (req, res, next) => { billingController.createInvoice(req, res).catch(next); });
+billingRoutes.post('/invoices/:id/issue', (req, res, next) => { billingController.issueInvoice(req, res).catch(next); });
+billingRoutes.post('/invoices/:id/cancel', (req, res, next) => { billingController.cancelInvoice(req, res).catch(next); });
+billingRoutes.get('/invoices/:id/pdf', (req, res, next) => { billingController.invoicePdf(req, res).catch(next); });
+billingRoutes.get('/payments', (req, res, next) => { billingController.listPayments(req, res).catch(next); });
+billingRoutes.post('/payments', (req, res, next) => { billingController.addPayment(req, res).catch(next); });
+billingRoutes.post('/invoices/:id/payments', (req, res, next) => { billingController.addPayment(req, res).catch(next); });
+billingRoutes.post('/payments/:id/allocations', (req, res, next) => { billingController.allocatePayment(req, res).catch(next); });
+billingRoutes.post('/payments/:id/reverse', (req, res, next) => { billingController.reversePayment(req, res).catch(next); });
+billingRoutes.get('/payments/:id/receipt', (req, res, next) => { billingController.receiptPdf(req, res).catch(next); });
+billingRoutes.get('/refunds', (req, res, next) => { billingController.listRefunds(req, res).catch(next); });
+billingRoutes.post('/refunds', (req, res, next) => { billingController.requestRefund(req, res).catch(next); });
+billingRoutes.post('/refunds/:id/decision', (req, res, next) => { billingController.decideRefund(req, res).catch(next); });
+billingRoutes.post('/refunds/:id/process', (req, res, next) => { billingController.processRefund(req, res).catch(next); });
+billingRoutes.get('/credit-notes', (req, res, next) => { billingController.listCreditNotes(req, res).catch(next); });
+billingRoutes.post('/credit-notes', (req, res, next) => { billingController.createCreditNote(req, res).catch(next); });
+billingRoutes.post('/credit-notes/:id/apply', (req, res, next) => { billingController.applyCreditNote(req, res).catch(next); });
+billingRoutes.get('/discount-approvals', (req, res, next) => { billingController.listApprovals(req, res).catch(next); });
+billingRoutes.post('/discount-approvals/:id/decision', (req, res, next) => { billingController.decideDiscount(req, res).catch(next); });
+billingRoutes.get('/outstanding', (req, res, next) => { billingController.outstanding(req, res).catch(next); });
+billingRoutes.patch('/outstanding/:id', (req, res, next) => { billingController.updateCollection(req, res).catch(next); });
+billingRoutes.get('/package-masters', (req, res, next) => { billingController.listPackageMasters(req, res).catch(next); });
+billingRoutes.post('/package-masters', (req, res, next) => { billingController.createPackageMaster(req, res).catch(next); });
+billingRoutes.patch('/package-masters/:id', (req, res, next) => { billingController.updatePackageMaster(req, res).catch(next); });
+billingRoutes.get('/patient-packages', (req, res, next) => { billingController.listPatientPackages(req, res).catch(next); });
+billingRoutes.post('/patient-packages', (req, res, next) => { billingController.purchasePackage(req, res).catch(next); });
+billingRoutes.post('/patient-packages/:id/actions', (req, res, next) => { billingController.packageAction(req, res).catch(next); });
+billingRoutes.get('/cash-closings', (req, res, next) => { billingController.listCashClosings(req, res).catch(next); });
+billingRoutes.post('/cash-closings', (req, res, next) => { billingController.createCashClosing(req, res).catch(next); });
+billingRoutes.post('/cash-closings/:id/submit', (req, res, next) => { billingController.submitCashClosing(req, res).catch(next); });
+billingRoutes.post('/cash-closings/:id/decision', (req, res, next) => { billingController.decideCashClosing(req, res).catch(next); });

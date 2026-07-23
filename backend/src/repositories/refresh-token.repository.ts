@@ -45,4 +45,9 @@ export const refreshTokenRepository = {
       },
     });
   },
+  listForUser(userId: string) {
+    return prisma.refreshToken.findMany({ where: { userId, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true, userAgent: true, ipAddress: true, createdAt: true, lastSeenAt: true, expiresAt: true }, orderBy: { createdAt: 'desc' } });
+  },
+  revokeById(userId: string, id: string) { return prisma.refreshToken.updateMany({ where: { id, userId, revokedAt: null }, data: { revokedAt: new Date() } }); },
+  touch(id: string) { return prisma.refreshToken.update({ where: { id }, data: { lastSeenAt: new Date() } }); },
 };

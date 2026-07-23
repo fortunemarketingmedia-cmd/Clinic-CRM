@@ -3,6 +3,16 @@ import type { AdLead } from '@/types/ad-lead';
 
 export type LeadStatus =
   | 'NEW'
+  | 'UNASSIGNED'
+  | 'ASSIGNED'
+  | 'ATTEMPTING_CONTACT'
+  | 'CONNECTED'
+  | 'QUALIFIED'
+  | 'APPOINTMENT_PROPOSED'
+  | 'APPOINTMENT_BOOKED'
+  | 'NURTURING'
+  | 'LOST'
+  | 'DISQUALIFIED'
   | 'BOOKED'
   | 'CONFIRMED'
   | 'ARRIVED'
@@ -34,7 +44,22 @@ export type Lead = {
   branch?: Branch;
   adLeads?: AdLead[];
   patient?: { id: string; patientNo: string; fullName: string } | null;
+  personId?: string | null;
+  ownerId?: string | null;
+  owner?: { id: string; name: string } | null;
+  nextAction?: string | null;
+  nextActionDueAt?: string | null;
+  leadScore?: number;
+  scoreCategory?: 'HOT' | 'WARM' | 'COLD' | 'UNQUALIFIED';
+  qualificationNotes?: string | null;
+  lostReason?: string | null;
+  appointments?: import('@/types/appointment').Appointment[];
+  followUps?: import('@/types/foundation').FollowUp[];
+  tasks?: import('@/types/foundation').Task[];
+  scoreHistory?: LeadScoreHistory[];
 };
+
+export type LeadScoreHistory = { id: string; previousScore: number; newScore: number; category: 'HOT' | 'WARM' | 'COLD' | 'UNQUALIFIED'; reasons: Array<{ rule: string; points: number }>; createdAt: string };
 
 export type TimelineEvent = {
   id: string;
