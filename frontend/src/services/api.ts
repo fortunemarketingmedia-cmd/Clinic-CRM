@@ -2,7 +2,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
 export const apiAssetUrl = (path: string) => `${API_URL}${path}`;
 const ACCESS_TOKEN_KEY = 'revive_access_token';
 export const AUTH_UNAUTHORIZED_EVENT = 'revive:auth-unauthorized';
+export const DATA_CHANGED_EVENT = 'revive:data-changed';
 const REQUEST_TIMEOUT_MS = 20_000;
+
+export type DataChangeDetail = {
+  path: string;
+  method: string;
+};
+
+function notifyDataChanged(path: string, method: string) {
+  if (typeof window === 'undefined' || method === 'GET' || method === 'HEAD' || path.startsWith('/auth/')) return;
+  window.dispatchEvent(new CustomEvent<DataChangeDetail>(DATA_CHANGED_EVENT, { detail: { path, method } }));
+}
 
 export class ApiError extends Error {
   constructor(
@@ -141,10 +152,13 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   }
 
   if (response.status === 204) {
+    notifyDataChanged(path, (init?.method ?? 'GET').toUpperCase());
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  const data = (await response.json()) as T;
+  notifyDataChanged(path, (init?.method ?? 'GET').toUpperCase());
+  return data;
 }
 
 export async function apiBlob(path: string): Promise<Blob> {

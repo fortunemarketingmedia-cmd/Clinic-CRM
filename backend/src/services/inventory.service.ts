@@ -9,9 +9,9 @@ import { auditService, type AuditContext } from './audit.service.js';
 import { alertFlags, assertPurchaseOrderTransition, assertTransferTransition, quantity } from './inventory-policy.js';
 
 type Actor = AuditContext & { id: string; role: Role };
-const inventoryRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.BRANCH_MANAGER, RoleEnum.INVENTORY_MANAGER];
-const managerRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.BRANCH_MANAGER];
-const clinicalConsumptionRoles: Role[] = [...inventoryRoles, RoleEnum.DOCTOR, RoleEnum.THERAPIST];
+const inventoryRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+const managerRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+const clinicalConsumptionRoles: Role[] = inventoryRoles;
 function requireInventory(actor: Actor) { if (!inventoryRoles.includes(actor.role)) throw new HttpError(403, 'Inventory access is required'); }
 function requireManager(actor: Actor) { if (!managerRoles.includes(actor.role)) throw new HttpError(403, 'Manager approval is required'); }
 function requireConsumption(actor: Actor) { if (!clinicalConsumptionRoles.includes(actor.role)) throw new HttpError(403, 'Inventory or clinical access is required'); }

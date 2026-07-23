@@ -102,13 +102,15 @@ function formatDateTime(value: string) {
 }
 
 export function DashboardView() {
-  const { session } = useSessionStore();
+  const { session, selectedBranchId } = useSessionStore();
   const isAdmin = session?.user.role === 'ADMIN';
+  const branchId = selectedBranchId ?? '';
   const [dashboardTab, setDashboardTab] = useState<'PERFORMANCE' | 'OPERATIONS'>('PERFORMANCE');
 
   const dashboardQuery = useQuery({
-    queryKey: ['dashboard-overview'],
-    queryFn: () => apiRequest<{ data: DashboardOverview }>('/analytics'),
+    queryKey: ['dashboard-overview', branchId],
+    queryFn: () =>
+      apiRequest<{ data: DashboardOverview }>(`/analytics${branchId ? `?branchId=${branchId}` : ''}`),
   });
 
   const totals = dashboardQuery.data?.data.totals;

@@ -14,7 +14,7 @@ import type { WhatsAppAccount, WhatsAppAutomation, WhatsAppBroadcast, WhatsAppCo
 
 export type CommunicationTab = 'inbox' | 'templates' | 'broadcasts' | 'automations' | 'integration' | 'logs';
 const tabs: Array<{ id: CommunicationTab; label: string }> = [{ id: 'inbox', label: 'Shared inbox' }, { id: 'templates', label: 'Templates' }, { id: 'broadcasts', label: 'Broadcasts' }, { id: 'automations', label: 'Automations' }, { id: 'integration', label: 'Integration' }, { id: 'logs', label: 'Delivery & logs' }];
-const adminRoles = new Set(['ADMIN', 'ORGANISATION_OWNER', 'CLINIC_ADMIN']);
+const adminRoles = new Set(['ADMIN', 'RECEPTIONIST']);
 
 function queryString(values: Record<string, string | boolean | undefined | null>) { const params = new URLSearchParams(); Object.entries(values).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '' && value !== false) params.set(key, String(value)); }); const string = params.toString(); return string ? `?${string}` : ''; }
 

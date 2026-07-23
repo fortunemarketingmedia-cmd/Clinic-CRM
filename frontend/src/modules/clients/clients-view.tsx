@@ -8,7 +8,7 @@ import { SegmentedTabs } from '@/components/ui/data-visuals';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { apiRequest } from '@/services/api';
-import type { Branch } from '@/types/branch';
+import { useSessionStore } from '@/store/session-store';
 import type { Patient } from '@/types/patient';
 import type { Lead } from '@/types/lead';
 
@@ -31,14 +31,14 @@ function money(value?: string | number) {
 
 export function ClientsView() {
   const [search, setSearch] = useState('');
-  const [branchId, setBranchId] = useState('');
   const [status, setStatus] = useState('');
   const [recordTab, setRecordTab] = useState<'PATIENTS' | 'LEADS'>('PATIENTS');
+  const { selectedBranchId } = useSessionStore();
+  const branchId = selectedBranchId ?? '';
 
-  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => apiRequest<{ data: Branch[] }>('/branches') });
   const analyticsQuery = useQuery({
-    queryKey: ['clients-analytics'],
-    queryFn: () => apiRequest<{ data: AnalyticsOverview }>('/analytics'),
+    queryKey: ['clients-analytics', branchId],
+    queryFn: () => apiRequest<{ data: AnalyticsOverview }>(`/analytics${branchId ? `?branchId=${branchId}` : ''}`),
   });
 
   const patientQueryString = useMemo(() => {
@@ -93,19 +93,11 @@ export function ClientsView() {
 
       {recordTab === 'PATIENTS' ? (
       <Card>
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px_220px]">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
             <Input className="pl-9" placeholder="Search patient, mobile, or patient no" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
-          <Select value={branchId} onChange={(event) => setBranchId(event.target.value)}>
-            <option value="">All branches</option>
-            {branchesQuery.data?.data.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </Select>
           <Select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="">All appointment statuses</option>
             <option value="CONFIRMED">Confirmed</option>
@@ -155,7 +147,7 @@ export function ClientsView() {
 
       {recordTab === 'LEADS' ? (
       <Card>
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px_220px]"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search client or mobile" value={search} onChange={(event) => setSearch(event.target.value)} /></div><Select value={branchId} onChange={(event) => setBranchId(event.target.value)}><option value="">All branches</option>{branchesQuery.data?.data.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select><Select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option><option value="CONFIRMED">Confirmed</option><option value="ARRIVED">Arrived</option><option value="POSTPONED">Postponed</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select></div>
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px]"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search client or mobile" value={search} onChange={(event) => setSearch(event.target.value)} /></div><Select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option><option value="CONFIRMED">Confirmed</option><option value="ARRIVED">Arrived</option><option value="POSTPONED">Postponed</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select></div>
         <h2 className="text-base font-semibold">Complete Lead History</h2>
         <p className="mt-1 text-sm text-muted-foreground">Every enquiry is retained, including repeat leads from an existing or former patient.</p>
         <div className="mt-4 overflow-hidden rounded-md border border-border">

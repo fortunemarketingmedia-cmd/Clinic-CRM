@@ -106,6 +106,7 @@ export function LeadsView() {
   const [bookingLead, setBookingLead] = useState<Lead | null>(null);
   const [activeTab, setActiveTab] = useState<LeadTab>('ALL');
   const [showLeadForm, setShowLeadForm] = useState(false);
+  const [statusUpdateError, setStatusUpdateError] = useState<{ leadId: string; message: string } | null>(null);
 
   const isAdmin = session?.user.role === 'ADMIN';
 
@@ -284,11 +285,40 @@ export function LeadsView() {
           interestedTreatment: values.interestedTreatment || undefined,
         }),
       }),
-    onSuccess: () => {
+    onMutate: (variables) => {
+      if (!variables.values.status) return;
+      setStatusUpdateError((current) => (current?.leadId === variables.id ? null : current));
+      queryClient.setQueriesData<{ data: Lead[] }>({ queryKey: ['leads'] }, (current) =>
+        current
+          ? {
+              ...current,
+              data: current.data.map((lead) =>
+                lead.id === variables.id ? { ...lead, status: variables.values.status! } : lead,
+              ),
+            }
+          : current,
+      );
+      if (selectedLead?.id === variables.id) {
+        setSelectedLead({ ...selectedLead, status: variables.values.status });
+      }
+    },
+    onSuccess: (response) => {
+      const updatedLead = response.data;
+      queryClient.setQueriesData<{ data: Lead[] }>({ queryKey: ['leads'] }, (current) =>
+        current ? { ...current, data: current.data.map((lead) => (lead.id === updatedLead.id ? updatedLead : lead)) } : current,
+      );
+      if (selectedLead?.id === updatedLead.id) setSelectedLead(updatedLead);
+      setStatusUpdateError((current) => (current?.leadId === updatedLead.id ? null : current));
       setEditingLead(null);
       setShowLeadForm(false);
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    },
+    onError: (error, variables) => {
+      if (variables.values.status) {
+        setStatusUpdateError({ leadId: variables.id, message: error.message });
+        queryClient.invalidateQueries({ queryKey: ['leads'] });
+      }
     },
   });
 
@@ -455,21 +485,6 @@ export function LeadsView() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" onClick={() => { resetCreateForm(); setShowLeadForm(true); }}><Plus className="size-4" />Add lead</Button>
-        {isAdmin ? (
-          <Select
-            aria-label="Branch filter"
-            className="w-56"
-            value={activeBranchId}
-            onChange={(event) => setSelectedBranchId(event.target.value)}
-          >
-            <option value="">All branches</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.name}
-              </option>
-            ))}
-          </Select>
-        ) : null}
         </div>
       </div>
 
@@ -816,6 +831,7 @@ export function LeadsView() {
                       <Select
                         aria-label="Lead status"
                         value={leadStatuses.some((leadStatus) => leadStatus.value === lead.status) ? lead.status : ''}
+                        disabled={updateLead.isPending}
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) =>
                           updateLead.mutate({
@@ -831,6 +847,9 @@ export function LeadsView() {
                           </option>
                         ))}
                       </Select>
+                      {statusUpdateError?.leadId === lead.id ? (
+                        <p className="mt-1 max-w-60 text-xs text-red-600" role="alert">{statusUpdateError.message}</p>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>

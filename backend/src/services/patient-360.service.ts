@@ -20,8 +20,8 @@ import PDFDocument from 'pdfkit';
 import { inventoryService } from './inventory.service.js';
 
 type Actor = AuditContext & { id: string; role: Role };
-const clinicalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.DOCTOR, RoleEnum.THERAPIST];
-const signingRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.DOCTOR];
+const clinicalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+const signingRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
 
 async function requirePatient(patientId: string, actor: Actor) {
   const patient = await patient360Repository.findPatientAccess(patientId);

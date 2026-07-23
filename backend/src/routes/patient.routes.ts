@@ -33,15 +33,15 @@ patientRoutes.patch('/:id', (req, res, next) => {
   patientController.update(req, res).catch(next);
 });
 
-patientRoutes.put('/:id/medical-profile', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR), (req, res, next) => {
+patientRoutes.put('/:id/medical-profile', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
   patientController.upsertMedicalProfile(req, res).catch(next);
 });
 
-patientRoutes.get('/:id/sessions', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
+patientRoutes.get('/:id/sessions', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
   clinicalController.listSessions(req, res).catch(next);
 });
 
-patientRoutes.post('/:id/sessions', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
+patientRoutes.post('/:id/sessions', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
   clinicalController.createSession(req, res).catch(next);
 });
 
@@ -53,10 +53,10 @@ patientRoutes.post('/:id/packages', (req, res, next) => {
   clinicalController.createPackage(req, res).catch(next);
 });
 
-patientRoutes.get('/:id/files', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
+patientRoutes.get('/:id/files', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
   clinicalController.listFiles(req, res).catch(next);
 });
 
-patientRoutes.post('/:id/files', requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.DOCTOR, Role.THERAPIST), (req, res, next) => {
+patientRoutes.post('/:id/files', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
   clinicalController.createFile(req, res).catch(next);
 });

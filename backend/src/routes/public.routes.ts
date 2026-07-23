@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { adLeadController } from '../controllers/ad-lead.controller.js';
 import { patientController } from '../controllers/patient.controller.js';
+import { leadController } from '../controllers/lead.controller.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 
 export const publicRoutes = Router();
@@ -21,4 +22,8 @@ publicRoutes.post('/ads/google', (req, res, next) => {
 
 publicRoutes.post('/ads/meta', (req, res, next) => {
   adLeadController.createPublic({ ...req.body, platform: 'META', rawPayload: req.body }, res).catch(next);
+});
+
+publicRoutes.post('/website-leads', (req, res, next) => {
+  leadController.createWebsiteLead(req, res).catch(next);
 });

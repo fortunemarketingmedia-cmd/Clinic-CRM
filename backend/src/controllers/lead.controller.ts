@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { leadService } from '../services/lead.service.js';
 import { HttpError } from '../utils/http-error.js';
-import { createLeadSchema, duplicateLeadQuerySchema, leadQuerySchema, updateLeadSchema } from '../validations/lead.validation.js';
+import { createLeadSchema, duplicateLeadQuerySchema, leadQuerySchema, updateLeadSchema, websiteLeadSchema } from '../validations/lead.validation.js';
 import { leadScoringService } from '../services/lead-scoring.service.js';
 import { accessService } from '../services/access.service.js';
 
@@ -58,6 +58,12 @@ export const leadController = {
     const input = createLeadSchema.parse(req.body);
     const lead = await leadService.createLead({ ...input, createdById: req.user.id, role: req.user.role }, { userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId });
     return res.status(201).json({ data: lead });
+  },
+
+  async createWebsiteLead(req: Request, res: Response) {
+    const input = websiteLeadSchema.parse(req.body);
+    const lead = await leadService.createWebsiteLead(input);
+    return res.status(201).json({ data: { id: lead.id, status: lead.status } });
   },
 
   async update(req: Request, res: Response) {

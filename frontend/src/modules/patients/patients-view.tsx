@@ -326,9 +326,8 @@ export function PatientsView() {
       </div>
 
       <Card>
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_240px]">
+        <div className="mb-4">
           <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search patient name, mobile, or patient no" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
-          {isAdmin ? <Select aria-label="Branch filter" value={activeBranchId} onChange={(event) => setSelectedBranchId(event.target.value)}><option value="">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select> : null}
         </div>
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full border-collapse text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Patient</th><th className="px-4 py-3 font-medium">Mobile</th><th className="px-4 py-3 font-medium">Branch</th><th className="px-4 py-3 font-medium">Source</th><th className="px-4 py-3 font-medium">Created</th><th className="px-4 py-3 font-medium">Action</th></tr></thead>

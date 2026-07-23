@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import bcrypt from 'bcrypt';
 import { PrismaClient, Role } from '@prisma/client';
 
@@ -24,38 +25,42 @@ async function main() {
     },
   });
 
-  const passwordHash = await bcrypt.hash('Admin@12345', 12);
+  const doctorPasswordHash = await bcrypt.hash('DrRevive@12345', 12);
+  const receptionistPasswordHash = await bcrypt.hash('Reception@12345', 12);
+
+  // Remove the legacy demonstration accounts. The Dr. Revive account is updated
+  // in place below, preserving its ID for any existing development records.
+  const legacyEmails = ['doctor@reviveclinic.local', 'therapist@reviveclinic.local'];
+  await prisma.staffSchedule.deleteMany({ where: { user: { email: { in: legacyEmails } } } });
+  await prisma.user.deleteMany({ where: { email: { in: legacyEmails } } });
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@reviveclinic.local' },
-    update: {},
+    update: { name: 'Dr. Revive', passwordHash: doctorPasswordHash, role: Role.ADMIN, accessLevel: 'ADMIN', status: 'ACTIVE' },
     create: {
-      name: 'Revive Admin',
+      name: 'Dr. Revive',
       email: 'admin@reviveclinic.local',
-      passwordHash,
+      passwordHash: doctorPasswordHash,
       role: Role.ADMIN,
       accessLevel: 'ADMIN',
     },
   });
 
-  const doctor = await prisma.user.upsert({
-    where: { email: 'doctor@reviveclinic.local' },
-    update: { role: Role.DOCTOR, status: 'ACTIVE' },
-    create: { name: 'Dr. Revive', email: 'doctor@reviveclinic.local', passwordHash, role: Role.DOCTOR },
-  });
-  const therapist = await prisma.user.upsert({
-    where: { email: 'therapist@reviveclinic.local' },
-    update: { role: Role.THERAPIST, status: 'ACTIVE' },
-    create: { name: 'Revive Therapist', email: 'therapist@reviveclinic.local', passwordHash, role: Role.THERAPIST },
+  const receptionist = await prisma.user.upsert({
+    where: { email: 'receptionist@reviveclinic.local' },
+    update: { name: 'Receptionist', passwordHash: receptionistPasswordHash, role: Role.RECEPTIONIST, accessLevel: 'RECEPTIONIST', status: 'ACTIVE' },
+    create: { name: 'Receptionist', email: 'receptionist@reviveclinic.local', passwordHash: receptionistPasswordHash, role: Role.RECEPTIONIST, accessLevel: 'RECEPTIONIST' },
   });
 
   await Promise.all(
-    [sharanpurBranch.id, nashikRoadBranch.id].map((branchId, index) =>
-      prisma.userBranch.upsert({
-        where: { userId_branchId: { userId: admin.id, branchId } },
-        update: { isPrimary: index === 0 },
-        create: { userId: admin.id, branchId, isPrimary: index === 0 },
-      }),
+    [admin, receptionist].flatMap((user) =>
+      [sharanpurBranch.id, nashikRoadBranch.id].map((branchId, index) =>
+        prisma.userBranch.upsert({
+          where: { userId_branchId: { userId: user.id, branchId } },
+          update: { isPrimary: index === 0 },
+          create: { userId: user.id, branchId, isPrimary: index === 0 },
+        }),
+      ),
     ),
   );
   const defaultAutomations = [
@@ -68,9 +73,8 @@ async function main() {
     const existing = await prisma.automationDefinition.findFirst({ where: { name: definition.name } });
     if (!existing) await prisma.automationDefinition.create({ data: { ...definition, workflow: definition.workflow, active: false, testMode: true, createdById: admin.id, description: 'Clinic-safe default. Review and test before activation.' } });
   }
-  for (const user of [doctor, therapist]) {
-    for (const [index, branchId] of [sharanpurBranch.id, nashikRoadBranch.id].entries()) {
-      await prisma.userBranch.upsert({ where: { userId_branchId: { userId: user.id, branchId } }, update: { isPrimary: index === 0 }, create: { userId: user.id, branchId, isPrimary: index === 0 } });
+  for (const user of [admin]) {
+    for (const branchId of [sharanpurBranch.id, nashikRoadBranch.id]) {
       for (const weekday of [1, 2, 3, 4, 5, 6]) {
         await prisma.staffSchedule.upsert({
           where: { userId_branchId_weekday_startMinutes_endMinutes: { userId: user.id, branchId, weekday, startMinutes: 600, endMinutes: 1140 } },

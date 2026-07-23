@@ -432,21 +432,6 @@ export function AppointmentsView() {
             <CalendarClock className="size-4" />
             Create New Appointment
           </Button>
-          {isAdmin ? (
-            <Select
-              aria-label="Branch filter"
-              className="w-56"
-              value={activeBranchId}
-              onChange={(event) => setSelectedBranchId(event.target.value)}
-            >
-              <option value="">All branches</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
-            </Select>
-          ) : null}
         </div>
       </div>
 
@@ -882,7 +867,7 @@ export function AppointmentsView() {
                 <Select {...form.register('doctorId')}>
                   <option value="">No doctor assigned</option>
                   {staffQuery.data?.data
-                    .filter((staff) => staff.role === 'DOCTOR')
+                    .filter((staff) => staff.role === 'ADMIN')
                     .map((staff) => (
                       <option key={staff.id} value={staff.id}>
                         {staff.name}
@@ -895,7 +880,7 @@ export function AppointmentsView() {
                 <Select {...form.register('therapistId')}>
                   <option value="">No therapist assigned</option>
                   {staffQuery.data?.data
-                    .filter((staff) => staff.role === 'THERAPIST')
+                    .filter((staff) => staff.role === 'RECEPTIONIST')
                     .map((staff) => (
                       <option key={staff.id} value={staff.id}>
                         {staff.name}

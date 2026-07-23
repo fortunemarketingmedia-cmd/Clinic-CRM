@@ -39,7 +39,7 @@ export const patientService = {
   async getPatient(id: string, role?: Role) {
     const patient = await patientRepository.findById(id);
     if (!patient) throw new HttpError(404, 'Patient not found');
-    const clinicalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.DOCTOR, RoleEnum.THERAPIST];
+    const clinicalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
     if (role && !clinicalRoles.includes(role)) {
       return { ...patient, medicalProfile: undefined, sessions: undefined, files: undefined };
     }

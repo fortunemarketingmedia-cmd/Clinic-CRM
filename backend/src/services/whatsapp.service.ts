@@ -12,10 +12,10 @@ import { normalizeWhatsAppPhone, renderWhatsAppTemplate } from './whatsapp-polic
 import { WhatsAppProviderError, whatsappProviderService } from './whatsapp-provider.service.js';
 
 type Actor = AuditContext & { id: string; role: Role };
-const communicationRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.BRANCH_MANAGER, RoleEnum.RECEPTIONIST, RoleEnum.LEAD_COUNSELLOR, RoleEnum.DOCTOR, RoleEnum.THERAPIST, RoleEnum.BILLING_EXECUTIVE, RoleEnum.MARKETING_USER, RoleEnum.SUPPORT_EXECUTIVE];
-const managerRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.BRANCH_MANAGER];
-const adminRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN];
-const marketingRoles: Role[] = [...managerRoles, RoleEnum.MARKETING_USER];
+const communicationRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+const managerRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+const adminRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+const marketingRoles: Role[] = communicationRoles;
 function requireCommunication(actor: Actor) { if (!communicationRoles.includes(actor.role)) throw new HttpError(403, 'Communication Centre access is required'); }
 function requireManager(actor: Actor) { if (!managerRoles.includes(actor.role)) throw new HttpError(403, 'Manager approval is required'); }
 function requireAdmin(actor: Actor) { if (!adminRoles.includes(actor.role)) throw new HttpError(403, 'Clinic administrator access is required'); }

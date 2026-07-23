@@ -26,7 +26,7 @@ import { cn } from '@/lib/utils';
 
 const allOperational: Role[] = ['ADMIN', 'RECEPTIONIST'];
 const crmRoles: Role[] = ['ADMIN', 'RECEPTIONIST'];
-const adminRoles: Role[] = ['ADMIN'];
+const doctorReviveRoles: Role[] = ['ADMIN'];
 const SIDEBAR_SCROLL_KEY = 'revive_sidebar_scroll_top';
 
 export const navigationSections = [
@@ -83,9 +83,9 @@ export const navigationSections = [
         label: 'WhatsApp Templates',
         icon: FileCheck2,
         href: '/whatsapp-templates',
-        roles: adminRoles,
+        roles: allOperational,
       },
-      { label: 'Broadcasts', icon: Send, href: '/whatsapp-broadcasts', roles: adminRoles },
+      { label: 'Broadcasts', icon: Send, href: '/whatsapp-broadcasts', roles: allOperational },
     ],
   },
   {
@@ -95,23 +95,23 @@ export const navigationSections = [
         label: 'Analytics',
         icon: BarChart3,
         href: '/reports',
-        roles: allOperational,
+        roles: doctorReviveRoles,
       },
     ],
   },
   {
     label: 'Administration',
     items: [
-      { label: 'Master Records', icon: ClipboardCheck, href: '/clients', roles: adminRoles },
-      { label: 'Lead Scoring', icon: BarChart3, href: '/settings/lead-scoring', roles: adminRoles },
-      { label: 'Automations', icon: Workflow, href: '/automations', roles: adminRoles },
+      { label: 'Master Records', icon: ClipboardCheck, href: '/clients', roles: doctorReviveRoles },
+      { label: 'Lead Scoring', icon: BarChart3, href: '/settings/lead-scoring', roles: doctorReviveRoles },
+      { label: 'Automations', icon: Workflow, href: '/automations', roles: doctorReviveRoles },
       {
         label: 'Forms & Consents',
         icon: ClipboardCheck,
         href: '/settings/forms-consents',
-        roles: adminRoles,
+        roles: doctorReviveRoles,
       },
-      { label: 'Settings', icon: Settings, href: '/settings', roles: adminRoles },
+      { label: 'Settings', icon: Settings, href: '/settings', roles: doctorReviveRoles },
     ],
   },
 ] satisfies Array<{

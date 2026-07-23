@@ -45,7 +45,7 @@ export const frontDeskRepository = {
     return prisma.user.findMany({
       where: {
         status: 'ACTIVE',
-        role: { in: ['DOCTOR', 'THERAPIST', 'LEAD_COUNSELLOR'] },
+        role: { in: ['ADMIN', 'RECEPTIONIST'] },
         branchAccess: branchId ? { some: { branchId } } : undefined,
       },
       select: {

@@ -20,6 +20,21 @@ export const createLeadSchema = z.object({
   nextActionDueAt: z.coerce.date().optional(),
 });
 
+export const websiteLeadSchema = z.object({
+  name: z.string().min(2).max(120),
+  mobile: z.string().min(8).max(32),
+  email: z.string().email().optional(),
+  branchId: z.string().min(1).optional(),
+  interestedTreatment: z.string().max(160).optional(),
+  message: z.string().max(2_000).optional(),
+  formName: z.string().max(120).optional(),
+  pageUrl: z.string().url().max(1_000).optional(),
+  utmSource: z.string().max(160).optional(),
+  utmMedium: z.string().max(160).optional(),
+  utmCampaign: z.string().max(160).optional(),
+  website: z.string().max(0).optional(),
+});
+
 export const updateLeadSchema = createLeadSchema
   .partial()
   .extend({

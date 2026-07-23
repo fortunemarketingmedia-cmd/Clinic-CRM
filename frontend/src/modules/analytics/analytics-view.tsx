@@ -14,7 +14,7 @@ import {
   UserRoundCheck,
   Users,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -25,10 +25,8 @@ import {
   SegmentedTabs,
 } from '@/components/ui/data-visuals';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
-import type { Branch } from '@/types/branch';
 
 type Breakdown = Array<{ name: string; count: number; amount?: number }>;
 type TrendPoint = {
@@ -122,19 +120,11 @@ export function AnalyticsView() {
   const { session, selectedBranchId } = useSessionStore();
   const isAdmin = session?.user.role === 'ADMIN';
   const defaultRange = useMemo(() => initialRange(), []);
-  const [branchId, setBranchId] = useState(selectedBranchId ?? '');
+  const branchId = selectedBranchId ?? '';
   const [dateFrom, setDateFrom] = useState(defaultRange.from);
   const [dateTo, setDateTo] = useState(defaultRange.to);
   const [tab, setTab] = useState<AnalyticsTab>('EXECUTIVE');
 
-  useEffect(() => {
-    if (!isAdmin && selectedBranchId) setBranchId(selectedBranchId);
-  }, [isAdmin, selectedBranchId]);
-
-  const branchesQuery = useQuery({
-    queryKey: ['branches'],
-    queryFn: () => apiRequest<{ data: Branch[] }>('/branches'),
-  });
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (branchId) params.set('branchId', branchId);
@@ -211,7 +201,7 @@ export function AnalyticsView() {
               </Button>
             ))}
           </div>
-          <div className="grid gap-3 md:grid-cols-[minmax(170px,1fr)_minmax(170px,1fr)_minmax(190px,1fr)_auto] md:items-end">
+          <div className="grid gap-3 md:grid-cols-[minmax(170px,1fr)_minmax(170px,1fr)_auto] md:items-end">
             <FilterField label="From">
               <Input
                 aria-label="Date from"
@@ -227,21 +217,6 @@ export function AnalyticsView() {
                 value={dateTo}
                 onChange={(event) => setDateTo(event.target.value)}
               />
-            </FilterField>
-            <FilterField label="Branch">
-              <Select
-                aria-label="Branch"
-                value={branchId}
-                disabled={!isAdmin}
-                onChange={(event) => setBranchId(event.target.value)}
-              >
-                {isAdmin ? <option value="">All branches</option> : null}
-                {branchesQuery.data?.data.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </Select>
             </FilterField>
             <Button
               type="button"

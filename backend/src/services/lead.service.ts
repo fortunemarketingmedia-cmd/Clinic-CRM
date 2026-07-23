@@ -14,6 +14,7 @@ import { whatsappService } from './whatsapp.service.js';
 import { automationService } from './automation.service.js';
 import { integrationService } from './integration.service.js';
 import { followUpRepository } from '../repositories/follow-up.repository.js';
+import { userRepository } from '../repositories/user.repository.js';
 
 const globalRoles: Role[] = [
   RoleEnum.ADMIN,
@@ -72,6 +73,50 @@ async function createLeadFollowUp(
 }
 
 export const leadService = {
+  async createWebsiteLead(input: {
+    name: string;
+    mobile: string;
+    email?: string;
+    branchId?: string;
+    interestedTreatment?: string;
+    message?: string;
+    formName?: string;
+    pageUrl?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+  }) {
+    const branchId = input.branchId ?? (await branchRepository.first())?.id;
+    if (!branchId) throw new HttpError(409, 'No clinic branch is configured for website leads');
+
+    const owner = await userRepository.firstActiveAdmin();
+    if (!owner) throw new HttpError(409, 'No active Dr. Revive account is available for website leads');
+
+    const tracking = [
+      input.formName ? `Form: ${input.formName}` : undefined,
+      input.pageUrl ? `Page: ${input.pageUrl}` : undefined,
+      input.utmSource ? `UTM source: ${input.utmSource}` : undefined,
+      input.utmMedium ? `UTM medium: ${input.utmMedium}` : undefined,
+      input.utmCampaign ? `UTM campaign: ${input.utmCampaign}` : undefined,
+      input.message ? `Message: ${input.message}` : undefined,
+    ].filter(Boolean).join('\n');
+
+    return this.createLead({
+      name: input.name,
+      mobile: input.mobile,
+      email: input.email,
+      source: 'WEBSITE',
+      branchId,
+      interestedTreatment: input.interestedTreatment,
+      followupNotes: tracking || undefined,
+      createdById: owner.id,
+      ownerId: owner.id,
+      appointmentType: 'CLINIC_VISIT',
+      nextAction: 'Contact website enquiry',
+      nextActionDueAt: new Date(),
+    });
+  },
+
   async listLeads(filters: {
     branchId?: string;
     status?: LeadStatus;
@@ -132,6 +177,8 @@ export const leadService = {
     await ensureBranchExists(input.branchId);
     if (input.role)
       await accessService.assertBranchAccess(input.createdById, input.role, input.branchId);
+    const leadInput = { ...input };
+    delete leadInput.role;
     const person = await personService.findOrCreate({
       fullName: input.name,
       primaryMobile: input.mobile,
@@ -140,7 +187,7 @@ export const leadService = {
       preferredBranchId: input.branchId,
     });
     const lead = await leadRepository.create({
-      ...input,
+      ...leadInput,
       qrToken: leadRepository.createQrToken(),
       personId: person.id,
       ownerId: input.ownerId ?? input.createdById,

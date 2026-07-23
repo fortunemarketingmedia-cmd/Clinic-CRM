@@ -7,7 +7,7 @@ export default function ReportsPage() {
   return (
     <AuthGate>
       <AppShell>
-        <RoleGate allowed={['ADMIN', 'RECEPTIONIST']}>
+        <RoleGate allowed={['ADMIN']}>
           <AnalyticsView />
         </RoleGate>
       </AppShell>

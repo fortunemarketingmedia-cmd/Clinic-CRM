@@ -121,9 +121,10 @@ export const analyticsRepository = {
         where: { ...branchFilter, invoiceDate: { gte: monthStart, lte: monthEnd } },
         _sum: { totalAmount: true, paidAmount: true },
       }),
-      prisma.session.count({ where: { followupDate: { gte: new Date() } } }),
+      prisma.session.count({ where: { patient: branchFilter, followupDate: { gte: new Date() } } }),
       prisma.lead.findMany({
         where: {
+          ...branchFilter,
           nextFollowupAt: { gte: todayStart, lte: todayEnd },
           status: { notIn: ['CONVERTED', 'CANCELLED'] },
         },
@@ -133,6 +134,7 @@ export const analyticsRepository = {
       }),
       prisma.lead.findMany({
         where: {
+          ...branchFilter,
           nextFollowupAt: { lt: todayStart },
           status: { notIn: ['CONVERTED', 'CANCELLED'] },
         },
@@ -141,31 +143,32 @@ export const analyticsRepository = {
         take: 10,
       }),
       prisma.lead.findMany({
-        where: { status: 'NEW', lastContactedAt: null },
+        where: { ...branchFilter, status: 'NEW', lastContactedAt: null },
         include: { branch: true, adLeads: true, patient: true },
         orderBy: { createdAt: 'asc' },
         take: 10,
       }),
       prisma.appointment.findMany({
-        where: { status: 'RESCHEDULED' },
+        where: { ...branchFilter, status: 'RESCHEDULED' },
         include: { branch: true, lead: { include: { patient: true } } },
         orderBy: { updatedAt: 'desc' },
         take: 10,
       }),
       prisma.appointment.findMany({
-        where: { status: 'NO_SHOW' },
+        where: { ...branchFilter, status: 'NO_SHOW' },
         include: { branch: true, lead: { include: { patient: true } } },
         orderBy: { appointmentAt: 'desc' },
         take: 10,
       }),
       prisma.invoice.findMany({
-        where: { status: { in: ['DRAFT', 'PARTIAL'] } },
+        where: { ...branchFilter, status: { in: ['DRAFT', 'PARTIAL'] } },
         include: { branch: true, patient: true, payments: true },
         orderBy: { invoiceDate: 'desc' },
         take: 10,
       }),
       prisma.appointment.findMany({
         where: {
+          ...branchFilter,
           appointmentAt: { gte: todayStart },
           status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
         },
@@ -174,12 +177,13 @@ export const analyticsRepository = {
         take: 10,
       }),
       prisma.appointment.findMany({
-        where: { status: { notIn: ['CANCELLED', 'COMPLETED'] } },
+        where: { ...branchFilter, status: { notIn: ['CANCELLED', 'COMPLETED'] } },
         include: { branch: true, lead: { include: { patient: true } } },
         orderBy: { appointmentAt: 'desc' },
         take: 10,
       }),
       prisma.patient.findMany({
+        where: branchFilter,
         include: { branch: true, lead: true },
         orderBy: { createdAt: 'desc' },
         take: 8,
@@ -188,6 +192,7 @@ export const analyticsRepository = {
 
     const [byBranch, activeLeadsByBranch] = await Promise.all([
       prisma.branch.findMany({
+        where: filters.branchId ? { id: filters.branchId } : undefined,
         include: {
           _count: {
             select: { leads: true, appointments: true, patients: true, invoices: true },
@@ -197,7 +202,7 @@ export const analyticsRepository = {
       }),
       prisma.lead.groupBy({
         by: ['branchId'],
-        where: { status: { not: 'CONVERTED' } },
+        where: { ...branchFilter, status: { not: 'CONVERTED' } },
         _count: { id: true },
       }),
     ]);
