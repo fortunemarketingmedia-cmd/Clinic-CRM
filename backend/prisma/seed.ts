@@ -29,12 +29,6 @@ async function main() {
   const receptionistPasswordHash = await bcrypt.hash('Reception@12345', 12);
   const developerPasswordHash = await bcrypt.hash('Developer@12345', 12);
 
-  // Remove the legacy demonstration accounts. The Dr. Revive account is updated
-  // in place below, preserving its ID for any existing development records.
-  const legacyEmails = ['doctor@reviveclinic.local', 'therapist@reviveclinic.local'];
-  await prisma.staffSchedule.deleteMany({ where: { user: { email: { in: legacyEmails } } } });
-  await prisma.user.deleteMany({ where: { email: { in: legacyEmails } } });
-
   const admin = await prisma.user.upsert({
     where: { email: 'admin@reviveclinic.local' },
     update: { name: 'Dr. Revive', passwordHash: doctorPasswordHash, role: Role.ADMIN, accessLevel: 'ADMIN', status: 'ACTIVE' },
