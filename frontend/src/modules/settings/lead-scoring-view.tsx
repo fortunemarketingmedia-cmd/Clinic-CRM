@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 
 type Rule = {
@@ -258,5 +259,6 @@ function Band({ label, range, tone }: { label: string; range: string; tone: stri
 }
 
 function State({ text }: { text: string }) {
+  if (text.startsWith('Loading')) return <RowsSkeleton rows={5} />;
   return <div className="p-10 text-center text-sm text-muted-foreground">{text}</div>;
 }

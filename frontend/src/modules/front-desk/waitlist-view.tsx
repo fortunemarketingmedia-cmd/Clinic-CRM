@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Person } from '@/types/foundation';
@@ -27,5 +28,5 @@ export function WaitlistView() {
     <Card className="overflow-hidden p-0">{entries.isLoading ? <State text="Loading waitlist…" /> : entries.isError ? <State text="Waitlist could not be loaded." /> : (entries.data?.data.length ?? 0) === 0 ? <State text="No waitlist entries for this branch." /> : <div className="divide-y">{entries.data?.data.map((entry) => <article key={entry.id} className="p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="font-medium">{entry.person.fullName}</div><div className="text-sm text-muted-foreground">{entry.requestedService} · {new Date(entry.preferredFrom).toLocaleDateString()}–{new Date(entry.preferredTo).toLocaleDateString()}</div><div className="mt-1 text-xs text-muted-foreground">{entry.priority} · {entry.status}</div></div><div className="flex flex-wrap items-center gap-2">{entry.status === 'ACTIVE' ? <Button variant="secondary" onClick={() => update.mutate({ id: entry.id, status: 'NOTIFIED' })}>Mark notified</Button> : null}{entry.status === 'NOTIFIED' ? <Button variant="secondary" onClick={() => update.mutate({ id: entry.id, status: 'ACCEPTED' })}>Accepted</Button> : null}{['ACTIVE', 'NOTIFIED', 'ACCEPTED'].includes(entry.status) ? <><Input className="w-52" type="datetime-local" value={bookingAt} onChange={(event) => setBookingAt(event.target.value)} /><Button disabled={!bookingAt || book.isPending} onClick={() => book.mutate(entry.id)}>Book slot</Button></> : null}</div></div></article>)}</div>}</Card></div>
   </section>;
 }
-function State({ text }: { text: string }) { return <div className="p-10 text-center text-sm text-muted-foreground">{text}</div>; }
+function State({ text }: { text: string }) { return text.startsWith('Loading') ? <RowsSkeleton rows={6} /> : <div className="p-10 text-center text-sm text-muted-foreground">{text}</div>; }
 

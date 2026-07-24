@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from '@/app/providers';
+import { AppFrame } from '@/components/layout/app-frame';
 
 export const metadata: Metadata = {
   title: 'Revive Clinic CRM',
@@ -11,7 +12,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <Providers><AppFrame>{children}</AppFrame></Providers>
       </body>
     </html>
   );

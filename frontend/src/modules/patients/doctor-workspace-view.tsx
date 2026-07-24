@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CalendarDays, FileWarning, Stethoscope, UsersRound } from 'lucide-react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { DoctorWorkspace } from '@/types/clinical';
@@ -18,7 +19,7 @@ export function DoctorWorkspaceView() {
     queryFn: () => apiRequest<{ data: DoctorWorkspace }>(`/clinical/doctor-workspace${selectedBranchId ? `?branchId=${selectedBranchId}` : ''}`),
     enabled: Boolean(session),
   });
-  if (query.isLoading) return <Card className="text-sm text-muted-foreground">Preparing today’s clinical workspace…</Card>;
+  if (query.isLoading) return <PageSkeleton />;
   if (query.isError || !query.data) return <Card className="border-red-200 text-sm text-red-700">{query.error?.message ?? 'Doctor workspace could not be loaded.'}</Card>;
   const data = query.data.data;
   return <section className="space-y-5"><div><h1 className="text-2xl font-semibold">Doctor Workspace</h1><p className="text-sm text-muted-foreground">Today’s consultations, waiting patients, incomplete documentation and clinical alerts.</p></div>

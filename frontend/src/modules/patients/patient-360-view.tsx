@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiBlob, apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { ClinicResource } from '@/types/appointment';
@@ -38,7 +39,7 @@ export function Patient360View({ patientId }: { patientId: string }) {
   const doctors = staff.filter((member) => member.role === 'ADMIN');
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['patient-360', patientId] });
 
-  if (patientQuery.isLoading) return <Card className="text-sm text-muted-foreground">Loading the complete patient journey…</Card>;
+  if (patientQuery.isLoading) return <PageSkeleton />;
   if (patientQuery.isError || !patient) return <Card className="border-red-200 text-sm text-red-700">{patientQuery.error?.message ?? 'Patient record could not be loaded.'}</Card>;
 
   const allergy = patient.medicalProfile?.allergyToDrugs || patient.medicalProfile?.productAllergies || patient.medicalProfile?.foodAllergies;

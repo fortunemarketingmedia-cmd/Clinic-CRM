@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { AdLead, AdPlatform } from '@/types/ad-lead';
@@ -883,11 +884,7 @@ export function LeadsView() {
                 ) : null}
 
                 {leadsQuery.isLoading ? (
-                  <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
-                      Loading leads...
-                    </td>
-                  </tr>
+                  Array.from({ length: 7 }, (_, row) => <tr key={row} className="border-t border-border">{Array.from({ length: 6 }, (_, column) => <td key={column} className="px-4 py-4"><Skeleton className={column === 0 ? 'h-5 w-32' : 'h-4 w-24'} /></td>)}</tr>)
                 ) : null}
               </tbody>
             </table>

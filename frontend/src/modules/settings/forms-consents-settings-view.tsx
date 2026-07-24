@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import type { ConsentTemplate, FormField, FormFieldType, FormTemplate, FormType } from '@/types/forms';
 
@@ -26,7 +27,7 @@ export function FormsConsentsSettingsView() {
   </section>;
 }
 
-function TemplateGrid({ loading, empty, items }: { loading: boolean; empty: string; items: React.ReactNode[] }) { if (loading) return <Card className="text-sm text-muted-foreground">Loading versioned templates…</Card>; return items.length ? <div className="grid gap-4 lg:grid-cols-2">{items}</div> : <Card className="py-10 text-center text-sm text-muted-foreground">{empty}</Card>; }
+function TemplateGrid({ loading, empty, items }: { loading: boolean; empty: string; items: React.ReactNode[] }) { if (loading) return <div className="grid gap-4 lg:grid-cols-2">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-36 border border-border" />)}</div>; return items.length ? <div className="grid gap-4 lg:grid-cols-2">{items}</div> : <Card className="py-10 text-center text-sm text-muted-foreground">{empty}</Card>; }
 function TemplateCard({ title, type, status, version, details, onEdit }: { title: string; type: string; status: string; version: number; details: string; onEdit: () => void }) { return <Card><div className="flex items-start justify-between"><div><h2 className="font-semibold">{title}</h2><p className="text-xs text-muted-foreground">{label(type)}</p></div><span className={`rounded-full px-2 py-1 text-xs font-medium ${status === 'PUBLISHED' ? 'bg-emerald-100 text-emerald-700' : 'bg-muted'}`}>{label(status)}</span></div><div className="mt-4 flex items-center justify-between gap-2 text-sm"><span>{details}</span><div className="flex items-center gap-2"><span className="font-medium">Version {version}</span><Button variant="secondary" className="h-8 px-2 text-xs" onClick={onEdit}>New version</Button></div></div></Card>; }
 
 function FormTemplateComposer({ initial, onClose, onSaved }: { initial: FormTemplate | null; onClose: () => void; onSaved: () => void }) {

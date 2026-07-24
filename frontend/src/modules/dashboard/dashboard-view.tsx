@@ -20,6 +20,7 @@ import {
   HorizontalBarChart,
   SegmentedTabs,
 } from '@/components/ui/data-visuals';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 
@@ -136,6 +137,8 @@ export function DashboardView() {
         { label: 'New Leads', value: totals?.leads ?? 0, icon: Users },
         { label: "Today's Follow-ups", value: totals?.pendingFollowups ?? 0, icon: PhoneCall },
       ];
+
+  if (dashboardQuery.isLoading) return <PageSkeleton />;
 
   return (
     <section className="space-y-6">

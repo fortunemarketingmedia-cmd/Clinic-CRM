@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   MARITAL_STATUS_OPTIONS,
   MENSTRUAL_HISTORY_OPTIONS,
@@ -338,7 +339,7 @@ export function PatientsView() {
         </div>
         <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full border-collapse text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Patient</th><th className="px-4 py-3 font-medium">Mobile</th><th className="px-4 py-3 font-medium">Branch</th><th className="px-4 py-3 font-medium">Source</th><th className="px-4 py-3 font-medium">Created</th><th className="px-4 py-3 font-medium">Action</th></tr></thead>
-            <tbody>{uniquePatients.map((patient) => <tr key={patient.id} className="cursor-pointer border-t border-border hover:bg-muted/50" onClick={() => { setSelectedPatientId(patient.id); setActivePatientTab('details'); }}><td className="px-4 py-3"><div className="font-medium">{patient.fullName}</div><div className="text-xs text-muted-foreground">{patient.patientNo}</div></td><td className="px-4 py-3">{patient.mobile}</td><td className="px-4 py-3">{patient.branch?.name}</td><td className="px-4 py-3">{formatEnum(patient.lead?.source)}</td><td className="px-4 py-3">{formatDateTime(patient.createdAt)}</td><td className="px-4 py-3"><Button type="button" variant="secondary" onClick={(event) => { event.stopPropagation(); setSelectedPatientId(patient.id); setActivePatientTab('details'); }}>View Profile</Button></td></tr>)}
+            <tbody>{patientsQuery.isLoading ? Array.from({ length: 6 }, (_, row) => <tr key={row} className="border-t border-border">{Array.from({ length: 6 }, (_, column) => <td key={column} className="px-4 py-4"><Skeleton className={column === 0 ? 'h-5 w-32' : 'h-4 w-24'} /></td>)}</tr>) : uniquePatients.map((patient) => <tr key={patient.id} className="cursor-pointer border-t border-border hover:bg-muted/50" onClick={() => { setSelectedPatientId(patient.id); setActivePatientTab('details'); }}><td className="px-4 py-3"><div className="font-medium">{patient.fullName}</div><div className="text-xs text-muted-foreground">{patient.patientNo}</div></td><td className="px-4 py-3">{patient.mobile}</td><td className="px-4 py-3">{patient.branch?.name}</td><td className="px-4 py-3">{formatEnum(patient.lead?.source)}</td><td className="px-4 py-3">{formatDateTime(patient.createdAt)}</td><td className="px-4 py-3"><Button type="button" variant="secondary" onClick={(event) => { event.stopPropagation(); setSelectedPatientId(patient.id); setActivePatientTab('details'); }}>View Profile</Button></td></tr>)}
               {!patientsQuery.isLoading && uniquePatients.length === 0 ? <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>No patients found.</td></tr> : null}
             </tbody>
           </table>

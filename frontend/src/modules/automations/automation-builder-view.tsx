@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 type Automation = {
   id: string;
@@ -94,6 +95,8 @@ export function AutomationBuilderView() {
       }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ['automations'] }),
   });
+  if (query.isLoading) return <PageSkeleton />;
+
   return (
     <section className="space-y-5">
       <div className="flex items-end justify-between gap-4">

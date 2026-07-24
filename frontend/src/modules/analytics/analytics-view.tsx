@@ -25,6 +25,7 @@ import {
   SegmentedTabs,
 } from '@/components/ui/data-visuals';
 import { Input } from '@/components/ui/input';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 
@@ -249,9 +250,7 @@ export function AnalyticsView() {
           Select your branch from the header to view analytics.
         </Card>
       ) : analyticsQuery.isLoading ? (
-        <Card className="p-10 text-center text-sm text-muted-foreground">
-          Preparing clinic analytics…
-        </Card>
+        <PageSkeleton />
       ) : analyticsQuery.isError ? (
         <Card className="border-red-200 bg-red-50 p-6 text-red-700">
           {analyticsQuery.error.message}

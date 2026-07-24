@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { RowsSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
@@ -86,5 +87,5 @@ function Logs() {
 
 function Status({ value }: { value: string }) { const good = ['CONNECTED', 'APPROVED', 'ACTIVE', 'COMPLETED', 'DELIVERED', 'READ', 'PROCESSED'].includes(value); const bad = ['ERROR', 'FAILED', 'DEAD', 'REJECTED', 'DISABLED', 'CANCELLED'].includes(value); return <span className={cn('inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-medium', good ? 'bg-emerald-100 text-emerald-800' : bad ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800')}>{value.replaceAll('_', ' ')}</span>; }
 function Metric({ label, value }: { label: string; value: number }) { return <div><div className="font-semibold">{value}</div><div className="text-[10px] text-muted-foreground">{label}</div></div>; }
-function Empty({ text }: { text: string }) { return <div className="p-10 text-center text-sm text-muted-foreground">{text}</div>; }
+function Empty({ text }: { text: string }) { return text.startsWith('Loading') ? <RowsSkeleton rows={5} /> : <div className="p-10 text-center text-sm text-muted-foreground">{text}</div>; }
 function ErrorText({ error }: { error: Error }) { return <div className="mt-2 flex items-center gap-2 text-sm text-red-700"><AlertTriangle className="size-4" />{error.message}</div>; }

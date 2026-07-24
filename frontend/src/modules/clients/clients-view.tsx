@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card';
 import { SegmentedTabs } from '@/components/ui/data-visuals';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Patient } from '@/types/patient';
@@ -72,6 +73,8 @@ export function ClientsView() {
   }, [patientsQuery.data]);
 
   const totals = analyticsQuery.data?.data.totals;
+
+  if (analyticsQuery.isLoading || patientsQuery.isLoading || leadsQuery.isLoading) return <PageSkeleton />;
 
   return (
     <section className="space-y-5">

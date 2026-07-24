@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, KeyRound, ShieldCheck, XCircle } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import type { User } from '@/types/auth';
 
@@ -61,11 +62,7 @@ export function UsersView() {
                   </tr>
                 ) : null}
                 {usersQuery.isLoading ? (
-                  <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
-                      Loading users...
-                    </td>
-                  </tr>
+                  Array.from({ length: 6 }, (_, row) => <tr key={row} className="border-t border-border">{Array.from({ length: 5 }, (_, column) => <td key={column} className="px-4 py-4"><Skeleton className={column === 0 ? 'h-5 w-32' : 'h-4 w-24'} /></td>)}</tr>)
                 ) : null}
               </tbody>
             </table>

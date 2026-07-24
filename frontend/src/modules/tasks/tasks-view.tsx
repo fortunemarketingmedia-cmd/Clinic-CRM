@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Task, WorkStatus } from '@/types/foundation';
@@ -297,5 +298,6 @@ function TaskMetric({
 }
 
 function Empty({ text }: { text: string }) {
+  if (text.startsWith('Loading')) return <RowsSkeleton rows={6} />;
   return <div className="p-10 text-center text-sm text-muted-foreground">{text}</div>;
 }

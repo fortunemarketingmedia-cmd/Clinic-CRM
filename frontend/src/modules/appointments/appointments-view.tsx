@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment, ClinicResource, ClinicService } from '@/types/appointment';
@@ -417,6 +418,8 @@ export function AppointmentsView() {
     }
     createAppointment.mutate(values);
   }
+
+  if (appointmentsQuery.isLoading) return <PageSkeleton />;
 
   return (
     <section className="space-y-5">

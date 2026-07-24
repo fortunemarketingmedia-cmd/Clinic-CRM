@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Building2, CalendarDays, DoorOpen, Stethoscope } from 'lucide-react';
 import { useMemo } from 'react';
 import { Card } from '@/components/ui/card';
+import { RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment, ClinicResource } from '@/types/appointment';
@@ -228,6 +229,7 @@ export function SchedulesView() {
 }
 
 function State({ text, error = false }: { text: string; error?: boolean }) {
+  if (text.startsWith('Loading')) return <RowsSkeleton rows={4} />;
   return (
     <p
       className={`col-span-full p-4 text-center text-sm ${error ? 'text-red-600' : 'text-muted-foreground'}`}

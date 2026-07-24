@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { PageSkeleton } from '@/components/ui/skeleton';
 import { UsersView } from '@/modules/users/users-view';
 import { apiRequest } from '@/services/api';
 import type { Lead } from '@/types/lead';
@@ -165,6 +166,8 @@ export function SettingsView() {
       })),
     );
   }
+
+  if (settingsQuery.isLoading) return <PageSkeleton />;
 
   return (
     <section className="space-y-5">
