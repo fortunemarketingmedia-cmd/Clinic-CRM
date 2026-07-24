@@ -5,7 +5,6 @@ import {
   CalendarDays,
   ClipboardCheck,
   Clock3,
-  FileCheck2,
   LayoutDashboard,
   ListTodo,
   Settings,
@@ -15,8 +14,8 @@ import {
   ListPlus,
   Stethoscope,
   MessageCircle,
-  Send,
   Workflow,
+  Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -27,6 +26,7 @@ import { cn } from '@/lib/utils';
 const allOperational: Role[] = ['ADMIN', 'RECEPTIONIST'];
 const crmRoles: Role[] = ['ADMIN', 'RECEPTIONIST'];
 const doctorReviveRoles: Role[] = ['ADMIN'];
+const developerRoles: Role[] = ['DEVELOPER'];
 const SIDEBAR_SCROLL_KEY = 'revive_sidebar_scroll_top';
 
 export const navigationSections = [
@@ -74,18 +74,11 @@ export const navigationSections = [
     label: 'Communication',
     items: [
       {
-        label: 'Shared Inbox',
+        label: 'Communication',
         icon: MessageCircle,
         href: '/communication-centre',
         roles: allOperational,
       },
-      {
-        label: 'WhatsApp Templates',
-        icon: FileCheck2,
-        href: '/whatsapp-templates',
-        roles: allOperational,
-      },
-      { label: 'Broadcasts', icon: Send, href: '/whatsapp-broadcasts', roles: allOperational },
     ],
   },
   {
@@ -112,6 +105,12 @@ export const navigationSections = [
         roles: doctorReviveRoles,
       },
       { label: 'Settings', icon: Settings, href: '/settings', roles: doctorReviveRoles },
+    ],
+  },
+  {
+    label: 'Developer',
+    items: [
+      { label: 'System & Integrations', icon: Wrench, href: '/settings/integrations', roles: developerRoles },
     ],
   },
 ] satisfies Array<{

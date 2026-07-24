@@ -23,6 +23,7 @@ export const userRepository = {
 
   list() {
     return prisma.user.findMany({
+      where: { accessLevel: { not: 'DEVELOPER' } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

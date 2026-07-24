@@ -10,6 +10,13 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { SignaturePad } from '@/components/ui/signature-pad';
+import {
+  MARITAL_STATUS_OPTIONS,
+  MENSTRUAL_HISTORY_OPTIONS,
+  PREGNANCY_STATUS_OPTIONS,
+  SCAR_HISTORY_OPTIONS,
+  SEX_OPTIONS,
+} from '@/constants/patient-options';
 import { publicApiRequest } from '@/services/public-api';
 import type { FormField, FormTemplate } from '@/types/forms';
 
@@ -140,7 +147,7 @@ function QrTemplateField({ field, register, setValue }: { field: FormField; regi
   const input = register(field.key);
   const label = <span className="text-sm font-medium">{field.label}{field.required ? ' *' : ''}</span>;
   if (field.type === 'CHECKBOX' || field.type === 'DECLARATION') return <label className="flex items-start gap-2 rounded-md border p-3 md:col-span-2"><input type="checkbox" disabled={field.readOnly} {...input} /><span>{label}{field.helpText ? <span className="mt-1 block text-xs text-muted-foreground">{field.helpText}</span> : null}</span></label>;
-  if (field.type === 'DROPDOWN' || field.type === 'RADIO') return <label className="grid gap-1.5">{label}<Select disabled={field.readOnly} {...input}><option value="">Select</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option.replaceAll('_', ' ')}</option>)}</Select></label>;
+  if (field.type === 'DROPDOWN' || field.type === 'RADIO') return <label className="grid gap-1.5">{label}<Select disabled={field.readOnly} {...input}><option value="">Select</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{formatOptionLabel(option)}</option>)}</Select></label>;
   if (field.type === 'MULTI_SELECT') return <label className="grid gap-1.5">{label}<select multiple disabled={field.readOnly} className="min-h-24 rounded-md border bg-background p-2 text-sm" {...input}>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
   if (field.type === 'SIGNATURE') return <div className="grid gap-1.5 md:col-span-2">{label}<SignaturePad onChange={setValue} disabled={field.readOnly} /></div>;
   if (field.type === 'FILE_UPLOAD' || field.type === 'IMAGE_UPLOAD') return <label className="grid gap-1.5">{label}<Input type="file" accept={field.type === 'IMAGE_UPLOAD' ? 'image/*' : undefined} disabled={field.readOnly} onChange={(event) => setValue(event.target.files?.[0]?.name ?? '')} /></label>;
@@ -156,6 +163,13 @@ function isVisible(field: FormField, values: Record<string, unknown>) {
   return String(actual ?? '').includes(String(field.condition.value ?? ''));
 }
 
+function formatOptionLabel(value: string) {
+  const normalized = value.replaceAll('_', ' ');
+  return normalized === normalized.toUpperCase()
+    ? normalized.toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase())
+    : normalized;
+}
+
 function LegacyRegistrationFields({ register }: { register: Register }) {
-  return <><Input placeholder="Referred by" {...register('referredBy')} /><Input placeholder="Full name" {...register('fullName')} /><Input type="number" placeholder="Age" {...register('age')} /><Select {...register('sex')}><option value="">Sex</option><option value="MALE">Male</option><option value="FEMALE">Female</option><option value="OTHER">Other</option></Select><Input placeholder="Contact number" {...register('mobile')} /><Input placeholder="Address" {...register('address')} /><Input placeholder="Marital status" {...register('maritalStatus')} /><Input placeholder="Occupation" {...register('occupation')} /><Input placeholder="Skin concern" {...register('skinConcern')} /><Input placeholder="Hair concern" {...register('hairConcern')} /><Input placeholder="Medical history" {...register('medicalHistory')} /><Input placeholder="Current medications" {...register('currentMedications')} /><Input placeholder="Allergy to drugs" {...register('allergyToDrugs')} /><Input placeholder="Keloid / hypertrophic scar history" {...register('keloidOrHypertrophicScar')} /><Input placeholder="Products currently used" {...register('productsCurrentlyUsed')} /><Input placeholder="Menstrual history" {...register('menstrualHistory')} /><Input placeholder="Pregnancy status" {...register('pregnancyStatus')} /><Input placeholder="Other notes" {...register('notes')} /></>;
+  return <><Input placeholder="Referred by" {...register('referredBy')} /><Input placeholder="Full name" {...register('fullName')} /><Input type="number" placeholder="Age" {...register('age')} /><Select {...register('sex')}><option value="">Select sex</option>{SEX_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select><Input placeholder="Contact number" {...register('mobile')} /><Input placeholder="Address" {...register('address')} /><Select {...register('maritalStatus')}><option value="">Select marital status</option>{MARITAL_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Occupation" {...register('occupation')} /><Input placeholder="Skin concern" {...register('skinConcern')} /><Input placeholder="Hair concern" {...register('hairConcern')} /><Input placeholder="Medical history" {...register('medicalHistory')} /><Input placeholder="Current medications" {...register('currentMedications')} /><Input placeholder="Allergy to drugs" {...register('allergyToDrugs')} /><Select {...register('keloidOrHypertrophicScar')}><option value="">Keloid / hypertrophic scar history</option>{SCAR_HISTORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Products currently used" {...register('productsCurrentlyUsed')} /><Select {...register('menstrualHistory')}><option value="">Select menstrual history</option>{MENSTRUAL_HISTORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Select {...register('pregnancyStatus')}><option value="">Select pregnancy status</option>{PREGNANCY_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Other notes" {...register('notes')} /></>;
 }

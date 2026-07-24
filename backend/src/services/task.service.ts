@@ -21,6 +21,8 @@ export const taskService = {
   },
   async create(input: Create & { createdById: string; role: Role }, audit: AuditContext) {
     await accessService.assertBranchAccess(input.createdById, input.role, input.branchId);
+    const assignee = await taskRepository.findAssignableUser(input.assignedUserId, input.branchId);
+    if (!assignee) throw new HttpError(400, 'Select an active team member from this branch');
     const task = await taskRepository.create(input);
     await auditService.record(
       { ...audit, branchId: input.branchId },
@@ -34,6 +36,10 @@ export const taskService = {
     await accessService.assertBranchAccess(userId, role, existing.branchId);
     if (role === 'RECEPTIONIST' && existing.assignedUserId !== userId)
       throw new HttpError(403, 'You can only update tasks assigned to you');
+    if (input.assignedUserId) {
+      const assignee = await taskRepository.findAssignableUser(input.assignedUserId, existing.branchId);
+      if (!assignee) throw new HttpError(400, 'Select an active team member from this branch');
+    }
     if (input.status === 'COMPLETED' && !input.completionNotes)
       throw new HttpError(400, 'Completion notes are required');
     const task = await taskRepository.update(id, {

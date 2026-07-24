@@ -1,4 +1,4 @@
-import type { Role } from '@prisma/client';
+import type { LeadStatus, Role } from '@prisma/client';
 import { followUpRepository } from '../repositories/follow-up.repository.js';
 import { timelineRepository } from '../repositories/timeline.repository.js';
 import { HttpError } from '../utils/http-error.js';
@@ -14,6 +14,12 @@ import type {
 type CreateInput = z.infer<typeof createFollowUpSchema>;
 type CompleteInput = z.infer<typeof completeFollowUpSchema>;
 type Query = z.infer<typeof workQuerySchema>;
+const leadStatusByResolution: Partial<Record<CompleteInput['resolution'], LeadStatus>> = {
+  APPOINTMENT_BOOKED: 'APPOINTMENT_BOOKED',
+  CONVERTED: 'CONVERTED',
+  LOST: 'LOST',
+  DISQUALIFIED: 'DISQUALIFIED',
+};
 
 export const followUpService = {
   async list(filters: Query & { userId: string; role: Role }) {
@@ -48,10 +54,9 @@ export const followUpService = {
     const existing = await followUpRepository.findById(id);
     if (!existing) throw new HttpError(404, 'Follow-up not found');
     await accessService.assertBranchAccess(userId, role, existing.branchId);
-    if (role === 'RECEPTIONIST' && existing.assignedUserId !== userId)
-      throw new HttpError(403, 'You can only complete follow-ups assigned to you');
-    const followUp = await followUpRepository.complete(id, { ...input, completedById: userId });
-    if (followUp.lead && input.resolution === 'NEXT_ACTION') {
+    const { resolution, ...completion } = input;
+    const followUp = await followUpRepository.complete(id, { ...completion, completedById: userId });
+    if (followUp.lead && resolution === 'NEXT_ACTION') {
       const { prisma } = await import('../config/db.js');
       await prisma.lead.update({
         where: { id: followUp.lead.id },
@@ -72,6 +77,12 @@ export const followUpService = {
         source: 'FOLLOW_UP_NEXT_ACTION',
         relatedAppointmentId: existing.relatedAppointmentId ?? undefined,
         createdById: userId,
+      });
+    } else if (followUp.lead && leadStatusByResolution[resolution]) {
+      const { prisma } = await import('../config/db.js');
+      await prisma.lead.update({
+        where: { id: followUp.lead.id },
+        data: { status: leadStatusByResolution[resolution] },
       });
     }
     await timelineRepository.create({

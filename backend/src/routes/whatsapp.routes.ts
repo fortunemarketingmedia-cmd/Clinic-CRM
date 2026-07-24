@@ -11,15 +11,15 @@ whatsappRoutes.get('/webhook', handle(c.verifyWebhook));
 whatsappRoutes.post('/webhook', handle(c.receiveWebhook));
 whatsappRoutes.use(requireAuth);
 
-whatsappRoutes.get('/accounts', handle(c.listAccounts));
-whatsappRoutes.post('/accounts', handle(c.setupAccount));
-whatsappRoutes.post('/accounts/:id/test', handle(c.testAccount));
-whatsappRoutes.post('/accounts/:id/disconnect', handle(c.disconnectAccount));
+whatsappRoutes.get('/accounts', requireRole(Role.DEVELOPER), handle(c.listAccounts));
+whatsappRoutes.post('/accounts', requireRole(Role.DEVELOPER), handle(c.setupAccount));
+whatsappRoutes.post('/accounts/:id/test', requireRole(Role.DEVELOPER), handle(c.testAccount));
+whatsappRoutes.post('/accounts/:id/disconnect', requireRole(Role.DEVELOPER), handle(c.disconnectAccount));
 whatsappRoutes.get('/phone-numbers', handle(c.phoneNumbers));
 whatsappRoutes.get('/templates', handle(c.templates));
-whatsappRoutes.post('/templates', handle(c.createTemplate));
-whatsappRoutes.patch('/templates/:id', handle(c.updateTemplate));
-whatsappRoutes.post('/templates/sync/:accountId', handle(c.syncTemplates));
+whatsappRoutes.post('/templates', requireRole(Role.ADMIN, Role.RECEPTIONIST), handle(c.createTemplate));
+whatsappRoutes.patch('/templates/:id', requireRole(Role.ADMIN, Role.RECEPTIONIST), handle(c.updateTemplate));
+whatsappRoutes.post('/templates/sync/:accountId', requireRole(Role.DEVELOPER), handle(c.syncTemplates));
 whatsappRoutes.get('/conversations', handle(c.conversations));
 whatsappRoutes.post('/conversations', handle(c.startConversation));
 whatsappRoutes.get('/conversations/:id', handle(c.conversation));
@@ -29,15 +29,15 @@ whatsappRoutes.post('/conversations/:id/internal-notes', handle(c.internalNote))
 whatsappRoutes.get('/consents', handle(c.consents));
 whatsappRoutes.post('/consents', handle(c.recordConsent));
 whatsappRoutes.get('/automations', handle(c.automations));
-whatsappRoutes.post('/automations', handle(c.saveAutomation));
+whatsappRoutes.post('/automations', requireRole(Role.ADMIN, Role.RECEPTIONIST), handle(c.saveAutomation));
 whatsappRoutes.get('/broadcasts', handle(c.broadcasts));
 whatsappRoutes.post('/broadcasts', handle(c.createBroadcast));
 whatsappRoutes.post('/broadcasts/:id/action', handle(c.broadcastAction));
-whatsappRoutes.get('/webhook-events', handle(c.webhookEvents));
-whatsappRoutes.get('/jobs', handle(c.jobs));
-whatsappRoutes.post('/jobs/process', requireRole(Role.ADMIN), handle(c.processJobs));
-whatsappRoutes.get('/failures', handle(c.failures));
-whatsappRoutes.get('/logs', handle(c.legacyLogs));
+whatsappRoutes.get('/webhook-events', requireRole(Role.DEVELOPER), handle(c.webhookEvents));
+whatsappRoutes.get('/jobs', requireRole(Role.DEVELOPER), handle(c.jobs));
+whatsappRoutes.post('/jobs/process', requireRole(Role.DEVELOPER), handle(c.processJobs));
+whatsappRoutes.get('/failures', requireRole(Role.DEVELOPER), handle(c.failures));
+whatsappRoutes.get('/logs', requireRole(Role.DEVELOPER), handle(c.legacyLogs));
 
 // Backward-compatible send endpoint; it now queues an official Cloud API message.
 whatsappRoutes.post('/', handle(c.sendMessage));

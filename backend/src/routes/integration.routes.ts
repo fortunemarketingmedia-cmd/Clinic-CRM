@@ -1,6 +1,8 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { integrationController as c } from '../controllers/integration.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/role.js';
+import { Role } from '@prisma/client';
 
 export const integrationRoutes = Router();
 const handle =
@@ -12,7 +14,7 @@ const handle =
 integrationRoutes.get('/webhooks/:id', handle(c.verifyWebhook));
 integrationRoutes.post('/webhooks/:id', handle(c.webhook));
 integrationRoutes.get('/google/oauth/callback', handle(c.googleOAuthCallback));
-integrationRoutes.use(requireAuth);
+integrationRoutes.use(requireAuth, requireRole(Role.DEVELOPER));
 integrationRoutes.get('/connections', handle(c.connections));
 integrationRoutes.post('/connections', handle(c.createConnection));
 integrationRoutes.patch('/connections/:id', handle(c.updateConnection));

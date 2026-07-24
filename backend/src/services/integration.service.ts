@@ -47,7 +47,7 @@ const number = (value: unknown) => Number(value ?? 0) || 0;
 const integer = (value: unknown) => Math.round(number(value));
 
 function requireAdmin(actor: Actor) {
-  if (actor.role !== 'ADMIN') throw new HttpError(403, 'Administrator access is required');
+  if (actor.role !== 'DEVELOPER') throw new HttpError(403, 'Developer access is required');
 }
 function sanitize<T extends object>(connection: T) {
   const copy = { ...connection } as Record<string, unknown>;

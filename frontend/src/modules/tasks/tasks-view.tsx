@@ -1,9 +1,9 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, CircleDot, Clock3 } from 'lucide-react';
+import { CheckCircle2, CircleDot, Clock3, Plus, X } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,22 +11,64 @@ import { Select } from '@/components/ui/select';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Task, WorkStatus } from '@/types/foundation';
+import type { StaffMember } from '@/types/front-desk';
 
 export function TasksView() {
   const client = useQueryClient();
   const { session, selectedBranchId } = useSessionStore();
   const [status, setStatus] = useState<WorkStatus | ''>('');
+  const [assigneeFilter, setAssigneeFilter] = useState('ME');
+  const [showCreate, setShowCreate] = useState(false);
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', type: 'GENERAL', priority: 'MEDIUM', dueAt: '', assignedUserId: '' });
   const [completingTask, setCompletingTask] = useState<Task | null>(null);
   const [completionNotes, setCompletionNotes] = useState('');
   const params = new URLSearchParams();
   if (selectedBranchId) params.set('branchId', selectedBranchId);
-  if (session?.user.id) params.set('assignedUserId', session.user.id);
+  if (assigneeFilter === 'ME' && session?.user.id) params.set('assignedUserId', session.user.id);
+  if (assigneeFilter !== 'ME' && assigneeFilter !== 'ALL') params.set('assignedUserId', assigneeFilter);
   if (status) params.set('status', status);
 
+  const staffQuery = useQuery({
+    queryKey: ['task-assignees', selectedBranchId],
+    queryFn: () => apiRequest<{ data: StaffMember[] }>(`/front-desk/staff?branchId=${selectedBranchId}`),
+    enabled: Boolean(session && selectedBranchId),
+  });
+  const staff = staffQuery.data?.data ?? [];
+
+  useEffect(() => {
+    if (!staff.length) return;
+    setTaskForm((current) => {
+      if (staff.some((member) => member.id === current.assignedUserId)) return current;
+      const defaultAssignee = staff.find((member) => member.id === session?.user.id)?.id ?? staff[0].id;
+      return { ...current, assignedUserId: defaultAssignee };
+    });
+  }, [session?.user.id, staffQuery.data]);
+
+  useEffect(() => {
+    setAssigneeFilter('ME');
+  }, [selectedBranchId]);
+
   const query = useQuery({
-    queryKey: ['tasks', selectedBranchId, session?.user.id, status],
+    queryKey: ['tasks', selectedBranchId, session?.user.id, assigneeFilter, status],
     queryFn: () => apiRequest<{ data: Task[] }>(`/tasks?${params}`),
     enabled: Boolean(session),
+  });
+  const create = useMutation({
+    mutationFn: () => apiRequest('/tasks', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...taskForm,
+        description: taskForm.description || undefined,
+        assignedUserId: taskForm.assignedUserId,
+        branchId: selectedBranchId,
+        automaticallyCreated: false,
+      }),
+    }),
+    onSuccess: () => {
+      setTaskForm((current) => ({ title: '', description: '', type: 'GENERAL', priority: 'MEDIUM', dueAt: '', assignedUserId: current.assignedUserId }));
+      setShowCreate(false);
+      client.invalidateQueries({ queryKey: ['tasks'] });
+    },
   });
   const update = useMutation({
     mutationFn: ({
@@ -59,25 +101,69 @@ export function TasksView() {
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">My Tasks</h1>
+          <h1 className="text-2xl font-semibold">Tasks</h1>
           <p className="text-sm text-muted-foreground">
             Assigned operational work across CRM, appointments, and patient journeys.
           </p>
+          {!selectedBranchId ? <p className="mt-1 text-sm font-medium text-amber-700">Select a specific branch in the top navigation before adding a task.</p> : null}
         </div>
-        <Select
-          className="w-52"
-          aria-label="Task status"
-          value={status}
-          onChange={(event) => setStatus(event.target.value as WorkStatus | '')}
-        >
-          <option value="">All task statuses</option>
-          <option value="OPEN">Open</option>
-          <option value="IN_PROGRESS">In progress</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="OVERDUE">Overdue</option>
-          <option value="CANCELLED">Cancelled</option>
-        </Select>
+        <div className="flex flex-wrap gap-2">
+          <Select
+            className="w-52"
+            aria-label="Task assignee filter"
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+          >
+            <option value="ME">My tasks</option>
+            <option value="ALL">All branch tasks</option>
+            {staff.filter((member) => member.id !== session?.user.id).map((member) => (
+              <option key={member.id} value={member.id}>{member.name}</option>
+            ))}
+          </Select>
+          <Select
+            className="w-52"
+            aria-label="Task status"
+            value={status}
+            onChange={(event) => setStatus(event.target.value as WorkStatus | '')}
+          >
+            <option value="">All task statuses</option>
+            <option value="OPEN">Open</option>
+            <option value="IN_PROGRESS">In progress</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="OVERDUE">Overdue</option>
+            <option value="CANCELLED">Cancelled</option>
+          </Select>
+          <Button type="button" disabled={!selectedBranchId} onClick={() => setShowCreate((value) => !value)}>
+            {showCreate ? <X className="size-4" /> : <Plus className="size-4" />}
+            {showCreate ? 'Close' : 'Add task'}
+          </Button>
+        </div>
       </div>
+
+      {showCreate ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <div><h2 className="font-semibold">Create a task</h2><p className="mt-1 text-sm text-muted-foreground">Choose an active team member from the selected branch.</p></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <Input placeholder="Task title" value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} />
+            <Select aria-label="Assign task to" value={taskForm.assignedUserId} onChange={(event) => setTaskForm((current) => ({ ...current, assignedUserId: event.target.value }))}>
+              <option value="">{staffQuery.isLoading ? 'Loading team members…' : 'Select assignee'}</option>
+              {staff.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role === 'ADMIN' ? 'Dr. Revive' : 'Receptionist'}</option>)}
+            </Select>
+            <Select value={taskForm.type} onChange={(event) => setTaskForm((current) => ({ ...current, type: event.target.value }))}>
+              <option value="GENERAL">General task</option>
+              <option value="CALL">Call</option>
+              <option value="APPOINTMENT">Appointment</option>
+              <option value="PATIENT_SUPPORT">Patient support</option>
+              <option value="DOCUMENT_REVIEW">Document review</option>
+            </Select>
+            <Input className="md:col-span-2" placeholder="Description (optional)" value={taskForm.description} onChange={(event) => setTaskForm((current) => ({ ...current, description: event.target.value }))} />
+            <label className="block text-xs text-muted-foreground">Due date and time<Input className="mt-1" type="datetime-local" value={taskForm.dueAt} onChange={(event) => setTaskForm((current) => ({ ...current, dueAt: event.target.value }))} /></label>
+            <label className="block text-xs text-muted-foreground">Priority<Select className="mt-1 w-full" value={taskForm.priority} onChange={(event) => setTaskForm((current) => ({ ...current, priority: event.target.value }))}><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></Select></label>
+          </div>
+          {create.isError ? <p className="mt-3 text-sm text-red-600">{create.error.message}</p> : null}
+          <div className="mt-4 flex gap-2"><Button disabled={!taskForm.title.trim() || !taskForm.dueAt || !taskForm.assignedUserId || !selectedBranchId || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Creating…' : 'Create task'}</Button><Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button></div>
+        </Card>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <TaskMetric icon={CircleDot} label="Visible tasks" value={tasks.length} />
@@ -143,7 +229,7 @@ export function TasksView() {
                     {task.description || task.type.replaceAll('_', ' ')}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {task.branch.name}
+                    Assigned to {task.assignedUser.name} · {task.branch.name}
                     {task.person ? ` · ${task.person.fullName}` : ''}
                     {task.lead ? (
                       <>

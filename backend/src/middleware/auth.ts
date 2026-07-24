@@ -12,6 +12,13 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
 
   try {
     const payload = verifyAccessToken(token);
+    if (payload.role === 'DEVELOPER') {
+      const developerPaths = ['/api/auth', '/api/branches', '/api/integrations', '/api/whatsapp'];
+      const requestPath = req.originalUrl.split('?')[0];
+      if (!developerPaths.some((path) => requestPath.startsWith(path))) {
+        return next(new HttpError(403, 'Developer accounts cannot access clinic records'));
+      }
+    }
     req.user = { id: payload.sub, role: payload.role };
     return next();
   } catch {

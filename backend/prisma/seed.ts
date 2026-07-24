@@ -27,6 +27,7 @@ async function main() {
 
   const doctorPasswordHash = await bcrypt.hash('DrRevive@12345', 12);
   const receptionistPasswordHash = await bcrypt.hash('Reception@12345', 12);
+  const developerPasswordHash = await bcrypt.hash('Developer@12345', 12);
 
   // Remove the legacy demonstration accounts. The Dr. Revive account is updated
   // in place below, preserving its ID for any existing development records.
@@ -52,8 +53,16 @@ async function main() {
     create: { name: 'Receptionist', email: 'receptionist@reviveclinic.local', passwordHash: receptionistPasswordHash, role: Role.RECEPTIONIST, accessLevel: 'RECEPTIONIST' },
   });
 
+  // Hidden system-maintenance account. It is excluded from the clinic user list
+  // and has access only to developer integration and diagnostic screens.
+  const developer = await prisma.user.upsert({
+    where: { email: 'developer@reviveclinic.local' },
+    update: { name: 'Developer Team', passwordHash: developerPasswordHash, role: Role.DEVELOPER, accessLevel: 'DEVELOPER', status: 'ACTIVE' },
+    create: { name: 'Developer Team', email: 'developer@reviveclinic.local', passwordHash: developerPasswordHash, role: Role.DEVELOPER, accessLevel: 'DEVELOPER' },
+  });
+
   await Promise.all(
-    [admin, receptionist].flatMap((user) =>
+    [admin, receptionist, developer].flatMap((user) =>
       [sharanpurBranch.id, nashikRoadBranch.id].map((branchId, index) =>
         prisma.userBranch.upsert({
           where: { userId_branchId: { userId: user.id, branchId } },
@@ -89,6 +98,15 @@ async function main() {
     update: { durationMinutes: 30, bufferMinutes: 0, active: true },
     create: { id: 'service_consultation', name: 'Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 0 },
   });
+  const waitlistServices = [
+    { id: 'service_skin_consultation', name: 'Skin Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 10, resourceType: 'CONSULTATION' as const },
+    { id: 'service_hair_consultation', name: 'Hair Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 10, resourceType: 'CONSULTATION' as const },
+    { id: 'service_laser_session', name: 'Laser Treatment Session', category: 'Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { id: 'service_skin_procedure', name: 'Skin Procedure', category: 'Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+  ];
+  for (const service of waitlistServices) {
+    await prisma.clinicService.upsert({ where: { id: service.id }, update: { ...service, active: true }, create: { ...service, active: true } });
+  }
 
   const inventoryProducts = [
     { id: 'product_gloves_nitrile', sku: 'CON-NG-M', name: 'Nitrile Examination Gloves — M', category: 'Clinical Consumables', brand: 'Generic', unit: 'pair', type: 'CONSUMABLE' as const, taxPercent: 18, purchasePrice: 12, sellingPrice: 0, reorderLevel: 50 },
@@ -147,7 +165,7 @@ async function main() {
     { id: 'field_registration_dob', key: 'dateOfBirth', label: 'Date of birth', type: 'DATE' as const, required: false, sortOrder: 50 },
     { id: 'field_registration_sex', key: 'sex', label: 'Sex', type: 'DROPDOWN' as const, required: false, options: ['MALE', 'FEMALE', 'OTHER'], sortOrder: 60 },
     { id: 'field_registration_address', key: 'address', label: 'Address', type: 'TEXT' as const, required: false, sortOrder: 70 },
-    { id: 'field_registration_marital', key: 'maritalStatus', label: 'Marital status', type: 'TEXT' as const, required: false, sortOrder: 80 },
+    { id: 'field_registration_marital', key: 'maritalStatus', label: 'Marital status', type: 'DROPDOWN' as const, required: false, options: ['Single', 'Married', 'Separated', 'Divorced', 'Widowed', 'Prefer not to say'], sortOrder: 80 },
     { id: 'field_registration_occupation', key: 'occupation', label: 'Occupation', type: 'TEXT' as const, required: false, sortOrder: 90 },
     { id: 'field_registration_referred', key: 'referredBy', label: 'Referred by', type: 'TEXT' as const, required: false, sortOrder: 100 },
     { id: 'field_registration_skin', key: 'skinConcern', label: 'Skin concern', type: 'TEXT' as const, required: false, sortOrder: 110 },
@@ -155,10 +173,10 @@ async function main() {
     { id: 'field_registration_medical', key: 'medicalHistory', label: 'Medical history', type: 'TEXT' as const, required: false, sortOrder: 130 },
     { id: 'field_registration_medications', key: 'currentMedications', label: 'Current medications', type: 'TEXT' as const, required: false, sortOrder: 140 },
     { id: 'field_registration_allergy', key: 'allergyToDrugs', label: 'Drug allergies', type: 'TEXT' as const, required: false, sortOrder: 150 },
-    { id: 'field_registration_scar', key: 'keloidOrHypertrophicScar', label: 'Keloid or hypertrophic scar history', type: 'TEXT' as const, required: false, sortOrder: 160 },
+    { id: 'field_registration_scar', key: 'keloidOrHypertrophicScar', label: 'Keloid or hypertrophic scar history', type: 'DROPDOWN' as const, required: false, options: ['No known history', 'Yes', 'Unsure'], sortOrder: 160 },
     { id: 'field_registration_products', key: 'productsCurrentlyUsed', label: 'Products currently used', type: 'TEXT' as const, required: false, sortOrder: 170 },
-    { id: 'field_registration_menstrual', key: 'menstrualHistory', label: 'Menstrual history', type: 'TEXT' as const, required: false, sortOrder: 180 },
-    { id: 'field_registration_pregnancy', key: 'pregnancyStatus', label: 'Pregnancy status', type: 'TEXT' as const, required: false, sortOrder: 190 },
+    { id: 'field_registration_menstrual', key: 'menstrualHistory', label: 'Menstrual history', type: 'DROPDOWN' as const, required: false, options: ['Not applicable', 'Regular', 'Irregular', 'Post-menopausal', 'Prefer not to say'], sortOrder: 180 },
+    { id: 'field_registration_pregnancy', key: 'pregnancyStatus', label: 'Pregnancy status', type: 'DROPDOWN' as const, required: false, options: ['Not applicable', 'Not pregnant', 'Pregnant', 'Breastfeeding', 'Planning pregnancy', 'Unsure', 'Prefer not to say'], sortOrder: 190 },
     { id: 'field_registration_notes', key: 'notes', label: 'Other notes', type: 'TEXT' as const, required: false, sortOrder: 200 },
     { id: 'field_registration_declaration', key: 'declaration', label: 'I confirm this information is accurate.', type: 'DECLARATION' as const, required: true, sortOrder: 210 },
   ];
@@ -196,6 +214,35 @@ async function main() {
 
   // Managed WhatsApp template drafts. They remain inactive until an administrator
   // connects Meta Cloud API and synchronises the provider-approved versions.
+  const testWhatsAppAccount = await prisma.whatsAppAccount.upsert({
+    where: { businessAccountId: 'LOCAL_TEST_WABA' },
+    update: { name: 'Local testing account', status: 'DISCONNECTED' },
+    create: {
+      name: 'Local testing account',
+      businessAccountId: 'LOCAL_TEST_WABA',
+      accessTokenCiphertext: 'LOCAL-TEST-ONLY',
+      appSecretCiphertext: 'LOCAL-TEST-ONLY',
+      verifyTokenCiphertext: 'LOCAL-TEST-ONLY',
+      status: 'DISCONNECTED',
+    },
+  });
+  for (const [index, branch] of [sharanpurBranch, nashikRoadBranch].entries()) {
+    await prisma.whatsAppPhoneNumber.upsert({
+      where: { phoneNumberId: `LOCAL_TEST_PHONE_${index + 1}` },
+      update: { accountId: testWhatsAppAccount.id, branchId: branch.id, active: true, isDefault: true },
+      create: {
+        accountId: testWhatsAppAccount.id,
+        branchId: branch.id,
+        phoneNumberId: `LOCAL_TEST_PHONE_${index + 1}`,
+        displayPhoneNumber: `+91 00000 0000${index + 1}`,
+        normalizedPhone: `91000000000${index + 1}`,
+        verifiedName: `Revive ${branch.name} (Test)`,
+        active: true,
+        isDefault: true,
+      },
+    });
+  }
+
   const whatsappTemplates = [
     { id: 'wa_template_lead_received', name: 'lead_received', displayName: 'New lead acknowledgement', category: 'UTILITY' as const, group: 'NEW_LEAD' as const, body: 'Hello {{1}}, thank you for contacting {{2}} about {{3}}. {{4}} will assist you shortly.' },
     { id: 'wa_template_lead_followup', name: 'lead_follow_up', displayName: 'Lead follow-up', category: 'UTILITY' as const, group: 'LEAD_FOLLOW_UP' as const, body: 'Hello {{1}}, would you like help booking a consultation at {{2}} for {{3}}?' },
@@ -207,6 +254,24 @@ async function main() {
     { id: 'wa_template_payment_reminder', name: 'payment_reminder', displayName: 'Payment reminder', category: 'UTILITY' as const, group: 'PAYMENT' as const, body: 'Hello {{1}}, this is a payment reminder from {{2}}. Please contact us if you need assistance.' },
   ];
   for (const template of whatsappTemplates) await prisma.whatsAppTemplate.upsert({ where: { id: template.id }, update: { ...template, status: 'DRAFT', active: false }, create: { ...template, language: 'en', status: 'DRAFT', active: false, createdById: admin.id } });
+  await prisma.whatsAppTemplate.upsert({
+    where: { id: 'wa_template_test_marketing' },
+    update: { accountId: testWhatsAppAccount.id, status: 'APPROVED', active: true },
+    create: {
+      id: 'wa_template_test_marketing',
+      accountId: testWhatsAppAccount.id,
+      providerTemplateId: 'LOCAL_TEST_MARKETING_TEMPLATE',
+      name: 'revive_test_offer',
+      displayName: 'Revive test marketing message',
+      language: 'en',
+      category: 'MARKETING',
+      group: 'GENERAL',
+      status: 'APPROVED',
+      body: 'Hello {{1}}, this is a test campaign from Revive Clinic. No message will be delivered until a real Meta account is connected.',
+      active: true,
+      createdById: admin.id,
+    },
+  });
 
   const whatsappAutomations = [
     { id: 'wa_auto_lead_received', name: 'Lead received acknowledgement', trigger: 'LEAD_RECEIVED' as const, templateId: 'wa_template_lead_received', delayMinutes: 0, sequenceStep: 1 },

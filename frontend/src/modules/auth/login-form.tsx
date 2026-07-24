@@ -50,7 +50,7 @@ export function LoginForm() {
         return;
       }
       setSession(session);
-      router.replace('/dashboard');
+      router.replace(session.user.role === 'DEVELOPER' ? '/settings/integrations' : '/dashboard');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Login failed');
     }

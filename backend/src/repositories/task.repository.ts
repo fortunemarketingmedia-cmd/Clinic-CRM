@@ -2,6 +2,17 @@ import type { WorkPriority, WorkStatus } from '@prisma/client';
 import { prisma } from '../config/db.js';
 
 export const taskRepository = {
+  findAssignableUser(userId: string, branchId: string) {
+    return prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'ACTIVE',
+        role: { in: ['ADMIN', 'RECEPTIONIST'] },
+        branchAccess: { some: { branchId } },
+      },
+      select: { id: true },
+    });
+  },
   list(filters: { branchId?: string; assignedUserId?: string; status?: WorkStatus; dueFrom?: Date; dueTo?: Date }) {
     return prisma.task.findMany({
       where: { branchId: filters.branchId, assignedUserId: filters.assignedUserId, status: filters.status,
