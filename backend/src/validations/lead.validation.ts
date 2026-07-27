@@ -53,6 +53,8 @@ export const leadQuerySchema = z.object({
   status: z.nativeEnum(LeadStatus).optional(),
   source: z.nativeEnum(EnquirySource).optional(),
   search: z.string().optional(),
+  createdFrom: z.coerce.date().optional(),
+  createdTo: z.coerce.date().optional(),
   includeClosed: z.coerce.boolean().optional(),
 });
 

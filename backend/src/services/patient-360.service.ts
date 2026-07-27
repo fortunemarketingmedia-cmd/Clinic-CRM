@@ -60,6 +60,7 @@ export const patient360Service = {
       return {
         ...patient,
         medicalProfile: undefined,
+        sessions: undefined,
         clinicalEncounters: undefined,
         treatmentPlans: undefined,
         procedureSessions: undefined,

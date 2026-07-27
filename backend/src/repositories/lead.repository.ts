@@ -7,6 +7,8 @@ type LeadFilters = {
   status?: LeadStatus;
   source?: EnquirySource;
   search?: string;
+  createdFrom?: Date;
+  createdTo?: Date;
   includeClosed?: boolean;
   role: Role;
 };
@@ -22,6 +24,12 @@ export const leadRepository = {
         branchId: filters.branchId,
         source: filters.source,
         status: filters.status ?? (filters.includeClosed ? undefined : { not: 'CONVERTED' }),
+        createdAt: filters.createdFrom || filters.createdTo
+          ? {
+              gte: filters.createdFrom,
+              lte: filters.createdTo,
+            }
+          : undefined,
         OR: filters.search
           ? [
               { name: { contains: filters.search, mode: 'insensitive' } },

@@ -23,6 +23,7 @@ export const patient360Repository = {
         person: true,
         medicalProfile: { include: { versions: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } } } },
         lead: { include: { appointments: { include: { doctor: { select: { id: true, name: true } }, service: true }, orderBy: { appointmentAt: 'desc' } } } },
+        sessions: { include: { package: true, files: true }, orderBy: { visitDate: 'desc' } },
         clinicalEncounters: { include: encounterInclude, orderBy: { visitDate: 'desc' } },
         treatmentPlans: { include: { assignedDoctor: { select: { id: true, name: true } }, assignedTherapist: { select: { id: true, name: true } }, items: { include: { service: true, practitioner: { select: { id: true, name: true } } } } }, orderBy: { createdAt: 'desc' } },
         procedureSessions: { include: { practitioner: { select: { id: true, name: true } }, assistant: { select: { id: true, name: true } }, room: true, device: true }, orderBy: { createdAt: 'desc' } },

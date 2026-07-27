@@ -70,6 +70,14 @@ function sourceLabel(source: Lead['source']) {
   return source.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function tabsLabel(tab: LeadTab) {
+  if (tab === 'MANUAL') return 'Manual leads';
+  if (tab === 'GOOGLE_ADS') return 'Google Ads';
+  if (tab === 'META_ADS') return 'Meta Ads';
+  if (tab === 'CAMPAIGN_ANALYTICS') return 'Campaigns';
+  return 'All leads';
+}
+
 function percent(value: number, total: number) {
   if (!total) {
     return 0;
@@ -102,6 +110,8 @@ export function LeadsView() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<LeadStatus | ''>('');
   const [source, setSource] = useState<LeadSource | ''>('');
+  const [createdFrom, setCreatedFrom] = useState('');
+  const [createdTo, setCreatedTo] = useState('');
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [bookingLead, setBookingLead] = useState<Lead | null>(null);
@@ -162,8 +172,16 @@ export function LeadsView() {
       params.set('search', search.trim());
     }
 
+    if (createdFrom) {
+      params.set('createdFrom', new Date(createdFrom).toISOString());
+    }
+
+    if (createdTo) {
+      params.set('createdTo', new Date(createdTo).toISOString());
+    }
+
     return params.toString();
-  }, [activeBranchId, activeTab, isAdmin, search, source, status]);
+  }, [activeBranchId, activeTab, createdFrom, createdTo, isAdmin, search, source, status]);
 
   const leadsQuery = useQuery({
     queryKey: ['leads', queryString],
@@ -454,10 +472,27 @@ export function LeadsView() {
       statusRows,
       campaignRows: Array.from(campaignCounts.values()).sort((a, b) => b.value - a.value).slice(0, 5),
       bookedOrConfirmed: leads.filter((lead) => ['APPOINTMENT_BOOKED', 'CONVERTED'].includes(lead.status)).length,
+      open: leads.filter((lead) => !['CONVERTED', 'LOST', 'DISQUALIFIED', 'CANCELLED'].includes(lead.status)).length,
       adAttributed: leads.filter((lead) => lead.source === 'GOOGLE_ADS' || lead.source === 'META_ADS' || (lead.adLeads?.length ?? 0) > 0).length,
     };
   }, [adLeads, leads]);
   const duplicateMatches = duplicateQuery.data?.data;
+  const clearFilters = () => {
+    setSearch('');
+    setStatus('');
+    setSource('');
+    setCreatedFrom('');
+    setCreatedTo('');
+    setActiveTab('ALL');
+  };
+  const activeFilterLabels = [
+    activeTab !== 'ALL' ? tabsLabel(activeTab) : undefined,
+    search.trim() ? `Search: ${search.trim()}` : undefined,
+    status ? `Status: ${leadStatuses.find((leadStatus) => leadStatus.value === status)?.label ?? status}` : undefined,
+    source ? `Source: ${sourceLabel(source)}` : undefined,
+    createdFrom ? `From: ${formatDateTime(createdFrom)}` : undefined,
+    createdTo ? `To: ${formatDateTime(createdTo)}` : undefined,
+  ].filter(Boolean) as string[];
   const tabs: Array<{ label: string; value: LeadTab }> = [
     { label: 'All', value: 'ALL' },
     { label: 'Manual', value: 'MANUAL' },
@@ -480,11 +515,35 @@ export function LeadsView() {
       </div>
 
       <Card>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 className="font-semibold">Lead analytics</h2>
+            <p className="text-sm text-muted-foreground">Numbers update automatically from the selected tab and filters.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {activeFilterLabels.length ? activeFilterLabels.map((item) => (
+              <span key={item} className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{item}</span>
+            )) : <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">No extra filters</span>}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Metric label="Total leads" value={leadAnalytics.total} />
+          <Metric label="Open leads" value={leadAnalytics.open} />
           <Metric label="Booked / confirmed" value={leadAnalytics.bookedOrConfirmed} />
+          <Metric label="Conversion %" value={percent(leadAnalytics.bookedOrConfirmed, leadAnalytics.total)} suffix="%" />
           <Metric label="Ad attributed" value={leadAnalytics.adAttributed} />
-          <Metric label="Sources active" value={leadAnalytics.sourceRows.length} />
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <div>
+            <h3 className="text-sm font-semibold">Sources</h3>
+            <AnalyticsBars data={leadAnalytics.sourceRows} total={leadAnalytics.total} />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Statuses</h3>
+            <AnalyticsBars data={leadAnalytics.statusRows} total={leadAnalytics.total} />
+          </div>
         </div>
       </Card>
 
@@ -724,7 +783,7 @@ export function LeadsView() {
             <div className="text-sm font-medium text-muted-foreground">{leads.length} visible</div>
           </div>
 
-          <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+          <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_170px_170px_210px_210px_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
               <Input
@@ -747,6 +806,7 @@ export function LeadsView() {
                 </option>
               ))}
             </Select>
+
             <Select
               aria-label="Source filter"
               value={source}
@@ -760,6 +820,24 @@ export function LeadsView() {
               <option value="WHATSAPP">WhatsApp</option>
               <option value="WALK_IN">Walk-in</option>
             </Select>
+
+            <Input
+              aria-label="Created from"
+              type="datetime-local"
+              value={createdFrom}
+              onChange={(event) => setCreatedFrom(event.target.value)}
+            />
+
+            <Input
+              aria-label="Created to"
+              type="datetime-local"
+              value={createdTo}
+              onChange={(event) => setCreatedTo(event.target.value)}
+            />
+
+            <Button type="button" variant="secondary" onClick={clearFilters}>
+              Reset
+            </Button>
           </div>
 
           <div className="overflow-x-auto rounded-md border border-border">
@@ -968,11 +1046,11 @@ function Endpoint({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ label, value, suffix = '' }: { label: string; value: number; suffix?: string }) {
   return (
     <div className="rounded-md border border-border bg-white p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
+      <div className="mt-1 text-xl font-semibold">{value}{suffix}</div>
     </div>
   );
 }

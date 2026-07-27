@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowLeft, FileLock2, Pill, Plus } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, FileLock2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ const tabs = ['Overview', 'Appointments', 'Treatments', 'Prescriptions', 'Medica
 type Tab = typeof tabs[number];
 const clinicalRoles = ['ADMIN', 'RECEPTIONIST'];
 const prescriberRoles = ['ADMIN', 'RECEPTIONIST'];
-const format = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const format = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'â€”';
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const nowLocal = () => { const date = new Date(); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); return date.toISOString().slice(0, 16); };
 
@@ -45,8 +45,7 @@ export function Patient360View({ patientId }: { patientId: string }) {
   const allergy = patient.medicalProfile?.allergyToDrugs || patient.medicalProfile?.productAllergies || patient.medicalProfile?.foodAllergies;
   return <section className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><Link href="/patients" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Client directory</Link><h1 className="text-2xl font-semibold">{patient.fullName}</h1><p className="text-sm text-muted-foreground">{patient.patientNo} · {patient.mobile} · {patient.branch?.name}</p></div>
-      {canClinical ? <div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" onClick={() => setComposer('procedure')}><Plus className="size-4" />Record treatment</Button><Button type="button" onClick={() => setComposer('prescription')} disabled={!canPrescribe}><Pill className="size-4" />Prescription</Button></div> : null}
+      <div><Link href="/patients" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Client directory</Link><h1 className="text-2xl font-semibold">{patient.fullName}</h1><p className="text-sm text-muted-foreground">{patient.patientNo} Â· {patient.mobile} Â· {patient.branch?.name}</p></div>
     </div>
 
     {patient.medicalProfile?.criticalAlert ? <Card className="border-red-300 bg-red-50 text-red-900"><div className="flex gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0" /><div><div className="font-semibold">Critical medical alert</div><div className="text-sm">{patient.medicalProfile.clinicalAlerts || allergy || 'Review the medical profile before treatment.'}</div></div></div></Card> : null}
@@ -62,7 +61,7 @@ export function Patient360View({ patientId }: { patientId: string }) {
     <div className="overflow-x-auto border-b"><div className="flex min-w-max gap-1">{tabs.map((item) => <button key={item} className={`border-b-2 px-3 py-2 text-sm ${tab === item ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground'}`} onClick={() => setTab(item)}>{item}</button>)}</div></div>
 
     {tab === 'Overview' ? <Overview patient={patient} /> : null}
-    {tab === 'Appointments' ? <ListState empty="No appointments recorded." items={patient.lead.appointments.map((appointment) => <Record key={appointment.id} title={`${label(appointment.status)} · ${appointment.service?.name ?? label(appointment.appointmentType)}`} subtitle={`${format(appointment.appointmentAt)} · ${appointment.doctor?.name ?? 'Practitioner not assigned'}`} />)} /> : null}
+    {tab === 'Appointments' ? <ListState empty="No appointments recorded." items={patient.lead.appointments.map((appointment) => <Record key={appointment.id} title={`${label(appointment.status)} Â· ${appointment.service?.name ?? label(appointment.appointmentType)}`} subtitle={`${format(appointment.appointmentAt)} Â· ${appointment.doctor?.name ?? 'Practitioner not assigned'}`} />)} /> : null}
     {tab === 'Treatments' ? <Treatments patient={patient} canClinical={canClinical} onRecord={() => setComposer('procedure')} onPlan={() => setComposer('plan')} /> : null}
     {tab === 'Prescriptions' ? <Prescriptions patient={patient} canSign={canPrescribe} onCreate={() => setComposer('prescription')} invalidate={invalidate} /> : null}
     {tab === 'Medical Profile' ? <MedicalProfile patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
@@ -78,14 +77,89 @@ function ListState({ items, empty, action }: { items: React.ReactNode[]; empty: 
 
 function Overview({ patient }: { patient: Patient360 }) {
   const latestAppointment = patient.summary.lastVisit ?? patient.lead.appointments[0];
-  return <div className="grid gap-4 lg:grid-cols-2"><Card><h2 className="font-semibold">Client snapshot</h2><dl className="mt-4 grid gap-4 sm:grid-cols-2"><Detail title="Primary concern" value={patient.primaryConcern ?? patient.medicalProfile?.skinConcern ?? patient.medicalProfile?.hairConcern} /><Detail title="Latest visit" value={format(latestAppointment?.appointmentAt)} /><Detail title="Medical history" value={patient.medicalProfile?.medicalHistory} /><Detail title="Allergies / alerts" value={patient.medicalProfile?.clinicalAlerts ?? patient.medicalProfile?.allergyToDrugs} /></dl></Card><Card><h2 className="font-semibold">Care summary</h2><dl className="mt-4 grid gap-4 sm:grid-cols-2"><Detail title="Active treatment" value={patient.summary.activeTreatmentPlan?.concern} /><Detail title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} /><Detail title="Current medicines" value={patient.medicalProfile?.currentMedications} /><Detail title="Communication" value={patient.person?.transactionalConsent ? 'Transactional communication allowed' : 'Not recorded'} /></dl></Card></div>;
+  const profile = patient.medicalProfile;
+  const registrationSource = patient.registrationSource ?? patient.lead?.source;
+  return <div className="space-y-4">
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <h2 className="font-semibold">Personal details</h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Detail title="Full name" value={patient.fullName} />
+          <Detail title="Client no." value={patient.patientNo} />
+          <Detail title="Age" value={patient.age ? String(patient.age) : undefined} />
+          <Detail title="Sex" value={patient.sex ? label(patient.sex) : undefined} />
+          <Detail title="Marital status" value={patient.maritalStatus} />
+          <Detail title="Occupation" value={patient.occupation} />
+          <Detail title="Address" value={patient.address} />
+        </dl>
+      </Card>
+
+      <Card>
+        <h2 className="font-semibold">Contact & registration</h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Detail title="Mobile" value={patient.mobile} />
+          <Detail title="Email" value={patient.email} />
+          <Detail title="Branch" value={patient.branch?.name} />
+          <Detail title="Branch phone" value={patient.branch?.phone} />
+          <Detail title="Branch address" value={patient.branch?.address} />
+          <Detail title="Registration source" value={registrationSource ? label(registrationSource) : undefined} />
+          <Detail title="Registered on" value={format(patient.registeredAt ?? patient.createdAt)} />
+          <Detail title="Last updated" value={format(patient.updatedAt)} />
+        </dl>
+      </Card>
+    </div>
+
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <h2 className="font-semibold">Clinic status</h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Detail title="Client status" value={patient.status ? label(patient.status) : undefined} />
+          <Detail title="Assigned doctor" value={patient.assignedDoctor?.name} />
+          <Detail title="Primary concern" value={patient.primaryConcern ?? profile?.skinConcern ?? profile?.hairConcern} />
+          <Detail title="Active treatment" value={patient.summary.activeTreatmentPlan?.concern} />
+          <Detail title="Latest visit" value={format(latestAppointment?.appointmentAt ?? patient.lastVisitAt)} />
+          <Detail title="Next appointment" value={format(patient.summary.nextAppointment?.appointmentAt ?? patient.nextVisitAt)} />
+          <Detail title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} />
+          <Detail title="Outstanding amount" value={`₹${patient.summary.outstandingAmount.toLocaleString('en-IN')}`} />
+        </dl>
+      </Card>
+
+      <Card>
+        <h2 className="font-semibold">Medical background</h2>
+        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Detail title="Skin concern" value={profile?.skinConcern} />
+          <Detail title="Hair concern" value={profile?.hairConcern} />
+          <Detail title="Medical history" value={profile?.medicalHistory} />
+          <Detail title="Surgical history" value={profile?.surgicalHistory} />
+          <Detail title="Current medicines" value={profile?.currentMedications} />
+          <Detail title="Drug allergies" value={profile?.allergyToDrugs} />
+          <Detail title="Product allergies" value={profile?.productAllergies} />
+          <Detail title="Food allergies" value={profile?.foodAllergies} />
+          <Detail title="Clinical alerts" value={profile?.clinicalAlerts} />
+          <Detail title="Pregnancy status" value={profile?.pregnancyStatus} />
+        </dl>
+      </Card>
+    </div>
+
+    <Card>
+      <h2 className="font-semibold">Consent & communication</h2>
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Detail title="Transactional messages" value={patient.person?.transactionalConsent ? 'Allowed' : 'Not recorded'} />
+        <Detail title="Appointment notifications" value={patient.person?.appointmentNotificationConsent ? 'Allowed' : 'Not recorded'} />
+        <Detail title="Marketing messages" value={patient.person?.marketingConsent ? 'Allowed' : 'Not recorded'} />
+        <Detail title="Data processing consent" value={patient.person?.dataProcessingConsent ? 'Allowed' : 'Not recorded'} />
+      </dl>
+    </Card>
+  </div>;
 }
 function Treatments({ patient, canClinical, onRecord, onPlan }: { patient: Patient360; canClinical: boolean; onRecord: () => void; onPlan: () => void }) {
+  const sessions = patient.sessions ?? [];
   const plans = patient.treatmentPlans ?? [];
   const procedures = patient.procedureSessions ?? [];
   const items = [
-    ...procedures.map((procedure) => <Record key={`procedure-${procedure.id}`} title={`${procedure.procedureName} · ${label(procedure.status)}`} subtitle={`${format(procedure.performedAt ?? procedure.createdAt)} · ${procedure.practitioner.name}${procedure.adverseEventFlag ? ' · Alert' : ''}`} warning={procedure.adverseEventFlag} />),
-    ...plans.map((plan) => <Record key={`plan-${plan.id}`} title={`${plan.concern} · ${label(plan.status)}`} subtitle={`${plan.assignedDoctor.name} · ${plan.items.map((item) => `${item.name} ${item.completedSessions}/${item.plannedSessions}`).join(', ') || 'Plan created'}`} />),
+    ...sessions.map((session) => <Record key={`session-${session.id}`} title={`${session.treatmentTaken || session.treatmentSuggested || label(session.treatmentType)} Â· ${label(session.treatmentType)}`} subtitle={`${format(session.visitDate)} Â· ${session.doctorConsulted || 'Provider not recorded'}${session.prescription?.length ? ` Â· ${session.prescription.length} medicines` : ''}`} />),
+    ...procedures.map((procedure) => <Record key={`procedure-${procedure.id}`} title={`${procedure.procedureName} Â· ${label(procedure.status)}`} subtitle={`${format(procedure.performedAt ?? procedure.createdAt)} Â· ${procedure.practitioner.name}${procedure.adverseEventFlag ? ' Â· Alert' : ''}`} warning={procedure.adverseEventFlag} />),
+    ...plans.map((plan) => <Record key={`plan-${plan.id}`} title={`${plan.concern} Â· ${label(plan.status)}`} subtitle={`${plan.assignedDoctor.name} Â· ${plan.items.map((item) => `${item.name} ${item.completedSessions}/${item.plannedSessions}`).join(', ') || 'Plan created'}`} />),
   ];
   return <ListState empty="No treatments recorded." action={canClinical ? <div className="flex flex-wrap gap-2"><Button onClick={onRecord}><Plus className="size-4" />Record treatment</Button><Button variant="secondary" onClick={onPlan}>Create plan</Button></div> : undefined} items={items} />;
 }
@@ -96,14 +170,19 @@ function MedicalProfile({ patient, canEdit, invalidate }: { patient: Patient360;
   const mutation = useMutation({ mutationFn: () => apiRequest(`/patients/${patient.id}/medical-profile`, { method: 'PUT', body: JSON.stringify(values) }), onSuccess: () => { setEditing(false); invalidate(); } });
   if (!profile) return <Card className="text-sm text-muted-foreground">Medical profile is unavailable for your role or has not been recorded.</Card>;
   const fields = [['Skin concern', profile.skinConcern], ['Hair concern', profile.hairConcern], ['Medical history', profile.medicalHistory], ['Surgical history', profile.surgicalHistory], ['Current medicines', profile.currentMedications], ['Drug allergies', profile.allergyToDrugs], ['Product allergies', profile.productAllergies], ['Food allergies', profile.foodAllergies], ['Family history', profile.familyHistory], ['Smoking', profile.smokingStatus], ['Alcohol', profile.alcoholHistory], ['Clinical alerts', profile.clinicalAlerts]];
-  return <div className="grid gap-4 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="mb-4 flex justify-between"><h2 className="font-semibold">Current medical profile</h2>{canEdit ? <Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel edit' : 'Update profile'}</Button> : null}</div>{editing ? <div className="grid gap-3 sm:grid-cols-2"><Area label="Medical history" name="medicalHistory" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Current medications" name="currentMedications" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Drug allergies" name="allergyToDrugs" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Clinical alerts" name="clinicalAlerts" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><TextField label="Reason for change" name="reasonForChange" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.criticalAlert} onChange={(event) => setValues((current) => ({ ...current, criticalAlert: event.target.checked }))} />Critical alert</label>{mutation.isError ? <p className="text-sm text-red-700 sm:col-span-2">{mutation.error.message}</p> : null}<Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Save versioned update</Button></div> : <div className="grid gap-4 sm:grid-cols-2">{fields.map(([title, value]) => <Detail key={title} title={title ?? ''} value={value as string | null} />)}</div>}</Card><Card><h2 className="font-semibold">Version history</h2><div className="mt-3 space-y-2">{profile.versions?.length ? profile.versions.map((version) => <Record key={version.id} title={version.reason || 'Medical profile updated'} subtitle={`${format(version.createdAt)} · ${version.updatedBy?.name ?? 'System'}`} />) : <p className="text-sm text-muted-foreground">No previous versions.</p>}</div></Card></div>;
+  return <div className="grid gap-4 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="mb-4 flex justify-between"><h2 className="font-semibold">Current medical profile</h2>{canEdit ? <Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel edit' : 'Update profile'}</Button> : null}</div>{editing ? <div className="grid gap-3 sm:grid-cols-2"><Area label="Medical history" name="medicalHistory" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Current medications" name="currentMedications" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Drug allergies" name="allergyToDrugs" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Clinical alerts" name="clinicalAlerts" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><TextField label="Reason for change" name="reasonForChange" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.criticalAlert} onChange={(event) => setValues((current) => ({ ...current, criticalAlert: event.target.checked }))} />Critical alert</label>{mutation.isError ? <p className="text-sm text-red-700 sm:col-span-2">{mutation.error.message}</p> : null}<Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Save versioned update</Button></div> : <div className="grid gap-4 sm:grid-cols-2">{fields.map(([title, value]) => <Detail key={title} title={title ?? ''} value={value as string | null} />)}</div>}</Card><Card><h2 className="font-semibold">Version history</h2><div className="mt-3 space-y-2">{profile.versions?.length ? profile.versions.map((version) => <Record key={version.id} title={version.reason || 'Medical profile updated'} subtitle={`${format(version.createdAt)} Â· ${version.updatedBy?.name ?? 'System'}`} />) : <p className="text-sm text-muted-foreground">No previous versions.</p>}</div></Card></div>;
 }
 
 function Prescriptions({ patient, canSign, onCreate, invalidate }: { patient: Patient360; canSign: boolean; onCreate: () => void; invalidate: () => void }) {
   const sign = useMutation({ mutationFn: (id: string) => apiRequest(`/clinical/prescriptions/${id}/sign`, { method: 'POST', body: '{}' }), onSuccess: invalidate });
   const pdf = useMutation({ mutationFn: (id: string) => apiBlob(`/clinical/prescriptions/${id}/pdf`), onSuccess: (blob) => { const url = URL.createObjectURL(blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60_000); } });
   const prescriptions = patient.prescriptions ?? [];
-  return <ListState empty="No prescriptions issued." action={canSign ? <Button onClick={onCreate}><Plus className="size-4" />New prescription</Button> : undefined} items={prescriptions.map((prescription) => <Card key={prescription.id} className="p-4"><div className="flex flex-wrap justify-between gap-3"><div><div className="font-semibold">{prescription.prescriptionNo} · {label(prescription.status)}</div><div className="text-xs text-muted-foreground">{format(prescription.prescribedAt)} · Dr. {prescription.doctor.name}</div></div><div className="flex gap-2">{canSign && prescription.status === 'DRAFT' ? <Button disabled={sign.isPending} onClick={() => sign.mutate(prescription.id)}><FileLock2 className="size-4" />Sign</Button> : null}<Button variant="secondary" disabled={pdf.isPending} onClick={() => pdf.mutate(prescription.id)}>PDF</Button></div></div><div className="mt-3 space-y-2">{prescription.items.map((item) => <div key={item.id} className="rounded bg-muted p-3 text-sm"><strong>{item.medicineName} {item.strength}</strong><div>{item.dosage} · {item.frequency} · {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>)} />;
+  const sessionPrescriptions = (patient.sessions ?? []).filter((session) => session.prescription?.length);
+  const items = [
+    ...prescriptions.map((prescription) => <Card key={prescription.id} className="p-4"><div className="flex flex-wrap justify-between gap-3"><div><div className="font-semibold">{prescription.prescriptionNo} · {label(prescription.status)}</div><div className="text-xs text-muted-foreground">{format(prescription.prescribedAt)} · Dr. {prescription.doctor.name}</div></div><div className="flex gap-2">{canSign && prescription.status === 'DRAFT' ? <Button disabled={sign.isPending} onClick={() => sign.mutate(prescription.id)}><FileLock2 className="size-4" />Sign</Button> : null}<Button variant="secondary" disabled={pdf.isPending} onClick={() => pdf.mutate(prescription.id)}>PDF</Button></div></div><div className="mt-3 space-y-2">{prescription.items.map((item) => <div key={item.id} className="rounded bg-muted p-3 text-sm"><strong>{item.medicineName} {item.strength}</strong><div>{item.dosage} · {item.frequency} · {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>),
+    ...sessionPrescriptions.map((session) => <Card key={`session-rx-${session.id}`} className="p-4"><div className="font-semibold">Prescription from {label(session.treatmentType)}</div><div className="text-xs text-muted-foreground">{format(session.visitDate)} · {session.doctorConsulted || 'Provider not recorded'}</div><div className="mt-3 space-y-2">{session.prescription?.map((item, index) => <div key={`${session.id}-${index}`} className="rounded bg-muted p-3 text-sm"><strong>{item.medicine}</strong><div>{item.dosage} · {item.frequency} · {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>),
+  ];
+  return <ListState empty="No prescriptions issued." action={canSign ? <Button onClick={onCreate}><Plus className="size-4" />New prescription</Button> : undefined} items={items} />;
 }
 
 function ClinicalComposer({ kind, patient, staff, resources, defaultDoctorId, onClose, onSaved }: { kind: 'encounter' | 'plan' | 'procedure' | 'prescription'; patient: Patient360; staff: StaffMember[]; resources: ClinicResource[]; defaultDoctorId?: string; onClose: () => void; onSaved: () => void }) {
@@ -116,16 +195,15 @@ function ClinicalComposer({ kind, patient, staff, resources, defaultDoctorId, on
     return apiRequest(`/clinical/patients/${patient.id}/prescriptions`, { method: 'POST', body: JSON.stringify({ doctorId: values.doctorId, prescribedAt: values.prescribedAt, diagnosisSummary: values.diagnosis, instructions: values.instructions, precautions: values.precautions, items: [{ medicineName: values.medicineName, strength: values.strength, dosage: values.dosage, frequency: values.frequency, duration: values.duration, route: values.route, timing: values.timing, instructions: values.medicineInstructions }] }) });
   }, onSuccess: onSaved });
   const clinicians = staff.filter((member) => ['ADMIN', 'RECEPTIONIST'].includes(member.role)); const rooms = resources.filter((item) => item.type === 'ROOM'); const devices = resources.filter((item) => item.type === 'EQUIPMENT');
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto"><div className="flex justify-between"><div><h2 className="text-lg font-semibold">New {kind.replaceAll('_', ' ')}</h2><p className="text-sm text-muted-foreground">{patient.fullName} · {patient.patientNo}</p></div><Button variant="ghost" onClick={onClose}>Close</Button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto"><div className="flex justify-between"><div><h2 className="text-lg font-semibold">New {kind.replaceAll('_', ' ')}</h2><p className="text-sm text-muted-foreground">{patient.fullName} Â· {patient.patientNo}</p></div><Button variant="ghost" onClick={onClose}>Close</Button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
     {(kind === 'encounter' || kind === 'plan' || kind === 'prescription') ? <Field label="Dr. Revive"><Select value={String(values.doctorId)} onChange={(event) => set('doctorId', event.target.value)}><option value="">Select Dr. Revive</option>{staff.filter((item) => item.role === 'ADMIN').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field> : null}
     {kind === 'encounter' ? <><Field label="Encounter type"><Select value={String(values.type)} onChange={(event) => set('type', event.target.value)}>{['CONSULTATION', 'VIDEO_CONSULTATION', 'FOLLOW_UP_CONSULTATION', 'PROCEDURE', 'TREATMENT_SESSION', 'REVIEW', 'EMERGENCY_REVIEW', 'OTHER'].map((item) => <option key={item}>{label(item)}</option>)}</Select></Field><Field label="Visit date"><Input type="datetime-local" value={String(values.visitDate)} onChange={(event) => set('visitDate', event.target.value)} /></Field><TextField label="Chief complaint" name="chiefComplaint" values={values} set={set} /><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><TextField label="Assessment" name="assessment" values={values} set={set} /><TextField label="Treatment advised" name="treatmentAdvised" values={values} set={set} /><Area label="Clinical notes" name="clinicalNotes" values={values} set={set} /></> : null}
     {kind === 'plan' ? <><TextField label="Concern" name="concern" values={values} set={set} /><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><TextField label="Goals" name="goals" values={values} set={set} /><TextField label="Estimated cost" name="estimatedCost" values={values} set={set} type="number" /><TextField label="Plan item / service" name="itemName" values={values} set={set} /><TextField label="Planned sessions" name="plannedSessions" values={values} set={set} type="number" /><TextField label="Frequency" name="frequency" values={values} set={set} /><TextField label="Item amount" name="itemAmount" values={values} set={set} type="number" /></> : null}
     {kind === 'procedure' ? <><Field label="Practitioner"><Select value={String(values.practitionerId)} onChange={(event) => set('practitionerId', event.target.value)}>{clinicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><TextField label="Procedure" name="procedureName" values={values} set={set} /><TextField label="Treatment area" name="treatmentArea" values={values} set={set} /><Field label="Room"><Select value={String(values.roomId ?? '')} onChange={(event) => set('roomId', event.target.value)}><option value="">Not selected</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Device"><Select value={String(values.deviceId ?? '')} onChange={(event) => set('deviceId', event.target.value)}><option value="">Not selected</option>{devices.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Status"><Select value={String(values.status)} onChange={(event) => set('status', event.target.value)}>{['PLANNED', 'READY', 'IN_PROGRESS', 'COMPLETED'].map((item) => <option key={item}>{label(item)}</option>)}</Select></Field><Area label="Procedure notes" name="procedureNotes" values={values} set={set} /><Area label="Post-care instructions" name="postCareInstructions" values={values} set={set} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(values.consentVerified)} onChange={(event) => set('consentVerified', event.target.checked)} />Consent verified</label></> : null}
     {kind === 'prescription' ? <><Field label="Prescription date"><Input type="datetime-local" value={String(values.prescribedAt)} onChange={(event) => set('prescribedAt', event.target.value)} /></Field><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><TextField label="Medicine" name="medicineName" values={values} set={set} /><TextField label="Strength" name="strength" values={values} set={set} /><TextField label="Dosage" name="dosage" values={values} set={set} /><TextField label="Frequency" name="frequency" values={values} set={set} /><TextField label="Duration" name="duration" values={values} set={set} /><TextField label="Route" name="route" values={values} set={set} /><TextField label="Timing" name="timing" values={values} set={set} /><Area label="Medicine instructions" name="medicineInstructions" values={values} set={set} /><Area label="General instructions" name="instructions" values={values} set={set} /><Area label="Precautions" name="precautions" values={values} set={set} /></> : null}
-  </div>{mutation.isError ? <p className="mt-3 text-sm text-red-700">{mutation.error.message}</p> : null}<div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving…' : 'Save'}</Button></div></Card></div>;
+  </div>{mutation.isError ? <p className="mt-3 text-sm text-red-700">{mutation.error.message}</p> : null}<div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Savingâ€¦' : 'Save'}</Button></div></Card></div>;
 }
 function Field({ label: title, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-sm"><span className="font-medium">{title}</span>{children}</label>; }
 function TextField({ label: title, name, values, set, type = 'text' }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void; type?: string }) { return <Field label={title}><Input type={type} value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></Field>; }
 function Area({ label: title, name, values, set }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void }) { return <label className="grid gap-1 text-sm sm:col-span-2"><span className="font-medium">{title}</span><textarea className="min-h-24 rounded-md border border-border bg-surface px-3 py-2" value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></label>; }
-
 

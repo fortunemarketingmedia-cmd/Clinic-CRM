@@ -122,6 +122,8 @@ export const leadService = {
     status?: LeadStatus;
     source?: EnquirySource;
     search?: string;
+    createdFrom?: Date;
+    createdTo?: Date;
     includeClosed?: boolean;
     role: Role;
     userId: string;

@@ -1,5 +1,5 @@
 import type { Appointment } from '@/types/appointment';
-import type { MedicalProfile, Patient, PatientFile, TreatmentPackage } from '@/types/patient';
+import type { MedicalProfile, Patient, PatientFile, PatientSession, TreatmentPackage } from '@/types/patient';
 
 export type Clinician = { id: string; name: string; role?: string };
 export type MedicalProfileVersion = { id: string; previousValue?: Record<string, unknown>; updatedValue: Record<string, unknown>; reason?: string | null; createdAt: string; updatedBy?: Clinician | null };
@@ -22,6 +22,7 @@ export type Patient360 = Patient & {
   medicalProfile?: (MedicalProfile & { clinicalAlerts?: string | null; criticalAlert?: boolean; surgicalHistory?: string | null; productAllergies?: string | null; foodAllergies?: string | null; familyHistory?: string | null; smokingStatus?: string | null; alcoholHistory?: string | null; versions?: MedicalProfileVersion[] }) | null;
   lead: NonNullable<Patient['lead']> & { appointments: Appointment[] };
   clinicalEncounters?: ClinicalEncounter[];
+  sessions?: PatientSession[];
   treatmentPlans?: TreatmentPlan[];
   procedureSessions?: ProcedureSession[];
   prescriptions?: ClinicalPrescription[];

@@ -15,7 +15,14 @@ export type Patient = {
   address?: string | null;
   occupation?: string | null;
   maritalStatus?: string | null;
+  registeredAt?: string | null;
+  registrationSource?: string | null;
+  status?: string | null;
+  primaryConcern?: string | null;
+  lastVisitAt?: string | null;
+  nextVisitAt?: string | null;
   createdAt: string;
+  updatedAt?: string | null;
   branch?: Branch;
   lead?: Lead;
   medicalProfile?: MedicalProfile | null;
