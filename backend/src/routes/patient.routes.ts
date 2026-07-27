@@ -45,6 +45,14 @@ patientRoutes.post('/:id/sessions', requireRole(Role.ADMIN, Role.RECEPTIONIST), 
   clinicalController.createSession(req, res).catch(next);
 });
 
+patientRoutes.patch('/:id/sessions/:sessionId', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
+  clinicalController.updateSession(req, res).catch(next);
+});
+
+patientRoutes.delete('/:id/sessions/:sessionId', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
+  clinicalController.deleteSession(req, res).catch(next);
+});
+
 patientRoutes.get('/:id/packages', (req, res, next) => {
   clinicalController.listPackages(req, res).catch(next);
 });

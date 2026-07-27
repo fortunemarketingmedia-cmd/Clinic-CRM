@@ -53,6 +53,7 @@ export const leadQuerySchema = z.object({
   status: z.nativeEnum(LeadStatus).optional(),
   source: z.nativeEnum(EnquirySource).optional(),
   search: z.string().optional(),
+  includeClosed: z.coerce.boolean().optional(),
 });
 
 export const duplicateLeadQuerySchema = z.object({

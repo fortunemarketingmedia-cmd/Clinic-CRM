@@ -1,4 +1,5 @@
-import { AppShell } from '@/components/layout/app-shell';
-import { AuthGate } from '@/components/layout/auth-gate';
-import { TodayQueueView } from '@/modules/front-desk/today-queue-view';
-export default function TodayQueuePage() { return <AuthGate><AppShell><TodayQueueView /></AppShell></AuthGate>; }
+import { redirect } from 'next/navigation';
+
+export default function TodayQueuePage() {
+  redirect('/daily-client-queue');
+}

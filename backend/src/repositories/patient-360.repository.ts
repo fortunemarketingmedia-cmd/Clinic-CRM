@@ -94,7 +94,7 @@ export const patient360Repository = {
     return prisma.prescription.findMany({ where: { patientId }, include: { items: true, doctor: { select: { id: true, name: true } }, signedBy: { select: { id: true, name: true } } }, orderBy: { prescribedAt: 'desc' } });
   },
   findPrescription(id: string) { return prisma.prescription.findUnique({ where: { id }, include: { items: true } }); },
-  getPrescriptionDocument(id: string) { return prisma.prescription.findUnique({ where: { id }, include: { items: true, patient: true, doctor: { select: { id: true, name: true } }, signedBy: { select: { id: true, name: true } } } }); },
+  getPrescriptionDocument(id: string) { return prisma.prescription.findUnique({ where: { id }, include: { items: true, patient: { include: { branch: true } }, doctor: { select: { id: true, name: true } }, signedBy: { select: { id: true, name: true } } } }); },
   countPrescriptions() { return prisma.prescription.count(); },
   createPrescription(data: Prisma.PrescriptionUncheckedCreateInput) {
     return prisma.prescription.create({ data, include: { items: true, doctor: { select: { id: true, name: true } } } });

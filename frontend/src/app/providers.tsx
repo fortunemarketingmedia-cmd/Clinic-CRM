@@ -7,9 +7,14 @@ import { SessionProvider } from '@/store/session-store';
 import { ApiError, DATA_CHANGED_EVENT, type DataChangeDetail } from '@/services/api';
 
 const allOperationalQueries = [
-  ['dashboard-overview'], ['analytics'], ['reports'], ['leads'], ['master-leads'], ['lead-profile'], ['lead-timeline'],
-  ['appointments'], ['today-queue'], ['waitlist'], ['front-desk-schedules'], ['patients'], ['clients-patients'],
-  ['patient-360'], ['patient-sessions'], ['patient-visits'], ['doctor-workspace'], ['follow-ups'], ['tasks'],
+  ['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports'], ['clients-analytics'],
+  ['leads'], ['master-leads'], ['lead-profile'], ['lead-timeline'], ['lead-duplicates'], ['ad-leads-summary'],
+  ['sales-pipeline'], ['pipeline-staff'], ['pipeline-services'], ['pipeline-resources'],
+  ['appointments'], ['appointment-services'], ['appointment-resources'], ['appointment-staff'],
+  ['today-queue'], ['daily-client-queue'], ['waitlist'], ['front-desk-schedules'], ['schedule-staff'], ['schedule-resources'], ['schedule-appointments'],
+  ['patients'], ['clients-patients'], ['patient-360'], ['patient-sessions'], ['patient-visits'], ['patient-files'],
+  ['patient-form-templates'], ['patient-form-submissions'], ['patient-consent-templates'], ['patient-consents'], ['patient-gallery'], ['secure-patient-files'],
+  ['clinical-staff'], ['clinical-resources'], ['doctor-workspace'], ['follow-ups'], ['tasks'], ['task-assignees'],
 ];
 
 function relatedQueries(path: string) {
@@ -19,8 +24,8 @@ function relatedQueries(path: string) {
   if (resource.startsWith('/appointments') || resource.startsWith('/waitlist') || resource.startsWith('/front-desk/')) return allOperationalQueries;
   if (resource.startsWith('/patients') || resource.startsWith('/clinical/') || resource.startsWith('/forms/') || resource.startsWith('/consents/') || resource.startsWith('/files')) return allOperationalQueries;
   if (resource.startsWith('/follow-ups') || resource.startsWith('/tasks')) return allOperationalQueries;
-  if (resource.startsWith('/whatsapp')) return [['wa-conversations'], ['wa-conversation'], ['wa-templates'], ['wa-marketing-templates'], ['wa-broadcasts'], ['wa-automations'], ['wa-accounts'], ['wa-phones'], ['wa-jobs'], ['wa-failures'], ['dashboard-overview'], ['analytics']];
-  if (resource.startsWith('/settings')) return [['settings'], ['dashboard-overview'], ['analytics'], ['reports']];
+  if (resource.startsWith('/whatsapp')) return [['wa-conversations'], ['wa-conversation'], ['wa-templates'], ['wa-marketing-templates'], ['wa-broadcasts'], ['wa-automations'], ['wa-accounts'], ['wa-phones'], ['wa-jobs'], ['wa-failures'], ['dashboard-overview'], ['analytics'], ['analytics-command-centre']];
+  if (resource.startsWith('/settings')) return [['settings'], ['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports']];
   if (resource.startsWith('/branches') || resource.startsWith('/users')) return [['branches'], ...allOperationalQueries];
   if (resource.startsWith('/automations')) return [['automations'], ['dashboard-overview'], ['analytics']];
   if (resource.startsWith('/lead-scoring')) return [['lead-scoring-rules'], ['leads'], ['master-leads'], ['lead-profile'], ['dashboard-overview'], ['analytics']];

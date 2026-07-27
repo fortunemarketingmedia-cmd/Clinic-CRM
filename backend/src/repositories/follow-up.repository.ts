@@ -2,6 +2,23 @@ import type { ActivityChannel, ActivityDirection, WorkPriority, WorkStatus } fro
 import { prisma } from '../config/db.js';
 
 export const followUpRepository = {
+  findAssignableUser(userId: string, branchId: string) {
+    return prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: 'ACTIVE',
+        role: { in: ['ADMIN', 'RECEPTIONIST'] },
+        branchAccess: { some: { branchId } },
+      },
+      select: { id: true },
+    });
+  },
+  updateLeadNextAction(leadId: string, nextAction: string, dueAt: Date) {
+    return prisma.lead.update({
+      where: { id: leadId },
+      data: { nextAction, nextActionDueAt: dueAt, nextFollowupAt: dueAt },
+    });
+  },
   list(filters: { branchId?: string; assignedUserId?: string; status?: WorkStatus; dueFrom?: Date; dueTo?: Date }) {
     return prisma.followUp.findMany({
       where: { branchId: filters.branchId, assignedUserId: filters.assignedUserId, status: filters.status,

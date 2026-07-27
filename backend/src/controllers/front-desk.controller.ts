@@ -25,5 +25,17 @@ export const frontDeskController = {
   async createException(req: Request, res: Response) { const input = exceptionSchema.parse(req.body); await guard(req, input.branchId); const data = await frontDeskService.createException(input); await auditService.record(audit(req, input.branchId), { action: 'SCHEDULE_EXCEPTION_CREATED', entity: 'ScheduleException', entityId: data.id }); res.status(201).json({ data }); },
   async availability(req: Request, res: Response) { const query = availabilityQuerySchema.parse(req.query); await guard(req, query.branchId); res.json({ data: await frontDeskService.availability(query) }); },
   async queue(req: Request, res: Response) { if (!req.user) throw new HttpError(401, 'Authentication required'); const { branchId } = branchQuerySchema.parse(req.query); res.json({ data: await frontDeskService.todayQueue(branchId, req.user.id, req.user.role) }); },
-  async scheduleAppointments(req: Request, res: Response) { const query = scheduleAppointmentsQuerySchema.parse(req.query); await guard(req, query.branchId); res.json({ data: await frontDeskService.scheduleAppointments(query) }); },
+  async scheduleAppointments(req: Request, res: Response) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    const query = scheduleAppointmentsQuerySchema.parse({
+      dateFrom: today.toISOString(),
+      dateTo: nextWeek.toISOString(),
+      ...req.query,
+    });
+    await guard(req, query.branchId);
+    res.json({ data: await frontDeskService.scheduleAppointments(query) });
+  },
 };

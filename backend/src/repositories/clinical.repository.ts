@@ -55,6 +55,61 @@ export const clinicalRepository = {
     });
   },
 
+  findSession(patientId: string, sessionId: string) {
+    return prisma.session.findFirst({ where: { id: sessionId, patientId }, include: { package: true, files: true } });
+  },
+
+  updateSession(patientId: string, sessionId: string, data: Partial<{
+    appointmentId?: string;
+    treatmentType: TreatmentType;
+    visitDate: Date;
+    doctorConsulted?: string;
+    chiefComplaint?: string;
+    diagnosis?: string;
+    treatmentSuggested?: string;
+    treatmentTaken?: string;
+    medicinesPrescribed?: string;
+    prescription?: Prisma.InputJsonValue;
+    notes?: string;
+    followupDate?: Date;
+  }>) {
+    return prisma.session.update({
+      where: { id: sessionId, patientId },
+      data,
+      include: { package: true, files: true, appointment: { include: { branch: true } } },
+    });
+  },
+
+  deleteSession(patientId: string, sessionId: string) {
+    return prisma.$transaction(async (tx) => {
+      const session = await tx.session.findUniqueOrThrow({ where: { id: sessionId } });
+      if (session.patientId !== patientId) throw new Error('Session does not belong to this patient');
+      if (session.packageId) {
+        const updated = await tx.treatmentPackage.update({
+          where: { id: session.packageId },
+          data: {
+            completedSessions: { decrement: 1 },
+            status: 'ACTIVE',
+          },
+        });
+        await tx.packageSessionLedger.create({
+          data: {
+            patientPackageId: updated.id,
+            action: 'SESSION_REVERSAL',
+            sessionDelta: 1,
+            consumedDelta: -1,
+            balanceRemaining: Math.max(0, updated.totalSessions - updated.completedSessions - updated.reservedSessions),
+            effectiveAt: new Date(),
+            notes: `Deleted legacy session ${session.id}`,
+            metadata: { legacySessionId: session.id },
+          },
+        });
+      }
+      await tx.session.delete({ where: { id: sessionId } });
+      return session;
+    });
+  },
+
   listPackages(patientId: string) {
     return prisma.treatmentPackage.findMany({
       where: { patientId },

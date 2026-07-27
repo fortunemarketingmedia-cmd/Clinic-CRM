@@ -4,17 +4,15 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardCheck,
-  Clock3,
+  Columns3,
   LayoutDashboard,
   ListTodo,
   Settings,
   UserRoundCheck,
   Users,
   Rows3,
-  ListPlus,
   Stethoscope,
   MessageCircle,
-  Workflow,
   Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -40,24 +38,23 @@ export const navigationSections = [
     label: 'CRM',
     items: [
       { label: 'Leads', icon: Users, href: '/leads', roles: crmRoles },
-      { label: 'Follow-ups', icon: Clock3, href: '/follow-ups', roles: crmRoles },
+      { label: 'Follow-ups', icon: Columns3, href: '/follow-ups', roles: crmRoles },
       { label: 'Tasks', icon: ListTodo, href: '/tasks', roles: allOperational },
     ],
   },
   {
     label: 'Front Desk',
     items: [
-      { label: 'Calendar', icon: CalendarDays, href: '/appointments', roles: allOperational },
-      { label: 'Today’s Queue', icon: Rows3, href: '/today-queue', roles: allOperational },
-      { label: 'Waitlist', icon: ListPlus, href: '/waitlist', roles: allOperational },
+      { label: 'Appointments', icon: CalendarDays, href: '/appointments', roles: allOperational },
+      { label: 'Daily Client Queue', icon: Rows3, href: '/daily-client-queue', roles: allOperational },
       { label: 'Schedules & Rooms', icon: Stethoscope, href: '/schedules', roles: allOperational },
     ],
   },
   {
-    label: 'Patients',
+    label: 'Clients',
     items: [
       {
-        label: 'Patient Directory',
+        label: 'Client Directory',
         icon: UserRoundCheck,
         href: '/patients',
         roles: allOperational,
@@ -96,14 +93,6 @@ export const navigationSections = [
     label: 'Administration',
     items: [
       { label: 'Master Records', icon: ClipboardCheck, href: '/clients', roles: doctorReviveRoles },
-      { label: 'Lead Scoring', icon: BarChart3, href: '/settings/lead-scoring', roles: doctorReviveRoles },
-      { label: 'Automations', icon: Workflow, href: '/automations', roles: doctorReviveRoles },
-      {
-        label: 'Forms & Consents',
-        icon: ClipboardCheck,
-        href: '/settings/forms-consents',
-        roles: doctorReviveRoles,
-      },
       { label: 'Settings', icon: Settings, href: '/settings', roles: doctorReviveRoles },
     ],
   },

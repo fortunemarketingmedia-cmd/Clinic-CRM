@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { clinicalService } from '../services/clinical.service.js';
-import { fileSchema, packageSchema, sessionSchema } from '../validations/clinical.validation.js';
+import { fileSchema, packageSchema, sessionSchema, updateSessionSchema } from '../validations/clinical.validation.js';
 import { formsService } from '../services/forms.service.js';
 import { HttpError } from '../utils/http-error.js';
 
@@ -16,6 +16,17 @@ export const clinicalController = {
     const input = sessionSchema.parse(req.body);
     const session = await clinicalService.createSession(req.params.id, input);
     return res.status(201).json({ data: session });
+  },
+
+  async updateSession(req: Request, res: Response) {
+    const input = updateSessionSchema.parse(req.body);
+    const session = await clinicalService.updateSession(req.params.id, req.params.sessionId, input);
+    return res.json({ data: session });
+  },
+
+  async deleteSession(req: Request, res: Response) {
+    await clinicalService.deleteSession(req.params.id, req.params.sessionId);
+    return res.status(204).send();
   },
 
   async listPackages(req: Request, res: Response) {

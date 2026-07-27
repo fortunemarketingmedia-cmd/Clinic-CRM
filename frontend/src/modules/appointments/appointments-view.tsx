@@ -7,7 +7,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  DoorOpen,
   RotateCcw,
   Search,
 } from 'lucide-react';
@@ -156,7 +155,7 @@ export function AppointmentsView() {
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
-  const [viewMode, setViewMode] = useState<'calendar' | 'day' | 'rooms' | 'list'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'day' | 'list'>('calendar');
 
   const branchesQuery = useQuery({
     queryKey: ['branches'],
@@ -251,18 +250,6 @@ export function AppointmentsView() {
       ['RESCHEDULED', 'NO_SHOW'].includes(appointment.status),
     ).length,
   };
-  const selectedRoomBookings = selectedDayAppointments.filter(
-    (appointment) => appointment.resourceType === 'TREATMENT_ROOM',
-  );
-  const occupiedRooms = new Set(
-    selectedRoomBookings.map((appointment) => appointment.roomNumber).filter(Boolean),
-  ).size;
-  const roomMetrics = [
-    { label: 'Room bookings today', value: selectedRoomBookings.length },
-    { label: 'Rooms occupied', value: occupiedRooms },
-    { label: 'Rooms available', value: Math.max(4 - occupiedRooms, 0) },
-    { label: 'Room utilisation', value: `${Math.round((occupiedRooms / 4) * 100)}%` },
-  ];
   const defaultMetrics = [
     { label: 'This month', value: appointmentCounts.total },
     { label: 'Confirmed', value: appointmentCounts.confirmed },
@@ -439,7 +426,7 @@ export function AppointmentsView() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {(viewMode === 'rooms' ? roomMetrics : defaultMetrics).map((metric) => (
+        {defaultMetrics.map((metric) => (
           <AppointmentMetric key={metric.label} label={metric.label} value={metric.value} />
         ))}
       </div>
@@ -452,9 +439,7 @@ export function AppointmentsView() {
                 ? 'Universal Calendar'
                 : viewMode === 'day'
                   ? 'Day Schedule'
-                  : viewMode === 'rooms'
-                    ? 'Room Schedule'
-                    : 'List View'}
+                  : 'List View'}
             </h2>
             <p className="text-sm text-muted-foreground">
               {new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(
@@ -480,14 +465,6 @@ export function AppointmentsView() {
               onClick={() => setViewMode('day')}
             >
               Day schedule
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === 'rooms' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('rooms')}
-            >
-              <DoorOpen className="size-4" />
-              Rooms
             </Button>
             <Button
               type="button"
@@ -643,13 +620,6 @@ export function AppointmentsView() {
             onStatusChange={(appointment, nextStatus) =>
               updateAppointment.mutate({ id: appointment.id, values: { status: nextStatus } })
             }
-          />
-        ) : null}
-        {viewMode === 'rooms' ? (
-          <RoomSchedule
-            appointments={selectedDayAppointments}
-            selectedDateLabel={selectedDateLabel}
-            onSelect={setSelectedAppointment}
           />
         ) : null}
         {viewMode === 'list' ? (
@@ -1123,78 +1093,6 @@ function AppointmentList({
           No appointments found.
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function RoomSchedule({
-  appointments,
-  selectedDateLabel,
-  onSelect,
-}: {
-  appointments: Appointment[];
-  selectedDateLabel: string;
-  onSelect: (appointment: Appointment) => void;
-}) {
-  const roomAppointments = appointments.filter(
-    (appointment) => appointment.resourceType === 'TREATMENT_ROOM',
-  );
-  return (
-    <div className="mt-5">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold">Treatment rooms · {selectedDateLabel}</h3>
-          <p className="text-sm text-muted-foreground">
-            Four independent rooms can be occupied at the same time.
-          </p>
-        </div>
-        <span className="text-sm text-muted-foreground">
-          {roomAppointments.length} room bookings
-        </span>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-        {[1, 2, 3, 4].map((room) => {
-          const bookings = roomAppointments.filter(
-            (appointment) => appointment.roomNumber === room,
-          );
-          return (
-            <div key={room} className="overflow-hidden rounded-xl border border-border bg-muted/20">
-              <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-3">
-                <span className="flex items-center gap-2 font-semibold">
-                  <DoorOpen className="size-4 text-primary" />
-                  Room {room}
-                </span>
-                <span className="rounded-full bg-muted px-2 py-1 text-xs">{bookings.length}</span>
-              </div>
-              <div className="space-y-2 p-3">
-                {bookings.map((appointment) => (
-                  <button
-                    key={appointment.id}
-                    type="button"
-                    onClick={() => onSelect(appointment)}
-                    className="w-full rounded-lg border border-border bg-surface p-3 text-left transition hover:border-primary/40"
-                  >
-                    <div className="text-sm font-semibold">
-                      {formatTime(appointment.appointmentAt)}
-                    </div>
-                    <div className="mt-1 truncate text-sm">
-                      {appointment.lead?.name ?? 'Patient'}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {appointment.status.replaceAll('_', ' ')}
-                    </div>
-                  </button>
-                ))}
-                {!bookings.length ? (
-                  <div className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground">
-                    Room available
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

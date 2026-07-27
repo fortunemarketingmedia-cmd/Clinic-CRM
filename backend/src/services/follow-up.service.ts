@@ -28,7 +28,12 @@ export const followUpService = {
   },
   async create(input: CreateInput & { createdById: string; role: Role }, audit: AuditContext) {
     await accessService.assertBranchAccess(input.createdById, input.role, input.branchId);
+    const assignee = await followUpRepository.findAssignableUser(input.assignedUserId, input.branchId);
+    if (!assignee) throw new HttpError(400, 'Select an active team member from this branch');
     const followUp = await followUpRepository.create(input);
+    if (input.leadId) {
+      await followUpRepository.updateLeadNextAction(input.leadId, input.activityType, input.dueAt);
+    }
     await timelineRepository.create({
       personId: input.personId,
       leadId: input.leadId,
@@ -56,11 +61,18 @@ export const followUpService = {
     await accessService.assertBranchAccess(userId, role, existing.branchId);
     const { resolution, ...completion } = input;
     const followUp = await followUpRepository.complete(id, { ...completion, completedById: userId });
+    if (followUp.lead) {
+      const { prisma } = await import('../config/db.js');
+      await prisma.lead.update({
+        where: { id: followUp.lead.id },
+        data: { lastContactedAt: new Date(), followupNotes: input.notes ?? input.outcome },
+      });
+    }
     if (followUp.lead && resolution === 'NEXT_ACTION') {
       const { prisma } = await import('../config/db.js');
       await prisma.lead.update({
         where: { id: followUp.lead.id },
-        data: { nextAction: input.nextAction, nextActionDueAt: input.nextFollowUpAt },
+        data: { nextAction: input.nextAction, nextActionDueAt: input.nextFollowUpAt, nextFollowupAt: input.nextFollowUpAt },
       });
       await followUpRepository.create({
         personId: existing.personId,
@@ -82,7 +94,11 @@ export const followUpService = {
       const { prisma } = await import('../config/db.js');
       await prisma.lead.update({
         where: { id: followUp.lead.id },
-        data: { status: leadStatusByResolution[resolution] },
+        data: {
+          status: leadStatusByResolution[resolution],
+          lostReason: resolution === 'LOST' ? input.outcome : undefined,
+          disqualificationReason: resolution === 'DISQUALIFIED' ? input.outcome : undefined,
+        },
       });
     }
     await timelineRepository.create({

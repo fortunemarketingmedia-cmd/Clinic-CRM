@@ -1,3 +1,5 @@
-'use client';
-import { AppShell } from '@/components/layout/app-shell'; import { AuthGate } from '@/components/layout/auth-gate'; import { RoleGate } from '@/components/layout/role-gate'; import { CommunicationCentreView } from '@/modules/communication/communication-centre-view';
-export default function WhatsAppBroadcastsPage() { return <AuthGate><AppShell><RoleGate allowed={['ADMIN', 'RECEPTIONIST']}><CommunicationCentreView initialTab="broadcasts" /></RoleGate></AppShell></AuthGate>; }
+import { redirect } from 'next/navigation';
+
+export default function WhatsAppBroadcastsPage() {
+  redirect('/communication-centre');
+}

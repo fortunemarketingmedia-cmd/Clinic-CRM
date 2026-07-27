@@ -46,6 +46,40 @@ export const clinicalService = {
     return session;
   },
 
+  async updateSession(patientId: string, sessionId: string, input: Parameters<typeof clinicalRepository.updateSession>[2]) {
+    const patient = await ensurePatient(patientId);
+    const existing = await clinicalRepository.findSession(patientId, sessionId);
+    if (!existing) throw new HttpError(404, 'Treatment session not found');
+    if (input.appointmentId) {
+      const appointment = patient.lead.appointments.find((item) => item.id === input.appointmentId);
+      if (!appointment) throw new HttpError(400, 'Appointment does not belong to this patient');
+    }
+    const session = await clinicalRepository.updateSession(patientId, sessionId, input);
+    await timelineRepository.create({
+      leadId: patient.leadId,
+      patientId,
+      type: 'SESSION_CREATED',
+      title: 'Treatment updated',
+      description: session.treatmentTaken ?? session.treatmentSuggested ?? undefined,
+    });
+    return session;
+  },
+
+  async deleteSession(patientId: string, sessionId: string) {
+    const patient = await ensurePatient(patientId);
+    const existing = await clinicalRepository.findSession(patientId, sessionId);
+    if (!existing) throw new HttpError(404, 'Treatment session not found');
+    const deleted = await clinicalRepository.deleteSession(patientId, sessionId);
+    await timelineRepository.create({
+      leadId: patient.leadId,
+      patientId,
+      type: 'SESSION_CREATED',
+      title: 'Treatment deleted',
+      description: deleted.treatmentTaken ?? deleted.treatmentSuggested ?? undefined,
+    });
+    return deleted;
+  },
+
   async listPackages(patientId: string) {
     await ensurePatient(patientId);
     return clinicalRepository.listPackages(patientId);

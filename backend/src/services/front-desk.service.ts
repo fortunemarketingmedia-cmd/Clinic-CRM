@@ -50,7 +50,7 @@ export const frontDeskService = {
     const start = new Date(`${localDate}T00:00:00+05:30`);
     const end = new Date(`${localDate}T23:59:59.999+05:30`);
     const records = await frontDeskRepository.todayQueue(branchId, start, end);
-    const stage = (status: string) => ['REQUESTED', 'SLOT_PROPOSED', 'SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED'].includes(status) ? 'EXPECTED' : status === 'CHECKED_IN' ? 'ARRIVED' : status === 'WAITING' ? 'WAITING' : status === 'IN_CONSULTATION' ? 'WITH_DOCTOR' : status === 'TREATMENT_IN_PROGRESS' ? 'TREATMENT' : status === 'BILLING_PENDING' ? 'BILLING' : 'COMPLETED';
+    const stage = (status: string) => ['REQUESTED', 'SLOT_PROPOSED', 'SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED', 'RESCHEDULED'].includes(status) ? 'EXPECTED' : status === 'CHECKED_IN' ? 'ARRIVED' : status === 'WAITING' ? 'WAITING' : status === 'IN_CONSULTATION' ? 'WITH_DOCTOR' : status === 'TREATMENT_IN_PROGRESS' ? 'TREATMENT' : status === 'BILLING_PENDING' ? 'BILLING' : 'COMPLETED';
     return records.map((record) => ({ ...record, queueStage: stage(record.status) }));
   },
 

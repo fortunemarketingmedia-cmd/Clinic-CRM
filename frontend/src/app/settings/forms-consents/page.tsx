@@ -1,5 +1,5 @@
-import { AppShell } from '@/components/layout/app-shell';
-import { AuthGate } from '@/components/layout/auth-gate';
-import { FormsConsentsSettingsView } from '@/modules/settings/forms-consents-settings-view';
+import { redirect } from 'next/navigation';
 
-export default function FormsConsentsSettingsPage() { return <AuthGate><AppShell><FormsConsentsSettingsView /></AppShell></AuthGate>; }
+export default function FormsConsentsSettingsPage() {
+  redirect('/settings');
+}

@@ -7,6 +7,7 @@ type LeadFilters = {
   status?: LeadStatus;
   source?: EnquirySource;
   search?: string;
+  includeClosed?: boolean;
   role: Role;
 };
 
@@ -20,7 +21,7 @@ export const leadRepository = {
       where: {
         branchId: filters.branchId,
         source: filters.source,
-        status: filters.status ?? { not: 'CONVERTED' },
+        status: filters.status ?? (filters.includeClosed ? undefined : { not: 'CONVERTED' }),
         OR: filters.search
           ? [
               { name: { contains: filters.search, mode: 'insensitive' } },

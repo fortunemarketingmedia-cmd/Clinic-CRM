@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart3, CalendarPlus, Edit3, Link2, Megaphone, PhoneCall, Plus, Search, Target, TrendingUp, X } from 'lucide-react';
+import { BarChart3, CalendarPlus, Edit3, Link2, Megaphone, Plus, Search, TrendingUp, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
@@ -107,7 +107,6 @@ export function LeadsView() {
   const [bookingLead, setBookingLead] = useState<Lead | null>(null);
   const [activeTab, setActiveTab] = useState<LeadTab>('ALL');
   const [showLeadForm, setShowLeadForm] = useState(false);
-  const [statusUpdateError, setStatusUpdateError] = useState<{ leadId: string; message: string } | null>(null);
 
   const isAdmin = session?.user.role === 'ADMIN';
 
@@ -288,7 +287,6 @@ export function LeadsView() {
       }),
     onMutate: (variables) => {
       if (!variables.values.status) return;
-      setStatusUpdateError((current) => (current?.leadId === variables.id ? null : current));
       queryClient.setQueriesData<{ data: Lead[] }>({ queryKey: ['leads'] }, (current) =>
         current
           ? {
@@ -309,15 +307,13 @@ export function LeadsView() {
         current ? { ...current, data: current.data.map((lead) => (lead.id === updatedLead.id ? updatedLead : lead)) } : current,
       );
       if (selectedLead?.id === updatedLead.id) setSelectedLead(updatedLead);
-      setStatusUpdateError((current) => (current?.leadId === updatedLead.id ? null : current));
       setEditingLead(null);
       setShowLeadForm(false);
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
-    onError: (error, variables) => {
+    onError: (_error, variables) => {
       if (variables.values.status) {
-        setStatusUpdateError({ leadId: variables.id, message: error.message });
         queryClient.invalidateQueries({ queryKey: ['leads'] });
       }
     },
@@ -463,17 +459,11 @@ export function LeadsView() {
   }, [adLeads, leads]);
   const duplicateMatches = duplicateQuery.data?.data;
   const tabs: Array<{ label: string; value: LeadTab }> = [
-    { label: 'All Leads', value: 'ALL' },
-    { label: 'Manual Leads', value: 'MANUAL' },
+    { label: 'All', value: 'ALL' },
+    { label: 'Manual', value: 'MANUAL' },
     { label: 'Google Ads', value: 'GOOGLE_ADS' },
     { label: 'Meta Ads', value: 'META_ADS' },
-    { label: 'Campaign Analytics', value: 'CAMPAIGN_ANALYTICS' },
-  ];
-  const journeyStages = [
-    { label: 'New enquiry', count: (leadsQuery.data?.data ?? []).filter((lead) => ['NEW', 'UNASSIGNED', 'ASSIGNED'].includes(lead.status)).length, color: '#6366f1' },
-    { label: 'Follow-up due', count: (leadsQuery.data?.data ?? []).filter((lead) => Boolean(lead.nextActionDueAt ?? lead.nextFollowupAt) && !['CONVERTED', 'LOST', 'DISQUALIFIED'].includes(lead.status)).length, color: '#f59e0b' },
-    { label: 'Appointment', count: (leadsQuery.data?.data ?? []).filter((lead) => ['APPOINTMENT_PROPOSED', 'APPOINTMENT_BOOKED'].includes(lead.status)).length, color: '#0ea5e9' },
-    { label: 'Converted', count: (leadsQuery.data?.data ?? []).filter((lead) => lead.status === 'CONVERTED').length, color: '#e73748' },
+    { label: 'Campaigns', value: 'CAMPAIGN_ANALYTICS' },
   ];
 
   return (
@@ -490,38 +480,13 @@ export function LeadsView() {
       </div>
 
       <Card>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div><h2 className="font-semibold">Lead journey</h2><p className="text-sm text-muted-foreground">A clear path from first enquiry to converted patient</p></div>
-          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:max-w-3xl">
-            {journeyStages.map((stage, index) => {
-              return <div key={stage.label} className="relative rounded-lg border border-border bg-muted/30 p-3"><div className="mb-2 flex items-center justify-between"><i className="size-2.5 rounded-full" style={{ background: stage.color }} /><span className="text-[10px] text-muted-foreground">0{index + 1}</span></div><div className="text-xl font-semibold">{stage.count}</div><div className="text-xs text-muted-foreground">{stage.label}</div></div>;
-            })}
-          </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric label="Total leads" value={leadAnalytics.total} />
+          <Metric label="Booked / confirmed" value={leadAnalytics.bookedOrConfirmed} />
+          <Metric label="Ad attributed" value={leadAnalytics.adAttributed} />
+          <Metric label="Sources active" value={leadAnalytics.sourceRows.length} />
         </div>
       </Card>
-
-      {isAdmin ? (
-        <Card>
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <TrendingUp className="size-5" />
-            </div>
-            <div>
-              <h2 className="font-semibold">Google & Meta Lead Integration</h2>
-              <p className="text-sm text-muted-foreground">Connect ad lead forms to these endpoints. Incoming campaign leads will appear automatically in this Leads list.</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Endpoint label="Google Ads endpoint" value={`${publicBase}/ads/google`} />
-            <Endpoint label="Meta Ads endpoint" value={`${publicBase}/ads/meta`} />
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <Metric label="Google Ads Leads" value={googleCount} />
-            <Metric label="Meta Ads Leads" value={metaCount} />
-            <Metric label="Total Campaign Leads" value={googleCount + metaCount} />
-          </div>
-        </Card>
-      ) : null}
 
       <div className="flex flex-wrap gap-2">
         {tabs.map((tab) => (
@@ -539,72 +504,79 @@ export function LeadsView() {
         ))}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr_1fr]">
-        <Card>
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Target className="size-5" />
+      {activeTab === 'CAMPAIGN_ANALYTICS' ? (
+        <div className="grid gap-5 xl:grid-cols-2">
+          <Card>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold">Campaign summary</h2>
+                <p className="text-sm text-muted-foreground">Google and Meta leads grouped by campaign, form, or ad name.</p>
+              </div>
+              <Megaphone className="size-5 text-primary" />
             </div>
-            <div>
-              <h2 className="font-semibold">Lead Performance</h2>
-              <p className="text-sm text-muted-foreground">{leadAnalytics.total} leads in the current view</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <Metric label="Google Ads" value={googleCount} />
+              <Metric label="Meta Ads" value={metaCount} />
+              <Metric label="Total campaign leads" value={googleCount + metaCount} />
             </div>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Metric label="Booked / Confirmed" value={leadAnalytics.bookedOrConfirmed} />
-            <Metric label="Ad attributed" value={leadAnalytics.adAttributed} />
-          </div>
-          <div className="mt-4">
-            <ProgressLine label="Appointment readiness" value={leadAnalytics.bookedOrConfirmed} total={leadAnalytics.total} />
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Sources</h2>
-            <BarChart3 className="size-5 text-primary" />
-          </div>
-          <AnalyticsBars data={leadAnalytics.sourceRows} total={leadAnalytics.total} />
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Statuses</h2>
-            <TrendingUp className="size-5 text-primary" />
-          </div>
-          <AnalyticsBars data={leadAnalytics.statusRows} total={leadAnalytics.total} />
-        </Card>
-      </div>
-
-      {(isAdmin || activeTab === 'CAMPAIGN_ANALYTICS') ? (
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-semibold">Campaign Analytics</h2>
-              <p className="text-sm text-muted-foreground">Google and Meta leads grouped by campaign, form, or ad name.</p>
-            </div>
-            <Megaphone className="size-5 text-primary" />
-          </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-5">
-            {leadAnalytics.campaignRows.length ? (
-              leadAnalytics.campaignRows.map((campaign) => (
-                <div key={`${campaign.platform}-${campaign.label}`} className="rounded-md border border-border p-3">
-                  <div className="text-xs font-medium text-muted-foreground">{campaign.platform === 'GOOGLE' ? 'Google Ads' : 'Meta Ads'}</div>
-                  <div className="mt-1 min-h-10 text-sm font-semibold">{campaign.label}</div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${Math.max(percent(campaign.value, googleCount + metaCount), campaign.value ? 8 : 0)}%` }}
-                    />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {leadAnalytics.campaignRows.length ? (
+                leadAnalytics.campaignRows.map((campaign) => (
+                  <div key={`${campaign.platform}-${campaign.label}`} className="rounded-md border border-border p-3">
+                    <div className="text-xs font-medium text-muted-foreground">{campaign.platform === 'GOOGLE' ? 'Google Ads' : 'Meta Ads'}</div>
+                    <div className="mt-1 text-sm font-semibold">{campaign.label}</div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ width: `${Math.max(percent(campaign.value, googleCount + metaCount), campaign.value ? 8 : 0)}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">{campaign.value} leads</div>
                   </div>
-                  <div className="mt-2 text-sm text-muted-foreground">{campaign.value} leads</div>
+                ))
+              ) : (
+                <div className="rounded-md border border-dashed border-border py-8 text-center text-sm text-muted-foreground sm:col-span-2">
+                  Campaign data will appear as soon as Google or Meta starts sending leads.
                 </div>
-              ))
-            ) : (
-              <div className="py-8 text-sm text-muted-foreground lg:col-span-5">Campaign data will appear as soon as Google or Meta starts sending leads.</div>
-            )}
-          </div>
-        </Card>
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold">Source and status split</h2>
+              <BarChart3 className="size-5 text-primary" />
+            </div>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div>
+                <h3 className="text-sm font-semibold">Sources</h3>
+                <AnalyticsBars data={leadAnalytics.sourceRows} total={leadAnalytics.total} />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">Statuses</h3>
+                <AnalyticsBars data={leadAnalytics.statusRows} total={leadAnalytics.total} />
+              </div>
+            </div>
+          </Card>
+
+          {isAdmin ? (
+            <Card className="xl:col-span-2">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                  <TrendingUp className="size-5" />
+                </div>
+                <div>
+                  <h2 className="font-semibold">Google & Meta lead form endpoints</h2>
+                  <p className="text-sm text-muted-foreground">Use these only while connecting website or ad forms.</p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <Endpoint label="Google Ads endpoint" value={`${publicBase}/ads/google`} />
+                <Endpoint label="Meta Ads endpoint" value={`${publicBase}/ads/meta`} />
+              </div>
+            </Card>
+          ) : null}
+        </div>
       ) : null}
 
       {showLeadForm || editingLead ? (
@@ -744,6 +716,14 @@ export function LeadsView() {
 
       <div className="space-y-5">
         <Card>
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Lead list</h2>
+              <p className="text-sm text-muted-foreground">Search, filter, and open a lead to view its full details.</p>
+            </div>
+            <div className="text-sm font-medium text-muted-foreground">{leads.length} visible</div>
+          </div>
+
           <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
@@ -783,15 +763,14 @@ export function LeadsView() {
           </div>
 
           <div className="overflow-x-auto rounded-md border border-border">
-            <table className="min-w-[900px] w-full border-collapse text-left text-sm">
+            <table className="min-w-[760px] w-full border-collapse text-left text-sm">
               <thead className="bg-muted text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Mobile / Source</th>
                   <th className="px-4 py-3 font-medium">Branch</th>
-                  <th className="px-4 py-3 font-medium">Campaign</th>
                   <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Actions</th>
+                  <th className="px-4 py-3 font-medium">Edit</th>
                 </tr>
               </thead>
 
@@ -818,57 +797,15 @@ export function LeadsView() {
                       <div className="text-xs text-muted-foreground">{sourceLabel(lead.source)}</div>
                     </td>
                     <td className="px-4 py-3">{lead.branch?.name ?? 'Branch'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {lead.adLeads?.[0] ? (
-                        <div>
-                          <div>{lead.adLeads[0].campaignName ?? '-'}</div>
-                          <div className="text-xs">{lead.adLeads[0].adName ?? lead.adLeads[0].formName ?? '-'}</div>
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
                     <td className="px-4 py-3">
-                      <Select
-                        aria-label="Lead status"
-                        value={leadStatuses.some((leadStatus) => leadStatus.value === lead.status) ? lead.status : ''}
-                        disabled={updateLead.isPending}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={(event) =>
-                          updateLead.mutate({
-                            id: lead.id,
-                            values: { status: event.target.value as LeadStatus },
-                          })
-                        }
-                      >
-                        <option value="" disabled>Choose status</option>
-                        {leadStatuses.map((leadStatus) => (
-                          <option key={leadStatus.value} value={leadStatus.value}>
-                            {leadStatus.label}
-                          </option>
-                        ))}
-                      </Select>
-                      {statusUpdateError?.leadId === lead.id ? (
-                        <p className="mt-1 max-w-60 text-xs text-red-600" role="alert">{statusUpdateError.message}</p>
-                      ) : null}
+                      <span className="inline-flex rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                        {leadStatuses.find((leadStatus) => leadStatus.value === lead.status)?.label ?? lead.status.replaceAll('_', ' ')}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
-                        <Button type="button" variant="secondary" aria-label="Call lead" title="Call lead" className="w-10 px-0" onClick={() => window.location.href = `tel:${lead.mobile}`}>
-                          <PhoneCall className="size-4" />
-                        </Button>
                         <Button type="button" variant="secondary" aria-label="Edit lead" title="Edit lead" className="w-10 px-0" onClick={() => startEdit(lead)}>
                           <Edit3 className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          aria-label="Convert to appointment"
-                          title="Convert to appointment"
-                          className="w-10 px-0"
-                          onClick={() => startBooking(lead)}
-                        >
-                          <CalendarPlus className="size-4" />
                         </Button>
                       </div>
                     </td>
@@ -877,14 +814,14 @@ export function LeadsView() {
 
                 {!leadsQuery.isLoading && leads.length === 0 ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
                       No leads found.
                     </td>
                   </tr>
                 ) : null}
 
                 {leadsQuery.isLoading ? (
-                  Array.from({ length: 7 }, (_, row) => <tr key={row} className="border-t border-border">{Array.from({ length: 6 }, (_, column) => <td key={column} className="px-4 py-4"><Skeleton className={column === 0 ? 'h-5 w-32' : 'h-4 w-24'} /></td>)}</tr>)
+                  Array.from({ length: 7 }, (_, row) => <tr key={row} className="border-t border-border">{Array.from({ length: 5 }, (_, column) => <td key={column} className="px-4 py-4"><Skeleton className={column === 0 ? 'h-5 w-32' : 'h-4 w-24'} /></td>)}</tr>)
                 ) : null}
               </tbody>
             </table>
@@ -1036,22 +973,6 @@ function Metric({ label, value }: { label: string; value: number }) {
     <div className="rounded-md border border-border bg-white p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 text-xl font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function ProgressLine({ label, value, total }: { label: string; value: number; total: number }) {
-  const width = Math.max(percent(value, total), value ? 6 : 0);
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-semibold">{percent(value, total)}%</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
-      </div>
     </div>
   );
 }

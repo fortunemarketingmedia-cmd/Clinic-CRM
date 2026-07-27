@@ -23,6 +23,8 @@ export const sessionSchema = z.object({
   packageId: z.string().optional(),
 });
 
+export const updateSessionSchema = sessionSchema.partial();
+
 export const packageSchema = z.object({
   branchId: z.string().min(1),
   name: z.string().min(2),

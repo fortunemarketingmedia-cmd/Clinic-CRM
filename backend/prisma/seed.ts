@@ -5,6 +5,20 @@ import { PrismaClient, Role } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  const demoSeedIds = {
+    patientIds: ['demo_client_vaishnavi', 'demo_client_rohit', 'demo_client_ananya', 'demo_client_sameer'],
+    leadIds: ['demo_lead_vaishnavi', 'demo_lead_rohit', 'demo_lead_ananya', 'demo_lead_sameer'],
+    appointmentIds: ['demo_appt_vaishnavi_checkup', 'demo_appt_rohit_hair', 'demo_appt_ananya_laser', 'demo_appt_sameer_review'],
+    sessionIds: ['demo_session_vaishnavi_checkup', 'demo_session_rohit_hair', 'demo_session_ananya_laser', 'demo_session_sameer_review'],
+  };
+
+  await prisma.timelineEvent.deleteMany({ where: { type: 'CLIENT_DIRECTORY_SEED' } });
+  await prisma.session.deleteMany({ where: { id: { in: demoSeedIds.sessionIds } } });
+  await prisma.medicalProfile.deleteMany({ where: { patientId: { in: demoSeedIds.patientIds } } });
+  await prisma.patient.deleteMany({ where: { id: { in: demoSeedIds.patientIds } } });
+  await prisma.appointment.deleteMany({ where: { id: { in: demoSeedIds.appointmentIds } } });
+  await prisma.lead.deleteMany({ where: { id: { in: demoSeedIds.leadIds } } });
+
   const sharanpurBranch = await prisma.branch.upsert({
     where: { name: 'Sharanpur Road' },
     update: {},
@@ -194,6 +208,82 @@ async function main() {
   for (const packageMaster of packageMasters) {
     await prisma.packageMaster.upsert({ where: { id: packageMaster.id }, update: { ...packageMaster, active: true }, create: { ...packageMaster, active: true, transferRules: 'Manager approval required.', pauseRules: 'One pause of up to 30 days.', extensionRules: 'Manager approval and documented reason required.', cancellationRules: 'Subject to consumed sessions and signed agreement.', refundRules: 'Refunds require approval and package-ledger entry.' } });
   }
+
+  const appointmentBackfillRecords = await prisma.appointment.findMany({
+    where: { status: { notIn: ['CANCELLED', 'NO_SHOW'] } },
+    include: {
+      lead: {
+        include: {
+          patient: true,
+          person: { include: { patient: true } },
+        },
+      },
+    },
+    orderBy: { appointmentAt: 'desc' },
+  });
+  const appointmentsByLead = new Map<string, typeof appointmentBackfillRecords>();
+  for (const appointment of appointmentBackfillRecords) {
+    if (appointment.lead.patient || appointment.lead.person?.patient) continue;
+    const current = appointmentsByLead.get(appointment.leadId) ?? [];
+    current.push(appointment);
+    appointmentsByLead.set(appointment.leadId, current);
+  }
+
+  let backfilledClients = 0;
+  const backfilledPersonIds = new Set<string>();
+  for (const [leadId, leadAppointments] of appointmentsByLead.entries()) {
+    const latestAppointment = leadAppointments[0];
+    const lead = latestAppointment.lead;
+    if (lead.personId && backfilledPersonIds.has(lead.personId)) continue;
+    const firstAppointment = leadAppointments[leadAppointments.length - 1];
+    const patient = await prisma.patient.upsert({
+      where: { leadId },
+      update: {
+        branchId: latestAppointment.branchId,
+        fullName: lead.name,
+        mobile: lead.mobile,
+        email: lead.email,
+        address: lead.address,
+        personId: lead.personId,
+        primaryConcern: lead.interestedTreatment ?? latestAppointment.notes,
+        lastVisitAt: latestAppointment.appointmentAt,
+        nextVisitAt: latestAppointment.appointmentAt > new Date() ? latestAppointment.appointmentAt : undefined,
+      },
+      create: {
+        patientNo: `REV-P-BACKFILL-${lead.id.slice(-8).toUpperCase()}`,
+        qrToken: `client-backfill-${lead.qrToken}`,
+        leadId,
+        personId: lead.personId,
+        branchId: latestAppointment.branchId,
+        fullName: lead.name,
+        mobile: lead.mobile,
+        email: lead.email,
+        address: lead.address,
+        registeredAt: firstAppointment.appointmentAt,
+        registrationSource: 'APPOINTMENT_BACKFILL',
+        primaryConcern: lead.interestedTreatment ?? latestAppointment.notes,
+        status: 'ACTIVE',
+        lastVisitAt: latestAppointment.appointmentAt,
+        nextVisitAt: latestAppointment.appointmentAt > new Date() ? latestAppointment.appointmentAt : undefined,
+      },
+    });
+    if (lead.personId) backfilledPersonIds.add(lead.personId);
+
+    await prisma.medicalProfile.upsert({
+      where: { patientId: patient.id },
+      update: {
+        skinConcern: lead.interestedTreatment ?? undefined,
+        notes: latestAppointment.notes ?? undefined,
+      },
+      create: {
+        patientId: patient.id,
+        skinConcern: lead.interestedTreatment ?? undefined,
+        notes: latestAppointment.notes ?? undefined,
+      },
+    });
+    backfilledClients += 1;
+  }
+  if (backfilledClients) console.log(`Backfilled ${backfilledClients} existing appointment client(s) into Client Directory.`);
 
   const scoringRules = [
     { id: 'score_response', name: 'Response received', field: 'lastContactedAt', operator: 'EXISTS' as const, points: 15 },
