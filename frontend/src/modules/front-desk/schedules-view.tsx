@@ -9,14 +9,17 @@ import {
   Clock,
   DoorOpen,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { RowsSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment, ClinicResource } from '@/types/appointment';
+import type { Branch } from '@/types/branch';
 
 function branchQuery(branchId: string | null) {
   return branchId ? `?branchId=${encodeURIComponent(branchId)}` : '';
@@ -62,12 +65,42 @@ function appointmentResourceLabel(appointment: Appointment) {
   return appointment.resource?.name ?? appointment.equipment?.name ?? 'Consultation';
 }
 
+function roomNumberFromName(name: string) {
+  const match = name.match(/\b(\d+)\b/);
+  return match ? Number(match[1]) : null;
+}
+
 export function SchedulesView() {
-  const { session, selectedBranchId } = useSessionStore();
+  const { session } = useSessionStore();
   const isAdmin = session?.user.role === 'ADMIN';
-  const canLoad = Boolean(isAdmin || selectedBranchId);
-  const allBranches = isAdmin && !selectedBranchId;
+  const [roomBranchId, setRoomBranchId] = useState('');
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+
+  const branches = useQuery({
+    queryKey: ['branches'],
+    queryFn: () => apiRequest<{ data: Branch[] }>('/branches'),
+    enabled: Boolean(session),
+  });
+  const roomBranches = useMemo(
+    () => (branches.data?.data ?? []).filter((branch) => /nashik road|sharanpur road/i.test(branch.name)),
+    [branches.data],
+  );
+  const canUseAllRoomBranches = Boolean(isAdmin);
+  const canLoad = Boolean(session && (canUseAllRoomBranches || roomBranchId));
+  const allRoomBranches = canUseAllRoomBranches && !roomBranchId;
+  const allowedRoomBranchIds = useMemo(() => new Set(roomBranches.map((branch) => branch.id)), [roomBranches]);
+  const selectedRoomBranch = roomBranches.find((branch) => branch.id === roomBranchId);
+
+  useEffect(() => {
+    if (!branches.data?.data.length) return;
+    if (roomBranchId && !roomBranches.some((branch) => branch.id === roomBranchId)) {
+      setRoomBranchId('');
+      return;
+    }
+    if (!canUseAllRoomBranches && !roomBranchId && roomBranches.length) {
+      setRoomBranchId(roomBranches[0].id);
+    }
+  }, [branches.data, canUseAllRoomBranches, roomBranchId, roomBranches]);
 
   const range = useMemo(() => {
     const dateFrom = startOfDay(selectedDate);
@@ -77,22 +110,22 @@ export function SchedulesView() {
   }, [selectedDate]);
 
   const resources = useQuery({
-    queryKey: ['schedule-resources', selectedBranchId],
+    queryKey: ['schedule-resources', roomBranchId],
     queryFn: () =>
       apiRequest<{ data: ClinicResource[] }>(
-        `/front-desk/resources${branchQuery(selectedBranchId)}`,
+        `/front-desk/resources${branchQuery(roomBranchId || null)}`,
       ),
     enabled: canLoad,
   });
 
   const appointments = useQuery({
-    queryKey: ['schedule-appointments', selectedBranchId, range.dateFrom.toISOString()],
+    queryKey: ['schedule-appointments', roomBranchId, range.dateFrom.toISOString()],
     queryFn: () => {
       const params = new URLSearchParams({
         dateFrom: range.dateFrom.toISOString(),
         dateTo: range.dateTo.toISOString(),
       });
-      if (selectedBranchId) params.set('branchId', selectedBranchId);
+      if (roomBranchId) params.set('branchId', roomBranchId);
       return apiRequest<{ data: Appointment[] }>(
         `/front-desk/schedule-appointments?${params.toString()}`,
       );
@@ -102,11 +135,13 @@ export function SchedulesView() {
 
   const allAppointments = useMemo(
     () =>
-      [...(appointments.data?.data ?? [])].sort(
-        (first, second) =>
-          new Date(first.appointmentAt).getTime() - new Date(second.appointmentAt).getTime(),
-      ),
-    [appointments.data],
+      [...(appointments.data?.data ?? [])]
+        .filter((appointment) => !allRoomBranches || allowedRoomBranchIds.has(appointment.branchId))
+        .sort(
+          (first, second) =>
+            new Date(first.appointmentAt).getTime() - new Date(second.appointmentAt).getTime(),
+        ),
+    [allRoomBranches, allowedRoomBranchIds, appointments.data],
   );
   const dayKey = localDateKey(selectedDate);
   const dayAppointments = allAppointments.filter(
@@ -116,12 +151,17 @@ export function SchedulesView() {
     (appointment) => appointment.resourceType === 'TREATMENT_ROOM',
   );
   const configuredRooms = (resources.data?.data ?? []).filter(
-    (resource) => resource.active && ['ROOM', 'TREATMENT_CHAIR'].includes(resource.type),
+    (resource) =>
+      resource.active &&
+      ['ROOM', 'TREATMENT_CHAIR'].includes(resource.type) &&
+      (!allRoomBranches || allowedRoomBranchIds.has(resource.branchId)),
   );
   const occupiedRoomKeys = new Set(
     roomAppointments.map((appointment) => appointment.roomNumber ?? appointment.resourceId).filter(Boolean),
   );
-  const roomCapacity = Math.max(4, configuredRooms.length);
+  const fallbackRoomCapacity = allRoomBranches ? roomBranches.length * 4 : 4;
+  const roomCapacity = configuredRooms.length || fallbackRoomCapacity;
+  const displayedRoomBranches = allRoomBranches ? roomBranches : selectedRoomBranch ? [selectedRoomBranch] : roomBranches;
   const metrics = [
     { label: 'Room bookings', value: roomAppointments.length },
     { label: 'Rooms occupied', value: occupiedRoomKeys.size },
@@ -141,14 +181,22 @@ export function SchedulesView() {
             Daily treatment-room flow and upcoming bookings.
           </p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-surface px-3 py-1.5 text-sm font-medium">
-          <Building2 className="size-4 text-primary" />
-          {allBranches ? 'All branches' : 'Selected branch'}
-        </span>
+        <label className="grid w-full gap-1 sm:max-w-xs">
+          <span className="text-xs font-medium text-muted-foreground">Room branch</span>
+          <div className="relative">
+            <Building2 className="pointer-events-none absolute left-3 top-3 size-4 text-primary" />
+            <Select className="pl-9" value={roomBranchId} onChange={(event) => setRoomBranchId(event.target.value)}>
+              {canUseAllRoomBranches ? <option value="">All room branches</option> : null}
+              {roomBranches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </Select>
+          </div>
+        </label>
       </div>
 
       {!canLoad ? (
-        <Card className="text-sm text-muted-foreground">Select a branch to view schedules.</Card>
+        <Card className="text-sm text-muted-foreground">Select Nashik Road or Sharanpur Road to view rooms.</Card>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -167,7 +215,7 @@ export function SchedulesView() {
                 <div>
                   <h2 className="font-semibold">Daily room board</h2>
                   <p className="text-sm text-muted-foreground">
-                    {formatDate(selectedDate)} · treatment rooms and room-linked appointments
+                    {formatDate(selectedDate)} · {selectedRoomBranch?.name ?? 'Nashik Road and Sharanpur Road'} rooms
                   </p>
                 </div>
               </div>
@@ -184,6 +232,19 @@ export function SchedulesView() {
                 <Button type="button" variant="secondary" onClick={() => setSelectedDate(startOfDay(new Date()))}>
                   Today
                 </Button>
+                <label className="relative">
+                  <span className="sr-only">Select room board date</span>
+                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    aria-label="Select room board date"
+                    className="h-10 w-[150px] pl-9 text-sm"
+                    type="date"
+                    value={localDateKey(selectedDate)}
+                    onChange={(event) => {
+                      if (event.target.value) setSelectedDate(startOfDay(new Date(`${event.target.value}T00:00:00`)));
+                    }}
+                  />
+                </label>
                 <Button
                   type="button"
                   variant="secondary"
@@ -204,7 +265,8 @@ export function SchedulesView() {
               <RoomBoard
                 appointments={roomAppointments}
                 configuredRooms={configuredRooms}
-                allBranches={allBranches}
+                allBranches={allRoomBranches}
+                roomBranches={displayedRoomBranches}
               />
             )}
           </Card>
@@ -231,7 +293,7 @@ export function SchedulesView() {
                   <thead className="bg-muted/40">
                     <tr>
                       <th className="px-4 py-3">Date & time</th>
-                      {allBranches ? <th className="px-4 py-3">Branch</th> : null}
+                      {allRoomBranches ? <th className="px-4 py-3">Branch</th> : null}
                       <th className="px-4 py-3">Client/lead</th>
                       <th className="px-4 py-3">Practitioner</th>
                       <th className="px-4 py-3">Resource</th>
@@ -244,7 +306,7 @@ export function SchedulesView() {
                         <td className="whitespace-nowrap px-4 py-3">
                           {new Date(appointment.appointmentAt).toLocaleString('en-IN')}
                         </td>
-                        {allBranches ? (
+                        {allRoomBranches ? (
                           <td className="px-4 py-3">{appointment.branch?.name ?? '-'}</td>
                         ) : null}
                         <td className="px-4 py-3 font-medium">{appointment.lead?.name ?? '-'}</td>
@@ -277,25 +339,40 @@ function RoomBoard({
   appointments,
   configuredRooms,
   allBranches,
+  roomBranches,
 }: {
   appointments: Appointment[];
   configuredRooms: ClinicResource[];
   allBranches: boolean;
+  roomBranches: Branch[];
 }) {
+  const configuredBranchIds = new Set(configuredRooms.map((resource) => resource.branchId));
+  const fallbackSlots = roomBranches
+    .filter((branch) => !configuredBranchIds.has(branch.id))
+    .flatMap((branch) =>
+      [1, 2, 3, 4].map((roomNumber) => ({
+        id: `${branch.id}-room-${roomNumber}`,
+        label: `Room ${roomNumber}`,
+        appointments: appointments.filter((appointment) => appointment.branchId === branch.id && appointment.roomNumber === roomNumber),
+        branch: branch.name,
+      })),
+    );
   const slots: RoomSlot[] = [
-    ...[1, 2, 3, 4].map((roomNumber) => ({
-      id: `room-${roomNumber}`,
-      label: `Room ${roomNumber}`,
-      appointments: appointments.filter((appointment) => appointment.roomNumber === roomNumber),
-    })),
     ...configuredRooms.map((resource) => ({
       id: resource.id,
       label: resource.name,
       appointments: appointments.filter(
-        (appointment) => appointment.resourceId === resource.id && !appointment.roomNumber,
+        (appointment) =>
+          appointment.resourceId === resource.id ||
+          (
+            appointment.branchId === resource.branchId &&
+            Boolean(appointment.roomNumber) &&
+            appointment.roomNumber === roomNumberFromName(resource.name)
+          ),
       ),
       branch: resource.branch?.name,
     })),
+    ...fallbackSlots,
   ];
 
   return (
@@ -330,7 +407,7 @@ function RoomBoard({
                 <div className="mt-1 truncate text-sm">{appointment.lead?.name ?? 'Client'}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   {appointment.status.replaceAll('_', ' ')}
-                  {appointment.service?.name ? ` · ${appointment.service.name}` : ''}
+                  {appointment.service?.name ? ` Â· ${appointment.service.name}` : ''}
                 </div>
               </div>
             ))}

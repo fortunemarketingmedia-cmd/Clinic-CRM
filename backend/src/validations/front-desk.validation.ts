@@ -1,7 +1,11 @@
 import { AppointmentResource, ClinicResourceType, ScheduleExceptionType } from '@prisma/client';
 import { z } from 'zod';
 
-export const branchQuerySchema = z.object({ branchId: z.string().min(1) });
+export const branchQuerySchema = z.object({
+  branchId: z.string().min(1),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+});
 export const catalogQuerySchema = z.object({
   branchId: z.string().optional(),
   type: z.nativeEnum(ClinicResourceType).optional(),

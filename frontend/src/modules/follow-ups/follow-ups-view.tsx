@@ -766,13 +766,13 @@ function MoveLeadDialog({
                     {activeServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
                   </Select>
                 </Field>
-                <Field label="Doctor">
+                <Field label="Doctor / provider">
                   <Select className="w-full" value={doctorId} onChange={(event) => setDoctorId(event.target.value)}>
                     <option value="">Assign later</option>
                     {(doctors.length ? doctors : staff).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
                   </Select>
                 </Field>
-                <Field label="Resource">
+                <Field label="Visit purpose">
                   <Select
                     className="w-full"
                     value={resourceType}
@@ -787,7 +787,7 @@ function MoveLeadDialog({
                 </Field>
                 {resourceType === 'TREATMENT_ROOM' ? (
                   <>
-                    <Field label="Room">
+                    <Field label="Treatment room number">
                       <Select className="w-full" value={roomNumber} onChange={(event) => setRoomNumber(event.target.value)}>
                         <option value="">Select room</option>
                         {[1, 2, 3, 4].map((room) => <option key={room} value={room}>Room {room}</option>)}

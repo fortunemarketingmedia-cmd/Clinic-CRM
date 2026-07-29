@@ -20,7 +20,7 @@ import { Select } from '@/components/ui/select';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
-import type { Appointment, ClinicResource, ClinicService } from '@/types/appointment';
+import type { Appointment, ClinicService } from '@/types/appointment';
 import type { StaffMember } from '@/types/front-desk';
 import type { Branch } from '@/types/branch';
 import type { AppointmentStatus } from '@/types/appointment';
@@ -35,11 +35,32 @@ const appointmentStatuses: Array<{ label: string; value: AppointmentStatus }> = 
   { label: 'Waiting', value: 'WAITING' },
   { label: 'In consultation', value: 'IN_CONSULTATION' },
   { label: 'Treatment in progress', value: 'TREATMENT_IN_PROGRESS' },
+  { label: 'Billing pending', value: 'BILLING_PENDING' },
   { label: 'Completed', value: 'COMPLETED' },
   { label: 'Rescheduled', value: 'RESCHEDULED' },
   { label: 'No show', value: 'NO_SHOW' },
   { label: 'Cancelled', value: 'CANCELLED' },
 ];
+
+const sourceOptions = [
+  { label: 'Phone call', value: 'PHONE_CALL' },
+  { label: 'Website', value: 'WEBSITE' },
+  { label: 'Walk-in', value: 'WALK_IN' },
+];
+
+const visitPurposeOptions = [
+  { label: 'Consultation', value: 'CONSULTATION' },
+  { label: 'Treatment room', value: 'TREATMENT_ROOM' },
+] as const;
+
+const appointmentTypeOptions = [
+  { label: 'Clinic visit', value: 'CLINIC_VISIT' },
+  { label: 'Video consultation', value: 'VIDEO_CONSULTATION' },
+] as const;
+
+function optionLabel<T extends string>(options: ReadonlyArray<{ label: string; value: T }>, value?: T | null) {
+  return options.find((item) => item.value === value)?.label ?? value?.replaceAll('_', ' ').toLowerCase() ?? '-';
+}
 
 function quickStatuses(status: AppointmentStatus) {
   const allowed: Partial<Record<AppointmentStatus, AppointmentStatus[]>> = {
@@ -126,6 +147,22 @@ function monthRange(monthDate: Date) {
   };
 }
 
+function dayRange(date: Date) {
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function addMinutes(value: Date, minutes: number) {
+  return new Date(value.getTime() + minutes * 60_000);
+}
+
+function intervalsOverlap(first: { start: Date; end: Date }, second: { start: Date; end: Date }) {
+  return first.start < second.end && second.start < first.end;
+}
+
 function buildMonthDays(monthDate: Date) {
   const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const start = new Date(first);
@@ -166,31 +203,6 @@ export function AppointmentsView() {
   const activeBranchId = isAdmin
     ? (selectedBranchId ?? '')
     : selectedBranchId || branches[0]?.id || '';
-  const servicesQuery = useQuery({
-    queryKey: ['appointment-services', activeBranchId],
-    queryFn: () =>
-      apiRequest<{ data: ClinicService[] }>(
-        `/front-desk/services${activeBranchId ? `?branchId=${activeBranchId}` : ''}`,
-      ),
-    enabled: Boolean(isAdmin || activeBranchId),
-  });
-  const resourcesQuery = useQuery({
-    queryKey: ['appointment-resources', activeBranchId],
-    queryFn: () =>
-      apiRequest<{ data: ClinicResource[] }>(
-        `/front-desk/resources${activeBranchId ? `?branchId=${activeBranchId}` : ''}`,
-      ),
-    enabled: Boolean(isAdmin || activeBranchId),
-  });
-  const staffQuery = useQuery({
-    queryKey: ['appointment-staff', activeBranchId],
-    queryFn: () =>
-      apiRequest<{ data: StaffMember[] }>(
-        `/front-desk/staff${activeBranchId ? `?branchId=${activeBranchId}` : ''}`,
-      ),
-    enabled: Boolean(isAdmin || activeBranchId),
-  });
-
   useEffect(() => {
     if (!branches.length) return;
     if (isAdmin && selectedBranchId === null) {
@@ -279,10 +291,92 @@ export function AppointmentsView() {
       equipmentId: '',
     },
   });
+  const formBranchId = form.watch('branchId');
+  const formResourceType = form.watch('resourceType');
+  const formAppointmentAt = form.watch('appointmentAt');
+  const formDurationMinutes = form.watch('durationMinutes') ?? 30;
+  const formBufferMinutes = form.watch('bufferMinutes') ?? 0;
+  const selectedRoomNumber = form.watch('roomNumber');
+  const formDataBranchId = formBranchId || activeBranchId;
+  const formAppointmentDate = formAppointmentAt ? new Date(formAppointmentAt) : null;
+  const roomAvailabilityRange = useMemo(
+    () => (formAppointmentDate && !Number.isNaN(formAppointmentDate.getTime()) ? dayRange(formAppointmentDate) : null),
+    [formAppointmentDate],
+  );
+
+  const servicesQuery = useQuery({
+    queryKey: ['appointment-services', formDataBranchId],
+    queryFn: () =>
+      apiRequest<{ data: ClinicService[] }>(
+        `/front-desk/services${formDataBranchId ? `?branchId=${formDataBranchId}` : ''}`,
+      ),
+    enabled: Boolean(formDataBranchId),
+  });
+  const staffQuery = useQuery({
+    queryKey: ['appointment-staff', formDataBranchId],
+    queryFn: () =>
+      apiRequest<{ data: StaffMember[] }>(
+        `/front-desk/staff${formDataBranchId ? `?branchId=${formDataBranchId}` : ''}`,
+      ),
+    enabled: Boolean(formDataBranchId),
+  });
+  const roomAppointmentsQuery = useQuery({
+    queryKey: [
+      'appointment-room-availability',
+      formDataBranchId,
+      roomAvailabilityRange?.start.toISOString(),
+      roomAvailabilityRange?.end.toISOString(),
+    ],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        branchId: formDataBranchId,
+        dateFrom: roomAvailabilityRange?.start.toISOString() ?? '',
+        dateTo: roomAvailabilityRange?.end.toISOString() ?? '',
+      });
+      return apiRequest<{ data: Appointment[] }>(`/appointments?${params.toString()}`);
+    },
+    enabled: Boolean(formDataBranchId && roomAvailabilityRange && formResourceType === 'TREATMENT_ROOM'),
+  });
+  const availableRoomNumbers = useMemo(() => {
+    const rooms = [1, 2, 3, 4];
+    if (!formAppointmentDate || Number.isNaN(formAppointmentDate.getTime())) return rooms;
+    const requestedInterval = {
+      start: formAppointmentDate,
+      end: addMinutes(formAppointmentDate, Number(formDurationMinutes) + Number(formBufferMinutes)),
+    };
+    return rooms.filter((room) => {
+      return !(roomAppointmentsQuery.data?.data ?? []).some((appointment) => {
+        if (appointment.id === editingAppointment?.id) return false;
+        if (appointment.branchId !== formDataBranchId) return false;
+        if (appointment.resourceType !== 'TREATMENT_ROOM' || appointment.roomNumber !== room) return false;
+        if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') return false;
+        const existingStart = new Date(appointment.appointmentAt);
+        const existingEnd = addMinutes(
+          appointment.endAt ? new Date(appointment.endAt) : addMinutes(existingStart, appointment.durationMinutes),
+          appointment.bufferMinutes,
+        );
+        return intervalsOverlap(requestedInterval, { start: existingStart, end: existingEnd });
+      });
+    });
+  }, [
+    editingAppointment?.id,
+    formAppointmentDate,
+    formBufferMinutes,
+    formDataBranchId,
+    formDurationMinutes,
+    roomAppointmentsQuery.data,
+  ]);
 
   useEffect(() => {
     if (!editingAppointment && activeBranchId) form.setValue('branchId', activeBranchId);
   }, [activeBranchId, editingAppointment, form]);
+
+  useEffect(() => {
+    if (formResourceType !== 'TREATMENT_ROOM' || !selectedRoomNumber) return;
+    if (!availableRoomNumbers.includes(Number(selectedRoomNumber))) {
+      form.setValue('roomNumber', undefined);
+    }
+  }, [availableRoomNumbers, form, formResourceType, selectedRoomNumber]);
 
   const createAppointment = useMutation({
     mutationFn: (values: AppointmentFormValues) =>
@@ -732,23 +826,23 @@ export function AppointmentsView() {
               <AppointmentDetail label="Branch" value={selectedAppointment.branch?.name ?? '-'} />
               <AppointmentDetail
                 label="Status"
-                value={selectedAppointment.status.replace('_', ' ')}
+                value={optionLabel(appointmentStatuses, selectedAppointment.status)}
               />
               <AppointmentDetail
                 label="Type"
-                value={selectedAppointment.appointmentType.replace('_', ' ')}
+                value={optionLabel(appointmentTypeOptions, selectedAppointment.appointmentType)}
               />
               <AppointmentDetail
                 label="Resource"
                 value={
                   selectedAppointment.resourceType === 'TREATMENT_ROOM'
                     ? `Treatment room ${selectedAppointment.roomNumber}`
-                    : 'Consultation'
+                    : optionLabel(visitPurposeOptions, selectedAppointment.resourceType)
                 }
               />
               <AppointmentDetail
                 label="Source"
-                value={selectedAppointment.lead?.source?.replace('_', ' ') ?? '-'}
+                value={optionLabel(sourceOptions, selectedAppointment.lead?.source as 'PHONE_CALL' | 'WEBSITE' | 'WALK_IN' | undefined)}
               />
               <AppointmentDetail label="Notes" value={selectedAppointment.notes ?? '-'} />
             </div>
@@ -769,28 +863,41 @@ export function AppointmentsView() {
               {editingAppointment ? 'Reschedule Appointment' : 'Create New Appointment'}
             </h2>
             <form className="mt-5 grid gap-5 lg:grid-cols-3" onSubmit={form.handleSubmit(onSubmit)}>
-              <label className="block space-y-2">
+              <label className="order-2 block space-y-2">
                 <span className="text-sm font-medium">Source</span>
                 <Select {...form.register('source')} disabled={Boolean(editingAppointment)}>
-                  <option value="">None selected</option>
-                  <option value="PHONE_CALL">Call</option>
-                  <option value="WEBSITE">Website</option>
-                  <option value="WALK_IN">Walk-in</option>
+                  <option value="">Select source</option>
+                  {sourceOptions.map((source) => (
+                    <option key={source.value} value={source.value}>
+                      {source.label}
+                    </option>
+                  ))}
                 </Select>
               </label>
-              <label className="block space-y-2">
+              <label className="order-8 block space-y-2">
                 <span className="text-sm font-medium">Visit purpose</span>
                 <Select {...form.register('resourceType')}>
-                  <option value="CONSULTATION">Consultation</option>
-                  <option value="TREATMENT_ROOM">Treatment / room booking</option>
+                  {visitPurposeOptions.map((purpose) => (
+                    <option key={purpose.value} value={purpose.value}>
+                      {purpose.label}
+                    </option>
+                  ))}
                 </Select>
               </label>
-              {form.watch('resourceType') === 'TREATMENT_ROOM' ? (
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium">Treatment room</span>
-                  <Select {...form.register('roomNumber')}>
-                    <option value="">Select room</option>
-                    {[1, 2, 3, 4].map((room) => (
+              {formResourceType === 'TREATMENT_ROOM' ? (
+                <label className="order-10 block space-y-2">
+                  <span className="text-sm font-medium">Treatment room number</span>
+                  <Select {...form.register('roomNumber')} disabled={!formAppointmentAt || roomAppointmentsQuery.isLoading}>
+                    <option value="">
+                      {!formAppointmentAt
+                        ? 'Select date and time first'
+                        : roomAppointmentsQuery.isLoading
+                          ? 'Checking room availability...'
+                          : availableRoomNumbers.length
+                            ? 'Select available room'
+                            : 'No rooms available'}
+                    </option>
+                    {availableRoomNumbers.map((room) => (
                       <option key={room} value={room}>
                         Room {room}
                       </option>
@@ -803,10 +910,11 @@ export function AppointmentsView() {
                   ) : null}
                 </label>
               ) : null}
-              <label className="block space-y-2">
+              <label className="order-9 block space-y-2">
                 <span className="text-sm font-medium">Service</span>
                 <Select
                   {...form.register('serviceId')}
+                  disabled={!formDataBranchId}
                   onChange={(event) => {
                     const service = servicesQuery.data?.data.find(
                       (item) => item.id === event.target.value,
@@ -819,7 +927,7 @@ export function AppointmentsView() {
                     }
                   }}
                 >
-                  <option value="">Default consultation</option>
+                  <option value="">{formDataBranchId ? 'Default consultation' : 'Select branch first'}</option>
                   {servicesQuery.data?.data.map((service) => (
                     <option key={service.id} value={service.id}>
                       {service.name} · {service.durationMinutes} min
@@ -827,18 +935,18 @@ export function AppointmentsView() {
                   ))}
                 </Select>
               </label>
-              <label className="block space-y-2">
+              <label className="order-11 block space-y-2">
                 <span className="text-sm font-medium">Duration (minutes)</span>
                 <Input type="number" {...form.register('durationMinutes')} />
               </label>
-              <label className="block space-y-2">
+              <label className="order-12 block space-y-2">
                 <span className="text-sm font-medium">Buffer (minutes)</span>
                 <Input type="number" {...form.register('bufferMinutes')} />
               </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Doctor</span>
-                <Select {...form.register('doctorId')}>
-                  <option value="">No doctor assigned</option>
+              <label className="order-[13] block space-y-2">
+                <span className="text-sm font-medium">Doctor / provider</span>
+                <Select {...form.register('doctorId')} disabled={!formDataBranchId}>
+                  <option value="">{formDataBranchId ? 'No doctor assigned' : 'Select branch first'}</option>
                   {staffQuery.data?.data
                     .filter((staff) => staff.role === 'ADMIN')
                     .map((staff) => (
@@ -848,10 +956,10 @@ export function AppointmentsView() {
                     ))}
                 </Select>
               </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Therapist</span>
-                <Select {...form.register('therapistId')}>
-                  <option value="">No therapist assigned</option>
+              <label className="order-[14] block space-y-2">
+                <span className="text-sm font-medium">Assistant / therapist</span>
+                <Select {...form.register('therapistId')} disabled={!formDataBranchId}>
+                  <option value="">{formDataBranchId ? 'No assistant assigned' : 'Select branch first'}</option>
                   {staffQuery.data?.data
                     .filter((staff) => staff.role === 'RECEPTIONIST')
                     .map((staff) => (
@@ -861,41 +969,15 @@ export function AppointmentsView() {
                     ))}
                 </Select>
               </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Room / chair</span>
-                <Select {...form.register('resourceId')}>
-                  <option value="">No configured resource</option>
-                  {resourcesQuery.data?.data
-                    .filter((resource) => resource.type !== 'EQUIPMENT')
-                    .map((resource) => (
-                      <option key={resource.id} value={resource.id}>
-                        {resource.name}
-                      </option>
-                    ))}
-                </Select>
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Equipment</span>
-                <Select {...form.register('equipmentId')}>
-                  <option value="">No equipment</option>
-                  {resourcesQuery.data?.data
-                    .filter((resource) => resource.type === 'EQUIPMENT')
-                    .map((resource) => (
-                      <option key={resource.id} value={resource.id}>
-                        {resource.name}
-                      </option>
-                    ))}
-                </Select>
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Patient name</span>
+              <label className="order-5 block space-y-2">
+                <span className="text-sm font-medium">Client name</span>
                 <Input
                   placeholder="Full name"
                   {...form.register('name')}
                   disabled={Boolean(editingAppointment)}
                 />
               </label>
-              <label className="block space-y-2">
+              <label className="order-6 block space-y-2">
                 <span className="text-sm font-medium">Mobile</span>
                 <Input
                   placeholder="Mobile number"
@@ -903,7 +985,7 @@ export function AppointmentsView() {
                   disabled={Boolean(editingAppointment)}
                 />
               </label>
-              <label className="block space-y-2">
+              <label className="order-7 block space-y-2">
                 <span className="text-sm font-medium">Address</span>
                 <Input
                   placeholder="Address"
@@ -911,9 +993,21 @@ export function AppointmentsView() {
                   disabled={Boolean(editingAppointment)}
                 />
               </label>
-              <label className="block space-y-2">
+              <label className="order-1 block space-y-2">
                 <span className="text-sm font-medium">Branch</span>
-                <Select {...form.register('branchId')}>
+                <Select
+                  {...form.register('branchId')}
+                  onChange={(event) => {
+                    form.setValue('branchId', event.target.value);
+                    form.setValue('serviceId', '');
+                    form.setValue('doctorId', '');
+                    form.setValue('therapistId', '');
+                    form.setValue('resourceId', '');
+                    form.setValue('equipmentId', '');
+                    form.setValue('roomNumber', undefined);
+                  }}
+                >
+                  <option value="">Select branch</option>
                   {branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
                       {branch.name}
@@ -921,27 +1015,30 @@ export function AppointmentsView() {
                   ))}
                 </Select>
               </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Type</span>
+              <label className="order-4 block space-y-2">
+                <span className="text-sm font-medium">Appointment type</span>
                 <Select {...form.register('appointmentType')}>
-                  <option value="CLINIC_VISIT">Clinic visit</option>
-                  <option value="VIDEO_CONSULTATION">Video consultation</option>
+                  {appointmentTypeOptions.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
                 </Select>
               </label>
-              <label className="block space-y-2">
+              <label className="order-3 block space-y-2">
                 <span className="text-sm font-medium">Date and time</span>
                 <Input type="datetime-local" {...form.register('appointmentAt')} />
               </label>
-              <label className="block space-y-2 lg:col-span-2">
+              <label className="order-[17] block space-y-2 lg:col-span-3">
                 <span className="text-sm font-medium">Notes</span>
-                <Input {...form.register('notes')} />
+                <Input placeholder="Special instructions or internal note" {...form.register('notes')} />
               </label>
               {createAppointment.error || updateAppointment.error ? (
-                <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 lg:col-span-3">
+                <div className="order-[18] rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 lg:col-span-3">
                   {createAppointment.error?.message ?? updateAppointment.error?.message}
                 </div>
               ) : null}
-              <div className="flex gap-3 lg:col-span-3">
+              <div className="order-[19] flex gap-3 lg:col-span-3">
                 <Button
                   type="submit"
                   disabled={createAppointment.isPending || updateAppointment.isPending}

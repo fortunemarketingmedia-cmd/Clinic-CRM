@@ -990,7 +990,7 @@ export function LeadsView() {
                 </Select>
               </label>
               <label className="block space-y-2">
-                <span className="text-sm font-medium">Type</span>
+                <span className="text-sm font-medium">Appointment type</span>
                 <Select {...bookingForm.register('appointmentType')}>
                   <option value="CLINIC_VISIT">Clinic visit</option>
                   <option value="VIDEO_CONSULTATION">Video consultation</option>
@@ -1005,9 +1005,9 @@ export function LeadsView() {
               </label>
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Visit purpose</span>
-                <Select {...bookingForm.register('resourceType')}><option value="CONSULTATION">Consultation</option><option value="TREATMENT_ROOM">Treatment / room</option></Select>
+                <Select {...bookingForm.register('resourceType')}><option value="CONSULTATION">Consultation</option><option value="TREATMENT_ROOM">Treatment room</option></Select>
               </label>
-              {bookingForm.watch('resourceType') === 'TREATMENT_ROOM' ? <label className="block space-y-2"><span className="text-sm font-medium">Treatment room</span><Select {...bookingForm.register('roomNumber')}><option value="">Select room</option>{[1,2,3,4].map((room) => <option key={room} value={room}>Room {room}</option>)}</Select>{bookingForm.formState.errors.roomNumber ? <span className="text-xs text-red-600">{bookingForm.formState.errors.roomNumber.message}</span> : null}</label> : null}
+              {bookingForm.watch('resourceType') === 'TREATMENT_ROOM' ? <label className="block space-y-2"><span className="text-sm font-medium">Treatment room number</span><Select {...bookingForm.register('roomNumber')}><option value="">Select room</option>{[1,2,3,4].map((room) => <option key={room} value={room}>Room {room}</option>)}</Select>{bookingForm.formState.errors.roomNumber ? <span className="text-xs text-red-600">{bookingForm.formState.errors.roomNumber.message}</span> : null}</label> : null}
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Notes</span>
                 <Input {...bookingForm.register('notes')} />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, Clock3, ExternalLink, Search, Stethoscope, UserRound, UsersRound } from 'lucide-react';
+import { ArrowRight, CalendarDays, CheckCircle2, Clock3, ExternalLink, Search, Stethoscope, UserRound, UsersRound } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,23 @@ function appointmentTime(value: string) {
   return new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 }
 
+function localDateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function dateLabel(value: string) {
+  return new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
+}
+
+function startOfDay(value: Date) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 function nextAction(status: AppointmentStatus): { label: string; status: AppointmentStatus } | null {
   if (status === 'REQUESTED' || status === 'SLOT_PROPOSED' || status === 'RESCHEDULED') return { label: 'Schedule', status: 'SCHEDULED' };
   if (['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED'].includes(status)) return { label: 'Check in', status: 'CHECKED_IN' };
@@ -69,13 +86,27 @@ function clientHref(item: QueueAppointment) {
 export function DailyClientQueueView() {
   const queryClient = useQueryClient();
   const { selectedBranchId } = useSessionStore();
+  const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()));
   const [search, setSearch] = useState('');
   const [stage, setStage] = useState('');
   const [practitioner, setPractitioner] = useState('');
+  const queueDateRange = useMemo(() => {
+    const selected = startOfDay(new Date(`${selectedDate}T00:00:00`));
+    const dateTo = new Date(selected);
+    dateTo.setHours(23, 59, 59, 999);
+    return { dateFrom: selected, dateTo };
+  }, [selectedDate]);
 
   const queueQuery = useQuery({
-    queryKey: ['daily-client-queue', selectedBranchId],
-    queryFn: () => apiRequest<{ data: QueueAppointment[] }>(`/front-desk/today-queue?branchId=${selectedBranchId}`),
+    queryKey: ['daily-client-queue', selectedBranchId, queueDateRange.dateFrom.toISOString(), queueDateRange.dateTo.toISOString()],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        branchId: selectedBranchId ?? '',
+        dateFrom: queueDateRange.dateFrom.toISOString(),
+        dateTo: queueDateRange.dateTo.toISOString(),
+      });
+      return apiRequest<{ data: QueueAppointment[] }>(`/front-desk/today-queue?${params.toString()}`);
+    },
     enabled: Boolean(selectedBranchId),
     refetchInterval: 20_000,
   });
@@ -93,22 +124,26 @@ export function DailyClientQueueView() {
   });
 
   const records = useMemo(() => queueQuery.data?.data ?? [], [queueQuery.data]);
+  const selectedDayRecords = useMemo(
+    () => records.filter((item) => localDateKey(new Date(item.appointmentAt)) === selectedDate),
+    [records, selectedDate],
+  );
   const featuredClient = useMemo(() => {
-    const current = records.find((item) =>
+    const current = selectedDayRecords.find((item) =>
       ['IN_CONSULTATION', 'TREATMENT_IN_PROGRESS', 'BILLING_PENDING'].includes(item.status),
     );
     return current ??
-      records.find((item) => item.status === 'WAITING') ??
-      records.find((item) => item.status === 'CHECKED_IN') ??
+      selectedDayRecords.find((item) => item.status === 'WAITING') ??
+      selectedDayRecords.find((item) => item.status === 'CHECKED_IN') ??
       null;
-  }, [records]);
+  }, [selectedDayRecords]);
 
-  const waitingCount = records.filter((item) => item.status === 'WAITING').length;
-  const completedCount = records.filter((item) => item.status === 'COMPLETED').length;
+  const waitingCount = selectedDayRecords.filter((item) => item.status === 'WAITING').length;
+  const completedCount = selectedDayRecords.filter((item) => item.status === 'COMPLETED').length;
   const practitioners = useMemo(() => Array.from(new Set(records.map(practitionerName))).sort(), [records]);
   const filteredRecords = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return records.filter((item) => {
+    return selectedDayRecords.filter((item) => {
       const matches =
         !term ||
         clientName(item).toLowerCase().includes(term) ||
@@ -116,19 +151,27 @@ export function DailyClientQueueView() {
         serviceName(item).toLowerCase().includes(term);
       return matches && (!stage || item.queueStage === stage) && (!practitioner || practitionerName(item) === practitioner);
     });
-  }, [practitioner, records, search, stage]);
+  }, [practitioner, search, selectedDayRecords, stage]);
 
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Daily Client Queue</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Today&apos;s arrivals, consultations, and completed clients in one place.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            View arrivals, waiting clients, consultations, and completed appointments for the selected date.
+          </p>
         </div>
-        <div className="flex gap-2 text-xs">
-          <span className="rounded-full bg-muted px-3 py-1.5 text-muted-foreground">{waitingCount} waiting</span>
-          <span className="rounded-full bg-primary/10 px-3 py-1.5 text-primary">{completedCount} completed</span>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full bg-muted px-3 py-1.5 text-muted-foreground">{waitingCount} waiting today</span>
+          <span className="rounded-full bg-primary/10 px-3 py-1.5 text-primary">{records.length} scheduled</span>
         </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <QueueMetricCard label={`Queue on ${dateLabel(selectedDate)}`} value={selectedDayRecords.length} helper="Appointments for selected date" />
+        <QueueMetricCard label="Waiting today" value={waitingCount} helper="Checked-in clients pending doctor/team" />
+        <QueueMetricCard label="Completed today" value={completedCount} helper="Clients marked complete on selected date" />
       </div>
 
       {!selectedBranchId ? (
@@ -151,14 +194,27 @@ export function DailyClientQueueView() {
         <div className="border-b border-border p-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="font-semibold text-foreground">Today&apos;s client list</h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">{filteredRecords.length} of {records.length} clients</p>
+              <h2 className="font-semibold text-foreground">Client list for {dateLabel(selectedDate)}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {filteredRecords.length} of {selectedDayRecords.length} clients
+              </p>
             </div>
             <Link href="/appointments" className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-surface px-3 text-xs font-medium text-foreground hover:bg-muted">
               Calendar <ExternalLink className="size-3.5" />
             </Link>
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_190px_220px]">
+          <div className="mt-4 grid gap-3 lg:grid-cols-[180px_minmax(260px,1fr)_190px_220px]">
+            <label className="relative">
+              <span className="sr-only">Select queue date</span>
+              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="Select queue date"
+                className="pl-9"
+                type="date"
+                value={selectedDate}
+                onChange={(event) => setSelectedDate(event.target.value)}
+              />
+            </label>
             <label className="relative">
               <span className="sr-only">Search clients</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -179,7 +235,7 @@ export function DailyClientQueueView() {
           <TableSkeleton rows={6} columns={6} />
         ) : filteredRecords.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
-            {records.length ? 'No clients match the selected filters.' : 'No appointments are scheduled for today.'}
+            {selectedDayRecords.length ? 'No clients match the selected filters.' : 'No appointments are scheduled for this date.'}
           </div>
         ) : (
           <>
@@ -223,6 +279,16 @@ export function DailyClientQueueView() {
         )}
       </Card>
     </section>
+  );
+}
+
+function QueueMetricCard({ label, value, helper }: { label: string; value: number; helper: string }) {
+  return (
+    <Card className="p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </Card>
   );
 }
 

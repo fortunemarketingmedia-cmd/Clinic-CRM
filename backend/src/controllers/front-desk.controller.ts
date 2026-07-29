@@ -24,7 +24,11 @@ export const frontDeskController = {
   async createSchedule(req: Request, res: Response) { const input = scheduleSchema.parse(req.body); await guard(req, input.branchId); const data = await frontDeskService.createSchedule(input); await auditService.record(audit(req, input.branchId), { action: 'STAFF_SCHEDULE_CREATED', entity: 'StaffSchedule', entityId: data.id }); res.status(201).json({ data }); },
   async createException(req: Request, res: Response) { const input = exceptionSchema.parse(req.body); await guard(req, input.branchId); const data = await frontDeskService.createException(input); await auditService.record(audit(req, input.branchId), { action: 'SCHEDULE_EXCEPTION_CREATED', entity: 'ScheduleException', entityId: data.id }); res.status(201).json({ data }); },
   async availability(req: Request, res: Response) { const query = availabilityQuerySchema.parse(req.query); await guard(req, query.branchId); res.json({ data: await frontDeskService.availability(query) }); },
-  async queue(req: Request, res: Response) { if (!req.user) throw new HttpError(401, 'Authentication required'); const { branchId } = branchQuerySchema.parse(req.query); res.json({ data: await frontDeskService.todayQueue(branchId, req.user.id, req.user.role) }); },
+  async queue(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    const { branchId, dateFrom, dateTo } = branchQuerySchema.parse(req.query);
+    res.json({ data: await frontDeskService.todayQueue(branchId, req.user.id, req.user.role, dateFrom, dateTo) });
+  },
   async scheduleAppointments(req: Request, res: Response) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
