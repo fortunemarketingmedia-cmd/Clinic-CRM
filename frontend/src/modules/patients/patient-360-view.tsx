@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, FileLock2, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/select';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiBlob, apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
-import type { ClinicResource } from '@/types/appointment';
+import type { Appointment, ClinicResource } from '@/types/appointment';
 import type { Patient360 } from '@/types/clinical';
 import type { StaffMember } from '@/types/front-desk';
 import { PatientDocumentsPanel } from './patient-forms-files-panel';
@@ -23,6 +23,13 @@ const prescriberRoles = ['ADMIN', 'RECEPTIONIST'];
 const format = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'â€”';
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const nowLocal = () => { const date = new Date(); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); return date.toISOString().slice(0, 16); };
+const addMinutes = (value: Date, minutes: number) => new Date(value.getTime() + minutes * 60_000);
+const overlaps = (first: { start: Date; end: Date }, second: { start: Date; end: Date }) => first.start < second.end && second.start < first.end;
+function dayRange(value: Date) {
+  const start = new Date(value); start.setHours(0, 0, 0, 0);
+  const end = new Date(value); end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
 
 export function Patient360View({ patientId }: { patientId: string }) {
   const queryClient = useQueryClient();
@@ -61,7 +68,7 @@ export function Patient360View({ patientId }: { patientId: string }) {
     <div className="overflow-x-auto border-b"><div className="flex min-w-max gap-1">{tabs.map((item) => <button key={item} className={`border-b-2 px-3 py-2 text-sm ${tab === item ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground'}`} onClick={() => setTab(item)}>{item}</button>)}</div></div>
 
     {tab === 'Overview' ? <Overview patient={patient} /> : null}
-    {tab === 'Appointments' ? <ListState empty="No appointments recorded." items={patient.lead.appointments.map((appointment) => <Record key={appointment.id} title={`${label(appointment.status)} Â· ${appointment.service?.name ?? label(appointment.appointmentType)}`} subtitle={`${format(appointment.appointmentAt)} Â· ${appointment.doctor?.name ?? 'Practitioner not assigned'}`} />)} /> : null}
+    {tab === 'Appointments' ? <AppointmentsPanel patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
     {tab === 'Treatments' ? <Treatments patient={patient} canClinical={canClinical} onRecord={() => setComposer('procedure')} onPlan={() => setComposer('plan')} /> : null}
     {tab === 'Prescriptions' ? <Prescriptions patient={patient} canSign={canPrescribe} onCreate={() => setComposer('prescription')} invalidate={invalidate} /> : null}
     {tab === 'Medical Profile' ? <MedicalProfile patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
@@ -74,6 +81,106 @@ export function Patient360View({ patientId }: { patientId: string }) {
 function Metric({ title, value, warning }: { title: string; value: string; warning?: boolean }) { return <Card className="p-4"><div className="text-xs text-muted-foreground">{title}</div><div className={`mt-1 text-sm font-semibold ${warning ? 'text-red-700' : ''}`}>{value}</div></Card>; }
 function Record({ title, subtitle, warning }: { title: string; subtitle: string; warning?: boolean }) { return <div className={`rounded-md border p-3 ${warning ? 'border-red-200 bg-red-50' : ''}`}><div className="font-medium">{title}</div><div className="mt-1 text-xs text-muted-foreground">{subtitle}</div></div>; }
 function ListState({ items, empty, action }: { items: React.ReactNode[]; empty: string; action?: React.ReactNode }) { return <Card><div className="mb-3 flex justify-end">{action}</div>{items.length ? <div className="space-y-2">{items}</div> : <div className="py-8 text-center text-sm text-muted-foreground">{empty}</div>}</Card>; }
+
+function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient360; canEdit: boolean; invalidate: () => void }) {
+  const [roomEdit, setRoomEdit] = useState<Appointment | null>(null);
+  const appointments = patient.lead.appointments ?? [];
+  return <>
+    <Card>
+      {appointments.length ? <div className="space-y-2">
+        {appointments.map((appointment) => (
+          <div key={appointment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+            <div>
+              <div className="font-medium">
+                {label(appointment.status)} · {appointment.service?.name ?? label(appointment.appointmentType)}
+                {appointment.resourceType === 'TREATMENT_ROOM' ? ` · Room ${appointment.roomNumber ?? '-'}` : ''}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {format(appointment.appointmentAt)} · {appointment.doctor?.name ?? 'Practitioner not assigned'}
+              </div>
+            </div>
+            {canEdit && appointment.resourceType === 'TREATMENT_ROOM' ? (
+              <Button type="button" variant="secondary" onClick={() => setRoomEdit(appointment)}>
+                Change room
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </div> : <div className="py-8 text-center text-sm text-muted-foreground">No appointments recorded.</div>}
+    </Card>
+    {roomEdit ? <ChangeAppointmentRoomModal appointment={roomEdit} onClose={() => setRoomEdit(null)} onSaved={() => { setRoomEdit(null); invalidate(); }} /> : null}
+  </>;
+}
+
+function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appointment: Appointment; onClose: () => void; onSaved: () => void }) {
+  const [roomNumber, setRoomNumber] = useState(String(appointment.roomNumber ?? ''));
+  const appointmentAt = useMemo(() => new Date(appointment.appointmentAt), [appointment.appointmentAt]);
+  const range = useMemo(() => dayRange(appointmentAt), [appointmentAt]);
+  const appointmentsQuery = useQuery({
+    queryKey: ['client-room-change-availability', appointment.branchId, range.start.toISOString(), range.end.toISOString()],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        branchId: appointment.branchId,
+        dateFrom: range.start.toISOString(),
+        dateTo: range.end.toISOString(),
+      });
+      return apiRequest<{ data: Appointment[] }>(`/appointments?${params.toString()}`);
+    },
+  });
+  const availableRooms = useMemo(() => {
+    const requested = {
+      start: appointmentAt,
+      end: addMinutes(
+        appointmentAt,
+        (appointment.durationMinutes ?? 30) + (appointment.bufferMinutes ?? 0),
+      ),
+    };
+    return [1, 2, 3, 4].filter((room) => {
+      return !(appointmentsQuery.data?.data ?? []).some((item) => {
+        if (item.id === appointment.id) return false;
+        if (item.branchId !== appointment.branchId) return false;
+        if (item.resourceType !== 'TREATMENT_ROOM' || item.roomNumber !== room) return false;
+        if (item.status === 'CANCELLED' || item.status === 'NO_SHOW') return false;
+        const existingStart = new Date(item.appointmentAt);
+        const existingEnd = addMinutes(
+          item.endAt ? new Date(item.endAt) : addMinutes(existingStart, item.durationMinutes ?? 30),
+          item.bufferMinutes ?? 0,
+        );
+        return overlaps(requested, { start: existingStart, end: existingEnd });
+      });
+    });
+  }, [appointment, appointmentAt, appointmentsQuery.data]);
+  const mutation = useMutation({
+    mutationFn: () => apiRequest(`/appointments/${appointment.id}`, { method: 'PATCH', body: JSON.stringify({ resourceType: 'TREATMENT_ROOM', roomNumber: Number(roomNumber) }) }),
+    onSuccess: onSaved,
+  });
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <Card className="w-full max-w-md">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Change appointment room</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{format(appointment.appointmentAt)} · Current room {appointment.roomNumber ?? '-'}</p>
+        </div>
+        <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
+      </div>
+      <div className="mt-5 grid gap-2">
+        <Field label="Available treatment room">
+          <Select value={roomNumber} onChange={(event) => setRoomNumber(event.target.value)} disabled={appointmentsQuery.isLoading}>
+            <option value="">{appointmentsQuery.isLoading ? 'Checking availability...' : availableRooms.length ? 'Select available room' : 'No rooms available'}</option>
+            {availableRooms.map((room) => <option key={room} value={room}>Room {room}</option>)}
+          </Select>
+        </Field>
+        {mutation.isError ? <p className="text-sm text-red-700">{mutation.error.message}</p> : null}
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button type="button" disabled={!roomNumber || mutation.isPending || Number(roomNumber) === appointment.roomNumber} onClick={() => mutation.mutate()}>
+          {mutation.isPending ? 'Saving…' : 'Save room'}
+        </Button>
+      </div>
+    </Card>
+  </div>;
+}
 
 function Overview({ patient }: { patient: Patient360 }) {
   const latestAppointment = patient.summary.lastVisit ?? patient.lead.appointments[0];
