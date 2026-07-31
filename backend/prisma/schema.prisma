@@ -1210,6 +1210,7 @@ model ClinicService {
   category                  String?
   durationMinutes           Int                         @default(30)
   bufferMinutes             Int                         @default(0)
+  basePrice                 Decimal?                    @db.Decimal(12, 2)
   resourceType              AppointmentResource         @default(CONSULTATION)
   advancePaymentRequired    Boolean                     @default(false)
   bookingNoticeMinutes      Int                         @default(0)

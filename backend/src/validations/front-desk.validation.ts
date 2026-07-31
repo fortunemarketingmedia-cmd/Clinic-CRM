@@ -16,6 +16,7 @@ export const serviceSchema = z.object({
   category: z.string().optional(),
   durationMinutes: z.coerce.number().int().min(5).max(480),
   bufferMinutes: z.coerce.number().int().min(0).max(120).default(0),
+  basePrice: z.coerce.number().min(0).optional(),
   resourceType: z.nativeEnum(AppointmentResource).default(AppointmentResource.CONSULTATION),
   advancePaymentRequired: z.boolean().default(false),
   bookingNoticeMinutes: z.coerce.number().int().min(0).default(0),

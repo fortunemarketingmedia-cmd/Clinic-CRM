@@ -60,6 +60,7 @@ export type ClinicService = {
   category?: string | null;
   durationMinutes: number;
   bufferMinutes: number;
+  basePrice?: string | number | null;
   resourceType: 'CONSULTATION' | 'TREATMENT_ROOM';
   active: boolean;
 };

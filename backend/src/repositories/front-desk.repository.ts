@@ -17,6 +17,7 @@ export const frontDeskRepository = {
     category?: string;
     durationMinutes: number;
     bufferMinutes: number;
+    basePrice?: number;
     resourceType: 'CONSULTATION' | 'TREATMENT_ROOM';
     advancePaymentRequired: boolean;
     bookingNoticeMinutes: number;

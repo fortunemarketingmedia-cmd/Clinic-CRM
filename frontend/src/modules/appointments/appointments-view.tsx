@@ -452,12 +452,7 @@ export function AppointmentsView() {
     [availablePackageMasters, selectedService],
   );
   const selectedPackage = availablePackageMasters.find((item) => item.id === formPackageMasterId);
-  const selectedServiceBase = selectedService
-    ? (() => {
-      const matchedPackage = availablePackageMasters.find((item) => packageMatchesService(item, selectedService.name));
-      return matchedPackage ? Math.round(moneyNumber(matchedPackage.price) / Math.max(1, matchedPackage.totalSessions)) : 0;
-    })()
-    : 0;
+  const selectedServiceBase = selectedService ? moneyNumber(selectedService.basePrice) : 0;
   const selectedPackageBase = selectedPackage ? moneyNumber(selectedPackage.price) : 0;
   const selectedPackageTax = selectedPackage ? Math.round((selectedPackageBase * moneyNumber(selectedPackage.taxPercent)) / 100) : 0;
   const bookingTotal = formResourceType === 'CONSULTATION'
@@ -470,8 +465,10 @@ export function AppointmentsView() {
       .filter((service) => service.resourceType === 'TREATMENT_ROOM')
       .map((service) => {
         const matchedPackage = availablePackageMasters.find((item) => packageMatchesService(item, service.name));
-        const rate = matchedPackage ? Math.round(moneyNumber(matchedPackage.price) / Math.max(1, matchedPackage.totalSessions)) : 0;
-        return { kind: 'service' as const, id: service.id, label: `${service.category ? `${service.category} - ` : ''}${service.name}`, meta: `${service.durationMinutes} min${rate ? ` · approx ${formatCurrency(rate)}/session` : ''}`, rate };
+        const rate = moneyNumber(service.basePrice);
+        const fallbackRate = matchedPackage ? Math.round(moneyNumber(matchedPackage.price) / Math.max(1, matchedPackage.totalSessions)) : 0;
+        const displayRate = rate || fallbackRate;
+        return { kind: 'service' as const, id: service.id, label: `${service.category ? `${service.category} - ` : ''}${service.name}`, meta: `${service.durationMinutes} min${displayRate ? ` · ${formatCurrency(displayRate)}` : ''}`, rate: displayRate };
       });
     const packageOptions = availablePackageMasters.map((item) => ({ kind: 'package' as const, id: item.id, label: item.name, meta: `${item.totalSessions} sessions · ${formatCurrency(moneyNumber(item.price))}`, rate: moneyNumber(item.price) }));
     return { serviceOptions, packageOptions };
