@@ -1,5 +1,7 @@
-import type { ActivityChannel, ActivityDirection, WorkPriority, WorkStatus } from '@prisma/client';
+import type { ActivityChannel, ActivityDirection, LeadStatus, WorkPriority, WorkStatus } from '@prisma/client';
 import { prisma } from '../config/db.js';
+
+const clientPipelineLeadStatuses: LeadStatus[] = ['APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED', 'ARRIVED', 'CONVERTED'];
 
 export const followUpRepository = {
   findAssignableUser(userId: string, branchId: string) {
@@ -22,9 +24,16 @@ export const followUpRepository = {
   list(filters: { branchId?: string; assignedUserId?: string; status?: WorkStatus; dueFrom?: Date; dueTo?: Date }) {
     return prisma.followUp.findMany({
       where: { branchId: filters.branchId, assignedUserId: filters.assignedUserId, status: filters.status,
+        OR: [{ leadId: null }, { lead: { status: { notIn: clientPipelineLeadStatuses } } }],
         dueAt: filters.dueFrom || filters.dueTo ? { gte: filters.dueFrom, lte: filters.dueTo } : undefined },
       include: { person: true, lead: true, patient: true, assignedUser: { select: { id: true, name: true } }, branch: true },
       orderBy: { dueAt: 'asc' },
+    });
+  },
+  closeOpenLeadFollowUps(leadId: string, outcome: string) {
+    return prisma.followUp.updateMany({
+      where: { leadId, status: { in: ['OPEN', 'IN_PROGRESS', 'OVERDUE'] } },
+      data: { status: 'COMPLETED', completedAt: new Date(), outcome },
     });
   },
   findById(id: string) { return prisma.followUp.findUnique({ where: { id }, include: { lead: true, person: true } }); },

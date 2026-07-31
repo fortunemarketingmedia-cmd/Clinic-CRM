@@ -29,7 +29,7 @@ export const patient360Repository = {
         procedureSessions: { include: { practitioner: { select: { id: true, name: true } }, assistant: { select: { id: true, name: true } }, room: true, device: true }, orderBy: { createdAt: 'desc' } },
         prescriptions: { include: { doctor: { select: { id: true, name: true } }, signedBy: { select: { id: true, name: true } }, items: true }, orderBy: { prescribedAt: 'desc' } },
         packages: { orderBy: { createdAt: 'desc' } },
-        invoices: { include: { payments: true }, orderBy: { invoiceDate: 'desc' } },
+        invoices: { include: { items: { orderBy: { sortOrder: 'asc' } }, payments: true }, orderBy: { invoiceDate: 'desc' } },
         files: { orderBy: { createdAt: 'desc' } },
         timelineEvents: { orderBy: { createdAt: 'desc' }, take: 200 },
       },

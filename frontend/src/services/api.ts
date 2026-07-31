@@ -27,6 +27,14 @@ export class ApiError extends Error {
   }
 }
 
+function userSafeApiMessage(message?: string) {
+  const fallback = 'Something went wrong. Please try again.';
+  if (!message) return fallback;
+  if (/^Route\s+\w+\s+\/api\//i.test(message)) return 'This information could not be loaded. Please try again.';
+  if (/prisma|database|sql|stack|validation error count|schema/i.test(message)) return fallback;
+  return message;
+}
+
 let inMemoryAccessToken: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -144,7 +152,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
       issues?: unknown;
     };
     throw new ApiError(
-      error.message ?? 'Request failed',
+      userSafeApiMessage(error.message),
       response.status,
       error.correlationId ?? response.headers.get('x-correlation-id') ?? undefined,
       error.issues,

@@ -25,6 +25,19 @@ import type { StaffMember } from '@/types/front-desk';
 import type { Branch } from '@/types/branch';
 import type { AppointmentStatus } from '@/types/appointment';
 
+type PackageMaster = {
+  id: string;
+  branchId?: string | null;
+  name: string;
+  description?: string | null;
+  includedServices: string[];
+  totalSessions: number;
+  validityDays: number;
+  price: string;
+  taxPercent: string;
+  active: boolean;
+};
+
 const appointmentStatuses: Array<{ label: string; value: AppointmentStatus }> = [
   { label: 'Requested', value: 'REQUESTED' },
   { label: 'Slot proposed', value: 'SLOT_PROPOSED' },
@@ -57,6 +70,38 @@ const appointmentTypeOptions = [
   { label: 'Clinic visit', value: 'CLINIC_VISIT' },
   { label: 'Video consultation', value: 'VIDEO_CONSULTATION' },
 ] as const;
+
+const bookingPlanOptions = [
+  { label: 'Consultation / checkup only', value: 'CONSULTATION' },
+  { label: 'Single treatment session', value: 'SINGLE_TREATMENT' },
+  { label: 'Treatment package', value: 'PACKAGE' },
+] as const;
+
+const STANDARD_CONSULTATION_MINUTES = 30;
+const STANDARD_CONSULTATION_BUFFER_MINUTES = 10;
+const STANDARD_CONSULTATION_RATE = 500;
+
+function moneyNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return 0;
+  const parsed = typeof value === 'number' ? value : Number(value.replace(/[^\d.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizedName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function packageMatchesService(packageMaster: PackageMaster, serviceName: string) {
+  const normalizedService = normalizedName(serviceName);
+  return packageMaster.includedServices.some((includedService) => {
+    const normalizedIncluded = normalizedName(includedService);
+    return normalizedService.includes(normalizedIncluded) || normalizedIncluded.includes(normalizedService);
+  });
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
+}
 
 function optionLabel<T extends string>(options: ReadonlyArray<{ label: string; value: T }>, value?: T | null) {
   return options.find((item) => item.value === value)?.label ?? value?.replaceAll('_', ' ').toLowerCase() ?? '-';
@@ -96,9 +141,12 @@ const appointmentSchema = z
     durationMinutes: z.coerce.number().int().min(5).max(480).optional(),
     bufferMinutes: z.coerce.number().int().min(0).max(120).optional(),
     doctorId: z.string().optional(),
-    therapistId: z.string().optional(),
     resourceId: z.string().optional(),
     equipmentId: z.string().optional(),
+    bookingPlan: z.enum(['CONSULTATION', 'SINGLE_TREATMENT', 'PACKAGE']).default('CONSULTATION'),
+    packageMasterId: z.string().optional(),
+    paymentStatus: z.enum(['NOT_PAID', 'PAID']).default('NOT_PAID'),
+    paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER']).optional(),
   })
   .refine((value) => value.resourceType !== 'TREATMENT_ROOM' || Boolean(value.roomNumber), {
     message: 'Select a treatment room',
@@ -283,17 +331,24 @@ export function AppointmentsView() {
       roomNumber: undefined,
       notes: '',
       serviceId: '',
-      durationMinutes: 30,
-      bufferMinutes: 0,
+      durationMinutes: STANDARD_CONSULTATION_MINUTES,
+      bufferMinutes: STANDARD_CONSULTATION_BUFFER_MINUTES,
       doctorId: '',
-      therapistId: '',
       resourceId: '',
       equipmentId: '',
+      bookingPlan: 'CONSULTATION',
+      packageMasterId: '',
+      paymentStatus: 'NOT_PAID',
+      paymentMode: undefined,
     },
   });
   const formBranchId = form.watch('branchId');
   const formResourceType = form.watch('resourceType');
   const formAppointmentAt = form.watch('appointmentAt');
+  const formServiceId = form.watch('serviceId');
+  const formPackageMasterId = form.watch('packageMasterId');
+  const formBookingPlan = form.watch('bookingPlan');
+  const formPaymentStatus = form.watch('paymentStatus');
   const formDurationMinutes = form.watch('durationMinutes') ?? 30;
   const formBufferMinutes = form.watch('bufferMinutes') ?? 0;
   const selectedRoomNumber = form.watch('roomNumber');
@@ -312,6 +367,59 @@ export function AppointmentsView() {
       ),
     enabled: Boolean(formDataBranchId),
   });
+  const packageMastersQuery = useQuery({
+    queryKey: ['appointment-package-masters', formDataBranchId],
+    queryFn: () =>
+      apiRequest<{ data: PackageMaster[] }>(
+        `/billing/package-masters${formDataBranchId ? `?branchId=${formDataBranchId}` : ''}`,
+      ),
+  });
+  const selectedService = servicesQuery.data?.data.find((service) => service.id === formServiceId);
+  const activePackageMasters = useMemo(
+    () => (packageMastersQuery.data?.data ?? []).filter((item) => item.active),
+    [packageMastersQuery.data?.data],
+  );
+  const availablePackageMasters = useMemo(
+    () => {
+      const branchMatches = activePackageMasters.filter((item) => !item.branchId || item.branchId === formDataBranchId);
+      return branchMatches.length ? branchMatches : activePackageMasters;
+    },
+    [activePackageMasters, formDataBranchId],
+  );
+  const matchingPackageMasters = useMemo(
+    () => selectedService
+      ? availablePackageMasters.filter((item) => {
+        return packageMatchesService(item, selectedService.name);
+      })
+      : availablePackageMasters,
+    [availablePackageMasters, selectedService],
+  );
+  const selectedPackage = availablePackageMasters.find((item) => item.id === formPackageMasterId);
+  const selectedServiceBase = selectedService
+    ? (() => {
+      const matchedPackage = availablePackageMasters.find((item) => packageMatchesService(item, selectedService.name));
+      return matchedPackage ? Math.round(moneyNumber(matchedPackage.price) / Math.max(1, matchedPackage.totalSessions)) : 0;
+    })()
+    : 0;
+  const selectedPackageBase = selectedPackage ? moneyNumber(selectedPackage.price) : 0;
+  const selectedPackageTax = selectedPackage ? Math.round((selectedPackageBase * moneyNumber(selectedPackage.taxPercent)) / 100) : 0;
+  const bookingTotal = formResourceType === 'CONSULTATION'
+    ? STANDARD_CONSULTATION_RATE
+    : formBookingPlan === 'PACKAGE'
+      ? selectedPackageBase + selectedPackageTax
+      : selectedServiceBase;
+  const treatmentBillingOptions = useMemo(() => {
+    const serviceOptions = (servicesQuery.data?.data ?? [])
+      .filter((service) => service.resourceType === 'TREATMENT_ROOM')
+      .map((service) => {
+        const matchedPackage = availablePackageMasters.find((item) => packageMatchesService(item, service.name));
+        const rate = matchedPackage ? Math.round(moneyNumber(matchedPackage.price) / Math.max(1, matchedPackage.totalSessions)) : 0;
+        return { kind: 'service' as const, id: service.id, label: `${service.category ? `${service.category} - ` : ''}${service.name}`, meta: `${service.durationMinutes} min${rate ? ` · approx ${formatCurrency(rate)}/session` : ''}`, rate };
+      });
+    const packageOptions = availablePackageMasters.map((item) => ({ kind: 'package' as const, id: item.id, label: item.name, meta: `${item.totalSessions} sessions · ${formatCurrency(moneyNumber(item.price))}`, rate: moneyNumber(item.price) }));
+    return { serviceOptions, packageOptions };
+  }, [availablePackageMasters, servicesQuery.data?.data]);
+  const selectedTreatmentBillingValue = formPackageMasterId ? `package:${formPackageMasterId}` : formServiceId ? `service:${formServiceId}` : '';
   const staffQuery = useQuery({
     queryKey: ['appointment-staff', formDataBranchId],
     queryFn: () =>
@@ -372,26 +480,58 @@ export function AppointmentsView() {
   }, [activeBranchId, editingAppointment, form]);
 
   useEffect(() => {
+    if (formResourceType !== 'CONSULTATION') return;
+    form.setValue('serviceId', '');
+    form.setValue('roomNumber', undefined);
+    form.setValue('packageMasterId', '');
+    form.setValue('bookingPlan', 'CONSULTATION');
+    form.setValue('durationMinutes', STANDARD_CONSULTATION_MINUTES);
+    form.setValue('bufferMinutes', STANDARD_CONSULTATION_BUFFER_MINUTES);
+  }, [form, formResourceType]);
+
+  useEffect(() => {
     if (formResourceType !== 'TREATMENT_ROOM' || !selectedRoomNumber) return;
     if (!availableRoomNumbers.includes(Number(selectedRoomNumber))) {
       form.setValue('roomNumber', undefined);
     }
   }, [availableRoomNumbers, form, formResourceType, selectedRoomNumber]);
 
+  useEffect(() => {
+    if (formBookingPlan !== 'PACKAGE') return;
+    if (formPackageMasterId && availablePackageMasters.some((item) => item.id === formPackageMasterId)) return;
+
+    const nextPackage = matchingPackageMasters[0] ?? availablePackageMasters[0];
+    if (nextPackage) {
+      form.setValue('packageMasterId', nextPackage.id, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [availablePackageMasters, form, formBookingPlan, formPackageMasterId, matchingPackageMasters]);
+
   const createAppointment = useMutation({
-    mutationFn: (values: AppointmentFormValues) =>
-      apiRequest<{ data: Appointment }>('/appointments', {
+    mutationFn: (values: AppointmentFormValues) => {
+      const packageMaster = packageMastersQuery.data?.data.find((item) => item.id === values.packageMasterId);
+      const bookingSummary = [
+        `Booking plan: ${bookingPlanOptions.find((item) => item.value === values.bookingPlan)?.label ?? values.bookingPlan}`,
+        values.resourceType === 'CONSULTATION' ? 'Visit: Standard consultation' : selectedService ? `Treatment: ${selectedService.name}` : null,
+        packageMaster ? `Package: ${packageMaster.name}` : null,
+        bookingTotal ? `Estimated total: ${formatCurrency(bookingTotal)}` : null,
+        values.paymentStatus === 'PAID' ? `Payment: Paid${values.paymentMode ? ` by ${values.paymentMode.replaceAll('_', ' ')}` : ''}` : 'Payment: Not paid',
+      ].filter(Boolean).join('\n');
+      return apiRequest<{ data: Appointment }>('/appointments', {
         method: 'POST',
         body: JSON.stringify({
           ...values,
-          notes: values.notes || undefined,
-          serviceId: values.serviceId || undefined,
+          notes: [bookingSummary, values.notes].filter(Boolean).join('\n\n') || undefined,
+          serviceId: values.resourceType === 'CONSULTATION' ? undefined : values.serviceId || undefined,
+          packageMasterId: values.resourceType === 'TREATMENT_ROOM' && values.bookingPlan === 'PACKAGE' ? values.packageMasterId || undefined : undefined,
+          estimatedAmount: bookingTotal || undefined,
+          paymentStatus: values.paymentStatus,
+          paymentMode: values.paymentMode || undefined,
           doctorId: values.doctorId || undefined,
-          therapistId: values.therapistId || undefined,
           resourceId: values.resourceId || undefined,
           equipmentId: values.equipmentId || undefined,
         }),
-      }),
+      });
+    },
     onSuccess: () => {
       form.reset({
         name: '',
@@ -405,12 +545,15 @@ export function AppointmentsView() {
         roomNumber: undefined,
         notes: '',
         serviceId: '',
-        durationMinutes: 30,
-        bufferMinutes: 0,
+        durationMinutes: STANDARD_CONSULTATION_MINUTES,
+        bufferMinutes: STANDARD_CONSULTATION_BUFFER_MINUTES,
         doctorId: '',
-        therapistId: '',
         resourceId: '',
         equipmentId: '',
+        bookingPlan: 'CONSULTATION',
+        packageMasterId: '',
+        paymentStatus: 'NOT_PAID',
+        paymentMode: undefined,
       });
       setShowAppointmentForm(false);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -426,13 +569,12 @@ export function AppointmentsView() {
       id: string;
       values: Omit<
         Partial<AppointmentFormValues>,
-        'roomNumber' | 'serviceId' | 'doctorId' | 'therapistId' | 'resourceId' | 'equipmentId'
+        'roomNumber' | 'serviceId' | 'doctorId' | 'resourceId' | 'equipmentId'
       > & {
         status?: AppointmentStatus;
         roomNumber?: number | null;
         serviceId?: string | null;
         doctorId?: string | null;
-        therapistId?: string | null;
         resourceId?: string | null;
         equipmentId?: string | null;
       };
@@ -466,12 +608,15 @@ export function AppointmentsView() {
       roomNumber: appointment.roomNumber ?? undefined,
       notes: appointment.notes ?? '',
       serviceId: appointment.serviceId ?? '',
-      durationMinutes: appointment.durationMinutes ?? 30,
-      bufferMinutes: appointment.bufferMinutes ?? 0,
+      durationMinutes: appointment.resourceType === 'CONSULTATION' ? STANDARD_CONSULTATION_MINUTES : appointment.durationMinutes ?? STANDARD_CONSULTATION_MINUTES,
+      bufferMinutes: appointment.resourceType === 'CONSULTATION' ? STANDARD_CONSULTATION_BUFFER_MINUTES : appointment.bufferMinutes ?? 0,
       doctorId: appointment.doctorId ?? '',
-      therapistId: appointment.therapistId ?? '',
       resourceId: appointment.resourceId ?? '',
       equipmentId: appointment.equipmentId ?? '',
+      bookingPlan: 'CONSULTATION',
+      packageMasterId: '',
+      paymentStatus: 'NOT_PAID',
+      paymentMode: undefined,
     });
   }
 
@@ -486,11 +631,10 @@ export function AppointmentsView() {
           resourceType: values.resourceType,
           roomNumber: values.resourceType === 'TREATMENT_ROOM' ? values.roomNumber : null,
           notes: values.notes || undefined,
-          serviceId: values.serviceId || null,
+          serviceId: values.resourceType === 'CONSULTATION' ? null : values.serviceId || null,
           durationMinutes: values.durationMinutes,
           bufferMinutes: values.bufferMinutes,
           doctorId: values.doctorId || null,
-          therapistId: values.therapistId || null,
           resourceId: values.resourceId || null,
           equipmentId: values.equipmentId || null,
         },
@@ -862,7 +1006,7 @@ export function AppointmentsView() {
             <h2 className="text-base font-semibold">
               {editingAppointment ? 'Reschedule Appointment' : 'Create New Appointment'}
             </h2>
-            <form className="mt-5 grid gap-5 lg:grid-cols-3" onSubmit={form.handleSubmit(onSubmit)}>
+            <form className="mt-5 grid gap-5 lg:grid-cols-3 [&>*]:min-w-0" onSubmit={form.handleSubmit(onSubmit)}>
               <label className="order-2 block space-y-2">
                 <span className="text-sm font-medium">Source</span>
                 <Select {...form.register('source')} disabled={Boolean(editingAppointment)}>
@@ -876,7 +1020,23 @@ export function AppointmentsView() {
               </label>
               <label className="order-8 block space-y-2">
                 <span className="text-sm font-medium">Visit purpose</span>
-                <Select {...form.register('resourceType')}>
+                <Select
+                  {...form.register('resourceType')}
+                  onChange={(event) => {
+                    const nextResourceType = event.target.value as AppointmentFormValues['resourceType'];
+                    form.setValue('resourceType', nextResourceType);
+                    if (nextResourceType === 'CONSULTATION') {
+                      form.setValue('serviceId', '');
+                      form.setValue('roomNumber', undefined);
+                      form.setValue('packageMasterId', '');
+                      form.setValue('bookingPlan', 'CONSULTATION');
+                      form.setValue('durationMinutes', STANDARD_CONSULTATION_MINUTES);
+                      form.setValue('bufferMinutes', STANDARD_CONSULTATION_BUFFER_MINUTES);
+                      return;
+                    }
+                    form.setValue('bookingPlan', 'SINGLE_TREATMENT');
+                  }}
+                >
                   {visitPurposeOptions.map((purpose) => (
                     <option key={purpose.value} value={purpose.value}>
                       {purpose.label}
@@ -910,31 +1070,70 @@ export function AppointmentsView() {
                   ) : null}
                 </label>
               ) : null}
-              <label className="order-9 block space-y-2">
-                <span className="text-sm font-medium">Service</span>
-                <Select
-                  {...form.register('serviceId')}
-                  disabled={!formDataBranchId}
-                  onChange={(event) => {
-                    const service = servicesQuery.data?.data.find(
-                      (item) => item.id === event.target.value,
-                    );
-                    form.setValue('serviceId', event.target.value);
-                    if (service) {
-                      form.setValue('durationMinutes', service.durationMinutes);
-                      form.setValue('bufferMinutes', service.bufferMinutes);
-                      form.setValue('resourceType', service.resourceType);
-                    }
-                  }}
-                >
-                  <option value="">{formDataBranchId ? 'Default consultation' : 'Select branch first'}</option>
-                  {servicesQuery.data?.data.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} · {service.durationMinutes} min
-                    </option>
-                  ))}
-                </Select>
-              </label>
+              {formResourceType === 'TREATMENT_ROOM' ? (
+                <label className="order-9 block space-y-2">
+                  <span className="text-sm font-medium">Treatment service</span>
+                  <Select
+                    value={selectedTreatmentBillingValue}
+                    disabled={!formDataBranchId}
+                    onChange={(event) => {
+                      const [kind, id] = event.target.value.split(':');
+                      if (!kind || !id) {
+                        form.setValue('serviceId', '');
+                        form.setValue('packageMasterId', '');
+                        form.setValue('bookingPlan', 'SINGLE_TREATMENT');
+                        return;
+                      }
+                      if (kind === 'package') {
+                        const packageMaster = availablePackageMasters.find((item) => item.id === id);
+                        const matchedService = packageMaster
+                          ? servicesQuery.data?.data.find((service) => service.resourceType === 'TREATMENT_ROOM' && packageMatchesService(packageMaster, service.name))
+                          : undefined;
+                        form.setValue('packageMasterId', id);
+                        form.setValue('bookingPlan', 'PACKAGE');
+                        if (matchedService) {
+                          form.setValue('serviceId', matchedService.id);
+                          form.setValue('durationMinutes', matchedService.durationMinutes);
+                          form.setValue('bufferMinutes', matchedService.bufferMinutes);
+                        }
+                        return;
+                      }
+                      const service = servicesQuery.data?.data.find((item) => item.id === id);
+                      form.setValue('serviceId', id);
+                      form.setValue('packageMasterId', '');
+                      form.setValue('bookingPlan', 'SINGLE_TREATMENT');
+                      if (service) {
+                        form.setValue('durationMinutes', service.durationMinutes);
+                        form.setValue('bufferMinutes', service.bufferMinutes);
+                        form.setValue('resourceType', service.resourceType);
+                      }
+                    }}
+                  >
+                    <option value="">{formDataBranchId ? 'Select treatment service' : 'Select branch first'}</option>
+                    {treatmentBillingOptions.serviceOptions.length ? (
+                      <optgroup label="Single treatment services">
+                        {treatmentBillingOptions.serviceOptions.map((option) => (
+                          <option key={option.id} value={`service:${option.id}`}>
+                            {option.label} · {option.meta}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {treatmentBillingOptions.packageOptions.length ? (
+                      <optgroup label="Treatment packages">
+                        {treatmentBillingOptions.packageOptions.map((option) => (
+                          <option key={option.id} value={`package:${option.id}`}>
+                            {option.label} · {option.meta}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </Select>
+                  {packageMastersQuery.isError ? (
+                    <span className="text-xs text-red-600">Treatment rates could not be loaded. Please try again.</span>
+                  ) : null}
+                </label>
+              ) : null}
               <label className="order-11 block space-y-2">
                 <span className="text-sm font-medium">Duration (minutes)</span>
                 <Input type="number" {...form.register('durationMinutes')} />
@@ -949,19 +1148,6 @@ export function AppointmentsView() {
                   <option value="">{formDataBranchId ? 'No doctor assigned' : 'Select branch first'}</option>
                   {staffQuery.data?.data
                     .filter((staff) => staff.role === 'ADMIN')
-                    .map((staff) => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.name}
-                      </option>
-                    ))}
-                </Select>
-              </label>
-              <label className="order-[14] block space-y-2">
-                <span className="text-sm font-medium">Assistant / therapist</span>
-                <Select {...form.register('therapistId')} disabled={!formDataBranchId}>
-                  <option value="">{formDataBranchId ? 'No assistant assigned' : 'Select branch first'}</option>
-                  {staffQuery.data?.data
-                    .filter((staff) => staff.role === 'RECEPTIONIST')
                     .map((staff) => (
                       <option key={staff.id} value={staff.id}>
                         {staff.name}
@@ -1001,10 +1187,12 @@ export function AppointmentsView() {
                     form.setValue('branchId', event.target.value);
                     form.setValue('serviceId', '');
                     form.setValue('doctorId', '');
-                    form.setValue('therapistId', '');
                     form.setValue('resourceId', '');
                     form.setValue('equipmentId', '');
                     form.setValue('roomNumber', undefined);
+                    form.setValue('packageMasterId', '');
+                    form.setValue('paymentStatus', 'NOT_PAID');
+                    form.setValue('paymentMode', undefined);
                   }}
                 >
                   <option value="">Select branch</option>
@@ -1033,12 +1221,59 @@ export function AppointmentsView() {
                 <span className="text-sm font-medium">Notes</span>
                 <Input placeholder="Special instructions or internal note" {...form.register('notes')} />
               </label>
+              <div className="order-[18] grid gap-3 rounded-xl border border-border bg-muted/20 p-4 lg:col-span-3 lg:grid-cols-[1fr_auto]">
+                <div>
+                  <div className="text-sm font-semibold">Booking estimate</div>
+                  <div className="mt-1 text-sm text-muted-foreground">
+                    {formResourceType === 'CONSULTATION' ? 'Standard consultation' : selectedService ? selectedService.name : 'No treatment selected'}
+                    {selectedPackage ? ` · ${selectedPackage.name}` : ''}
+                  </div>
+                  {formResourceType === 'CONSULTATION' ? (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      {STANDARD_CONSULTATION_MINUTES} min consultation · {STANDARD_CONSULTATION_BUFFER_MINUTES} min buffer
+                    </div>
+                  ) : selectedPackage ? (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Base {formatCurrency(selectedPackageBase)}
+                      {selectedPackageTax ? ` · GST ${formatCurrency(selectedPackageTax)}` : ''}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="text-left lg:text-right">
+                  <div className="text-xs text-muted-foreground">Total rate</div>
+                  <div className="text-2xl font-semibold">{formatCurrency(bookingTotal)}</div>
+                </div>
+                {bookingTotal > 0 ? (
+                  <div className="grid gap-3 lg:col-span-2 sm:grid-cols-2">
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium">Payment status</span>
+                      <Select {...form.register('paymentStatus')}>
+                        <option value="NOT_PAID">Not paid</option>
+                        <option value="PAID">Paid</option>
+                      </Select>
+                    </label>
+                    {formPaymentStatus === 'PAID' ? (
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium">Payment mode</span>
+                        <Select {...form.register('paymentMode')}>
+                          <option value="">Select mode</option>
+                          <option value="CASH">Cash</option>
+                          <option value="UPI">UPI</option>
+                          <option value="CARD">Card</option>
+                          <option value="BANK_TRANSFER">Bank transfer</option>
+                          <option value="OTHER">Other</option>
+                        </Select>
+                      </label>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               {createAppointment.error || updateAppointment.error ? (
-                <div className="order-[18] rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 lg:col-span-3">
+                <div className="order-[19] rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 lg:col-span-3">
                   {createAppointment.error?.message ?? updateAppointment.error?.message}
                 </div>
               ) : null}
-              <div className="order-[19] flex gap-3 lg:col-span-3">
+              <div className="order-[20] flex gap-3 lg:col-span-3">
                 <Button
                   type="submit"
                   disabled={createAppointment.isPending || updateAppointment.isPending}
@@ -1068,9 +1303,12 @@ export function AppointmentsView() {
                         durationMinutes: 30,
                         bufferMinutes: 0,
                         doctorId: '',
-                        therapistId: '',
                         resourceId: '',
                         equipmentId: '',
+                        bookingPlan: 'CONSULTATION',
+                        packageMasterId: '',
+                        paymentStatus: 'NOT_PAID',
+                        paymentMode: undefined,
                       });
                     }}
                   >
@@ -1098,9 +1336,12 @@ export function AppointmentsView() {
                         durationMinutes: 30,
                         bufferMinutes: 0,
                         doctorId: '',
-                        therapistId: '',
                         resourceId: '',
                         equipmentId: '',
+                        bookingPlan: 'CONSULTATION',
+                        packageMasterId: '',
+                        paymentStatus: 'NOT_PAID',
+                        paymentMode: undefined,
                       });
                     }}
                   >

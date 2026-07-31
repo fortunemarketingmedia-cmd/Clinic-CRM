@@ -26,12 +26,13 @@ export const clinicalRepository = {
     packageId?: string;
   }) {
     return prisma.$transaction(async (tx) => {
+      let packageBefore: Awaited<ReturnType<typeof tx.treatmentPackage.findFirst>> = null;
       if (data.packageId) {
-        const treatmentPackage = await tx.treatmentPackage.findFirst({
+        packageBefore = await tx.treatmentPackage.findFirst({
           where: { id: data.packageId, patientId },
         });
-        if (!treatmentPackage) throw new Error('Treatment package not found for this patient');
-        if (treatmentPackage.status !== 'ACTIVE' || treatmentPackage.completedSessions + treatmentPackage.reservedSessions >= treatmentPackage.totalSessions) {
+        if (!packageBefore) throw new Error('Treatment package not found for this patient');
+        if (packageBefore.status !== 'ACTIVE' || packageBefore.completedSessions + packageBefore.reservedSessions >= packageBefore.totalSessions) {
           throw new Error('An active package with remaining sessions is required');
         }
       }
@@ -43,7 +44,10 @@ export const clinicalRepository = {
       if (data.packageId) {
         const updated = await tx.treatmentPackage.update({
           where: { id: data.packageId },
-          data: { completedSessions: { increment: 1 } },
+          data: {
+            completedSessions: { increment: 1 },
+            status: packageBefore && packageBefore.completedSessions + 1 >= packageBefore.totalSessions ? 'COMPLETED' : 'ACTIVE',
+          },
         });
         await tx.packageSessionLedger.create({ data: { patientPackageId: updated.id, action: 'SESSION_CONSUMPTION', sessionDelta: -1, consumedDelta: 1, balanceRemaining: Math.max(0, updated.totalSessions - updated.completedSessions - updated.reservedSessions), effectiveAt: data.visitDate, notes: `Legacy session ${session.id} consumption`, metadata: { legacySessionId: session.id } } });
       }
@@ -72,11 +76,65 @@ export const clinicalRepository = {
     prescription?: Prisma.InputJsonValue;
     notes?: string;
     followupDate?: Date;
+    packageId?: string;
   }>) {
-    return prisma.session.update({
-      where: { id: sessionId, patientId },
-      data,
-      include: { package: true, files: true, appointment: { include: { branch: true } } },
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.session.findUniqueOrThrow({ where: { id: sessionId } });
+      if (existing.patientId !== patientId) throw new Error('Session does not belong to this patient');
+
+      if (data.packageId !== undefined && data.packageId !== existing.packageId) {
+        if (existing.packageId) {
+          const restored = await tx.treatmentPackage.update({
+            where: { id: existing.packageId },
+            data: { completedSessions: { decrement: 1 }, status: 'ACTIVE' },
+          });
+          await tx.packageSessionLedger.create({
+            data: {
+              patientPackageId: restored.id,
+              action: 'SESSION_REVERSAL',
+              sessionDelta: 1,
+              consumedDelta: -1,
+              balanceRemaining: Math.max(0, restored.totalSessions - restored.completedSessions - restored.reservedSessions),
+              effectiveAt: new Date(),
+              notes: `Treatment session ${sessionId} package changed`,
+              metadata: { legacySessionId: sessionId },
+            },
+          });
+        }
+
+        if (data.packageId) {
+          const nextPackage = await tx.treatmentPackage.findFirst({ where: { id: data.packageId, patientId } });
+          if (!nextPackage) throw new Error('Treatment package not found for this patient');
+          if (nextPackage.status !== 'ACTIVE' || nextPackage.completedSessions + nextPackage.reservedSessions >= nextPackage.totalSessions) {
+            throw new Error('An active package with remaining sessions is required');
+          }
+          const consumed = await tx.treatmentPackage.update({
+            where: { id: data.packageId },
+            data: {
+              completedSessions: { increment: 1 },
+              status: nextPackage.completedSessions + 1 >= nextPackage.totalSessions ? 'COMPLETED' : 'ACTIVE',
+            },
+          });
+          await tx.packageSessionLedger.create({
+            data: {
+              patientPackageId: consumed.id,
+              action: 'SESSION_CONSUMPTION',
+              sessionDelta: -1,
+              consumedDelta: 1,
+              balanceRemaining: Math.max(0, consumed.totalSessions - consumed.completedSessions - consumed.reservedSessions),
+              effectiveAt: data.visitDate ?? existing.visitDate,
+              notes: `Treatment session ${sessionId} package linked`,
+              metadata: { legacySessionId: sessionId },
+            },
+          });
+        }
+      }
+
+      return tx.session.update({
+        where: { id: sessionId },
+        data,
+        include: { package: true, files: true, appointment: { include: { branch: true } } },
+      });
     });
   },
 

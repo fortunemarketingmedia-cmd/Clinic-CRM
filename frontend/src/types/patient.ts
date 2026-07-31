@@ -58,6 +58,7 @@ export type PatientSession = {
   prescription?: PrescriptionMedicine[] | null;
   notes?: string | null;
   followupDate?: string | null;
+  packageId?: string | null;
   package?: TreatmentPackage | null;
   files?: PatientFile[];
 };

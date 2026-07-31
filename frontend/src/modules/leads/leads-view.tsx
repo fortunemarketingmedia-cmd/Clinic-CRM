@@ -26,9 +26,7 @@ const leadStatuses: Array<{ label: string; value: LeadStatus }> = [
   { label: 'Connected', value: 'CONNECTED' },
   { label: 'Qualified', value: 'QUALIFIED' },
   { label: 'Appointment proposed', value: 'APPOINTMENT_PROPOSED' },
-  { label: 'Appointment booked', value: 'APPOINTMENT_BOOKED' },
   { label: 'Nurturing', value: 'NURTURING' },
-  { label: 'Converted', value: 'CONVERTED' },
   { label: 'Lost', value: 'LOST' },
   { label: 'Disqualified', value: 'DISQUALIFIED' },
 ];
@@ -471,7 +469,7 @@ export function LeadsView() {
       sourceRows,
       statusRows,
       campaignRows: Array.from(campaignCounts.values()).sort((a, b) => b.value - a.value).slice(0, 5),
-      bookedOrConfirmed: leads.filter((lead) => ['APPOINTMENT_BOOKED', 'CONVERTED'].includes(lead.status)).length,
+      qualified: leads.filter((lead) => lead.status === 'QUALIFIED').length,
       open: leads.filter((lead) => !['CONVERTED', 'LOST', 'DISQUALIFIED', 'CANCELLED'].includes(lead.status)).length,
       adAttributed: leads.filter((lead) => lead.source === 'GOOGLE_ADS' || lead.source === 'META_ADS' || (lead.adLeads?.length ?? 0) > 0).length,
     };
@@ -530,8 +528,8 @@ export function LeadsView() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Metric label="Total leads" value={leadAnalytics.total} />
           <Metric label="Open leads" value={leadAnalytics.open} />
-          <Metric label="Booked / confirmed" value={leadAnalytics.bookedOrConfirmed} />
-          <Metric label="Conversion %" value={percent(leadAnalytics.bookedOrConfirmed, leadAnalytics.total)} suffix="%" />
+          <Metric label="Qualified leads" value={leadAnalytics.qualified} />
+          <Metric label="Qualification %" value={percent(leadAnalytics.qualified, leadAnalytics.total)} suffix="%" />
           <Metric label="Ad attributed" value={leadAnalytics.adAttributed} />
         </div>
 

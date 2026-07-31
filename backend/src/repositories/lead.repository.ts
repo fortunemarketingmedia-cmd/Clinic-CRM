@@ -13,6 +13,14 @@ type LeadFilters = {
   role: Role;
 };
 
+const clientPipelineStatuses: LeadStatus[] = [
+  'APPOINTMENT_BOOKED',
+  'BOOKED',
+  'CONFIRMED',
+  'ARRIVED',
+  'CONVERTED',
+];
+
 export const leadRepository = {
   createQrToken() {
     return crypto.randomBytes(24).toString('hex');
@@ -23,7 +31,7 @@ export const leadRepository = {
       where: {
         branchId: filters.branchId,
         source: filters.source,
-        status: filters.status ?? (filters.includeClosed ? undefined : { not: 'CONVERTED' }),
+        status: filters.status ?? (filters.includeClosed ? undefined : { notIn: clientPipelineStatuses }),
         createdAt: filters.createdFrom || filters.createdTo
           ? {
               gte: filters.createdFrom,

@@ -27,7 +27,7 @@ export type Patient360 = Patient & {
   procedureSessions?: ProcedureSession[];
   prescriptions?: ClinicalPrescription[];
   packages: TreatmentPackage[];
-  invoices: Array<{ id: string; invoiceNo: string; totalAmount: string; status: string; invoiceDate: string; payments: Array<{ id: string; amount: string; paidAt: string }> }>;
+  invoices: Array<{ id: string; invoiceNo: string; totalAmount: string; paidAmount?: string; outstandingAmount?: string; status: string; invoiceDate: string; items?: Array<{ id: string; description: string; quantity: string; unitPrice: string; totalAmount: string }>; payments: Array<{ id: string; amount: string; paidAt: string; mode?: string }> }>;
   files: PatientFile[];
   timelineEvents: Array<{ id: string; type: string; title: string; description?: string | null; createdAt: string }>;
   summary: { outstandingAmount: number; sessionsRemaining: number; activeTreatmentPlan?: TreatmentPlan | null; lastVisit?: Appointment | null; nextAppointment?: Appointment | null };

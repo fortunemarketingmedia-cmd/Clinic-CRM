@@ -4,6 +4,10 @@ import { PrismaClient, Role } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+function catalogId(prefix: string, name: string) {
+  return `${prefix}_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)}`;
+}
+
 async function main() {
   const demoSeedIds = {
     patientIds: ['demo_client_vaishnavi', 'demo_client_rohit', 'demo_client_ananya', 'demo_client_sameer'],
@@ -106,13 +110,88 @@ async function main() {
     update: { durationMinutes: 30, bufferMinutes: 0, active: true },
     create: { id: 'service_consultation', name: 'Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 0 },
   });
-  const waitlistServices = [
-    { id: 'service_skin_consultation', name: 'Skin Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 10, resourceType: 'CONSULTATION' as const },
-    { id: 'service_hair_consultation', name: 'Hair Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 10, resourceType: 'CONSULTATION' as const },
-    { id: 'service_laser_session', name: 'Laser Treatment Session', category: 'Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
-    { id: 'service_skin_procedure', name: 'Skin Procedure', category: 'Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
-  ];
-  for (const service of waitlistServices) {
+  const rateCardServices = [
+    { name: 'Skin Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 10, resourceType: 'CONSULTATION' as const },
+    { name: 'Hair Consultation', category: 'Consultation', durationMinutes: 30, bufferMinutes: 10, resourceType: 'CONSULTATION' as const },
+    { name: 'MNRF / CO2 Fractional', category: 'Acne Scar Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'PRP Face', category: 'Acne Scar Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Exosomes + Dermapen', category: 'Acne Scar Treatment', durationMinutes: 75, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Dermaroller Face', category: 'Acne Scar Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Dermapen Face', category: 'Acne Scar Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'PRP Hair', category: 'Hair Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Growth Factor (GFC)', category: 'Hair Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Hair Threads', category: 'Hair Treatment', durationMinutes: 90, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Meso Therapy', category: 'Hair Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Voluma / Volift Filler', category: 'Skin Tightening Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Volbella Filler', category: 'Skin Tightening Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Skin Vive Booster', category: 'Skin Tightening Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Profhilo', category: 'Skin Tightening Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Botox', category: 'Skin Tightening Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Photo Facial', category: 'Skin Tightening Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'HIFU Lower Face', category: 'Skin Tightening Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'HIFU Lower Face & Neck', category: 'Skin Tightening Treatment', durationMinutes: 75, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'HIFU Eyes', category: 'Skin Tightening Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'HIFU Full Neck', category: 'Skin Tightening Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'HIFU Full Face', category: 'Skin Tightening Treatment', durationMinutes: 90, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'HIFU Arm', category: 'Skin Tightening Treatment', durationMinutes: 75, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Chemical Peel Face', category: 'Glow Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Chemical Peel Face & Neck', category: 'Glow Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Charcoal Facial', category: 'Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Oxygeneo + Q Switch', category: 'Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Oxygeneo Facial', category: 'Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Hydrafacial', category: 'Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Skin Glow (Polishing + Peel + Mask)', category: 'Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Q Switch Glow', category: 'Glow Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Tattoo Removal', category: 'Glow Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Deep Peel CO2 Fractional', category: 'Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Hand Peel + Polishing', category: 'Body Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Underarms Peel', category: 'Body Glow Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Underarms Q Switch + Peel', category: 'Body Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Bikini Peel', category: 'Body Glow Treatment', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Buttock Peel', category: 'Body Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Half Back Peel + Polishing', category: 'Body Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Full Back Peel + Polishing', category: 'Body Glow Treatment', durationMinutes: 90, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Half Legs Peel + Polishing', category: 'Body Glow Treatment', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Full Legs Peel + Polishing', category: 'Body Glow Treatment', durationMinutes: 90, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Glutathione IV Infusion', category: 'Glow Drip', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Reglow Drip', category: 'Glow Drip', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Ageless Drip', category: 'Glow Drip', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Corn Removal', category: 'Surgery', durationMinutes: 60, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Xanthelasma', category: 'Surgery', durationMinutes: 75, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'RF Ablation', category: 'Surgery', durationMinutes: 60, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Baby Ear Piercing', category: 'Surgery', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Adult Ear Piercing', category: 'Surgery', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Ear Lobe Repair', category: 'Surgery', durationMinutes: 90, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Nail Surgery Partial Nail Avulsion', category: 'Surgery', durationMinutes: 75, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Intralesional Injections', category: 'Surgery', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Microblading Eyebrow', category: 'Surgery', durationMinutes: 90, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Upper Lip', category: 'Laser Hair Reduction Face', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Side Locks', category: 'Laser Hair Reduction Face', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Forehead', category: 'Laser Hair Reduction Face', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Chin', category: 'Laser Hair Reduction Face', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Lower Face', category: 'Laser Hair Reduction Face', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Full Face', category: 'Laser Hair Reduction Face', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Beard Shaping', category: 'Laser Hair Reduction Face', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Ear Lobe', category: 'Laser Hair Reduction Face', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Mid Brow', category: 'Laser Hair Reduction Face', durationMinutes: 20, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Underarms', category: 'Laser Hair Reduction Body', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Full Hands', category: 'Laser Hair Reduction Body', durationMinutes: 75, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Half Hands', category: 'Laser Hair Reduction Body', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Full Legs', category: 'Laser Hair Reduction Body', durationMinutes: 90, bufferMinutes: 20, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Half Legs', category: 'Laser Hair Reduction Body', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Full Front', category: 'Laser Hair Reduction Body', durationMinutes: 75, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Half Chest', category: 'Laser Hair Reduction Body', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Full Back', category: 'Laser Hair Reduction Body', durationMinutes: 75, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Half Back', category: 'Laser Hair Reduction Body', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Abdomen', category: 'Laser Hair Reduction Body', durationMinutes: 45, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Mid Abdomen Line', category: 'Laser Hair Reduction Body', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Bikini', category: 'Laser Hair Reduction Body', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Bikini Line', category: 'Laser Hair Reduction Body', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Buttock', category: 'Laser Hair Reduction Body', durationMinutes: 60, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Periareola', category: 'Laser Hair Reduction Body', durationMinutes: 30, bufferMinutes: 10, resourceType: 'TREATMENT_ROOM' as const },
+    { name: 'Laser Hair Reduction - Full Body Five Parts', category: 'Laser Hair Reduction Body', durationMinutes: 150, bufferMinutes: 30, resourceType: 'TREATMENT_ROOM' as const },
+  ].map((service) => ({ id: catalogId('service', service.name), ...service }));
+  for (const service of rateCardServices) {
     await prisma.clinicService.upsert({ where: { id: service.id }, update: { ...service, active: true }, create: { ...service, active: true } });
   }
 
@@ -154,11 +233,33 @@ async function main() {
   for (const template of templates) await prisma.clinicalTemplate.upsert({ where: { id: template.id }, update: { ...template, active: true }, create: { ...template, active: true } });
 
   const medicines = [
-    { id: 'medicine_cetirizine_10', name: 'Cetirizine', genericName: 'Cetirizine', strength: '10 mg', form: 'Tablet' },
-    { id: 'medicine_doxycycline_100', name: 'Doxycycline', genericName: 'Doxycycline', strength: '100 mg', form: 'Capsule' },
-    { id: 'medicine_tretinoin_0025', name: 'Tretinoin', genericName: 'Tretinoin', strength: '0.025%', form: 'Cream' },
-  ];
-  for (const medicine of medicines) await prisma.medicine.upsert({ where: { id: medicine.id }, update: { ...medicine, status: 'ACTIVE' }, create: { ...medicine, status: 'ACTIVE' } });
+    { name: 'Cetirizine', genericName: 'Cetirizine', strength: '10 mg', form: 'Tablet' },
+    { name: 'Levocetirizine', genericName: 'Levocetirizine', strength: '5 mg', form: 'Tablet' },
+    { name: 'Doxycycline', genericName: 'Doxycycline', strength: '100 mg', form: 'Capsule' },
+    { name: 'Azithromycin', genericName: 'Azithromycin', strength: '500 mg', form: 'Tablet' },
+    { name: 'Amoxicillin + Clavulanate', genericName: 'Amoxicillin clavulanate', strength: '625 mg', form: 'Tablet' },
+    { name: 'Isotretinoin', genericName: 'Isotretinoin', strength: '10 mg', form: 'Capsule' },
+    { name: 'Isotretinoin', genericName: 'Isotretinoin', strength: '20 mg', form: 'Capsule' },
+    { name: 'Tretinoin', genericName: 'Tretinoin', strength: '0.025%', form: 'Cream' },
+    { name: 'Adapalene', genericName: 'Adapalene', strength: '0.1%', form: 'Gel' },
+    { name: 'Clindamycin', genericName: 'Clindamycin', strength: '1%', form: 'Gel' },
+    { name: 'Benzoyl Peroxide', genericName: 'Benzoyl Peroxide', strength: '2.5%', form: 'Gel' },
+    { name: 'Benzoyl Peroxide', genericName: 'Benzoyl Peroxide', strength: '5%', form: 'Gel' },
+    { name: 'Kojic Acid + Vitamin C', genericName: 'Kojic Acid Combination', strength: 'As directed', form: 'Cream' },
+    { name: 'Hydroquinone', genericName: 'Hydroquinone', strength: '2%', form: 'Cream' },
+    { name: 'Mometasone', genericName: 'Mometasone', strength: '0.1%', form: 'Cream' },
+    { name: 'Fusidic Acid', genericName: 'Fusidic Acid', strength: '2%', form: 'Cream' },
+    { name: 'Mupirocin', genericName: 'Mupirocin', strength: '2%', form: 'Ointment' },
+    { name: 'Ketoconazole', genericName: 'Ketoconazole', strength: '2%', form: 'Shampoo' },
+    { name: 'Minoxidil', genericName: 'Minoxidil', strength: '5%', form: 'Solution' },
+    { name: 'Finasteride', genericName: 'Finasteride', strength: '1 mg', form: 'Tablet' },
+    { name: 'Biotin', genericName: 'Biotin', strength: '10 mg', form: 'Tablet' },
+    { name: 'Vitamin D3', genericName: 'Cholecalciferol', strength: '60000 IU', form: 'Sachet' },
+    { name: 'Iron + Folic Acid', genericName: 'Iron folic acid', strength: 'As directed', form: 'Tablet' },
+    { name: 'Sunscreen SPF 50', genericName: 'Broad spectrum sunscreen', strength: 'SPF 50', form: 'Gel/Cream' },
+    { name: 'Moisturizer', genericName: 'Barrier repair moisturizer', strength: 'As directed', form: 'Cream' },
+  ].map((medicine) => ({ id: catalogId('medicine', `${medicine.name}_${medicine.strength}_${medicine.form}`), ...medicine }));
+  for (const medicine of medicines) await prisma.medicine.upsert({ where: { name_strength: { name: medicine.name, strength: medicine.strength } }, update: { ...medicine, status: 'ACTIVE' }, create: { ...medicine, status: 'ACTIVE' } });
 
   const registrationForm = await prisma.formTemplate.upsert({
     where: { id: 'form_patient_registration' },
@@ -201,12 +302,68 @@ async function main() {
     await prisma.consentTemplateVersion.upsert({ where: { templateId_version: { templateId: template.id, version: 1 } }, update: {}, create: { templateId: template.id, version: 1, consentText: template.consentText, snapshot: { key: template.key, name: template.name, type: template.type, language: template.language, consentText: template.consentText, requiresGuardian: template.requiresGuardian, requiresWitness: template.requiresWitness, version: 1 } } });
   }
 
+  await prisma.packageMaster.updateMany({ where: { id: { in: ['package_master_skin_6', 'package_master_hair_8'] } }, data: { active: false } });
   const packageMasters = [
-    { id: 'package_master_skin_6', name: 'Skin Rejuvenation — 6 Sessions', description: 'Starter package for a six-session skin treatment plan.', includedServices: ['Treatment Session'], totalSessions: 6, validityDays: 180, price: 30000, taxPercent: 18, maximumDiscountPercent: 10 },
-    { id: 'package_master_hair_8', name: 'Hair Restoration — 8 Sessions', description: 'Eight-session hair restoration treatment package.', includedServices: ['Consultation', 'Treatment Session'], totalSessions: 8, validityDays: 240, price: 48000, taxPercent: 18, maximumDiscountPercent: 10 },
-  ];
+    { name: 'MNRF / CO2 Fractional - 3 Sessions', category: 'Acne Scar Treatment', includedServices: ['MNRF / CO2 Fractional'], totalSessions: 3, price: 16200 },
+    { name: 'PRP Face - 3 Sessions', category: 'Acne Scar Treatment', includedServices: ['PRP Face'], totalSessions: 3, price: 12500 },
+    { name: 'Exosomes + Dermapen - 3 Sessions', category: 'Acne Scar Treatment', includedServices: ['Exosomes + Dermapen'], totalSessions: 3, price: 20000 },
+    { name: 'Dermaroller Face - 3 Sessions', category: 'Acne Scar Treatment', includedServices: ['Dermaroller Face'], totalSessions: 3, price: 10200 },
+    { name: 'Dermapen Face - 3 Sessions', category: 'Acne Scar Treatment', includedServices: ['Dermapen Face'], totalSessions: 3, price: 10200 },
+    { name: 'PRP Hair - 3 Sessions', category: 'Hair Treatment', includedServices: ['PRP Hair'], totalSessions: 3, price: 12500 },
+    { name: 'Growth Factor (GFC) - 3 Sessions', category: 'Hair Treatment', includedServices: ['Growth Factor (GFC)'], totalSessions: 3, price: 18900 },
+    { name: 'Meso Therapy - 4 Sessions', category: 'Hair Treatment', includedServices: ['Meso Therapy'], totalSessions: 4, price: 10000 },
+    { name: 'Photo Facial - 6 Sessions', category: 'Skin Tightening Treatment', includedServices: ['Photo Facial'], totalSessions: 6, price: 18900 },
+    { name: 'Voluma / Volift Filler - 2 Syringes', category: 'Skin Tightening Treatment', includedServices: ['Voluma / Volift Filler'], totalSessions: 2, price: 50000 },
+    { name: 'Chemical Peel Face - 4 Sessions', category: 'Glow Treatment', includedServices: ['Chemical Peel Face'], totalSessions: 4, price: 7200 },
+    { name: 'Chemical Peel Face & Neck - 4 Sessions', category: 'Glow Treatment', includedServices: ['Chemical Peel Face & Neck'], totalSessions: 4, price: 9000 },
+    { name: 'Charcoal Facial - 4 Sessions', category: 'Glow Treatment', includedServices: ['Charcoal Facial'], totalSessions: 4, price: 16200 },
+    { name: 'Oxygeneo + Q Switch - 4 Sessions', category: 'Glow Treatment', includedServices: ['Oxygeneo + Q Switch'], totalSessions: 4, price: 16200 },
+    { name: 'Oxygeneo Facial - 4 Sessions', category: 'Glow Treatment', includedServices: ['Oxygeneo Facial'], totalSessions: 4, price: 12600 },
+    { name: 'Hydrafacial - 4 Sessions', category: 'Glow Treatment', includedServices: ['Hydrafacial'], totalSessions: 4, price: 12600 },
+    { name: 'Skin Glow - 4 Sessions', category: 'Glow Treatment', includedServices: ['Skin Glow (Polishing + Peel + Mask)'], totalSessions: 4, price: 9000 },
+    { name: 'Q Switch Glow - 4 Sessions', category: 'Glow Treatment', includedServices: ['Q Switch Glow'], totalSessions: 4, price: 12600 },
+    { name: 'Deep Peel CO2 Fractional - 3 Sessions', category: 'Glow Treatment', includedServices: ['Deep Peel CO2 Fractional'], totalSessions: 3, price: 10800 },
+    { name: 'Hand Peel + Polishing - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Hand Peel + Polishing'], totalSessions: 4, price: 14400 },
+    { name: 'Underarms Peel - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Underarms Peel'], totalSessions: 4, price: 9000 },
+    { name: 'Underarms Q Switch + Peel - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Underarms Q Switch + Peel'], totalSessions: 4, price: 12600 },
+    { name: 'Bikini Peel - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Bikini Peel'], totalSessions: 4, price: 9000 },
+    { name: 'Buttock Peel - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Buttock Peel'], totalSessions: 4, price: 14400 },
+    { name: 'Half Back Peel + Polishing - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Half Back Peel + Polishing'], totalSessions: 4, price: 10800 },
+    { name: 'Full Back Peel + Polishing - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Full Back Peel + Polishing'], totalSessions: 4, price: 21600 },
+    { name: 'Half Legs Peel + Polishing - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Half Legs Peel + Polishing'], totalSessions: 4, price: 14400 },
+    { name: 'Full Legs Peel + Polishing - 4 Sessions', category: 'Body Glow Treatment', includedServices: ['Full Legs Peel + Polishing'], totalSessions: 4, price: 21600 },
+    { name: 'Glutathione IV Infusion - 4 Sessions', category: 'Glow Drip', includedServices: ['Glutathione IV Infusion'], totalSessions: 4, price: 18000 },
+    { name: 'Reglow Drip - 4 Sessions', category: 'Glow Drip', includedServices: ['Reglow Drip'], totalSessions: 4, price: 23400 },
+    { name: 'Ageless Drip - 4 Sessions', category: 'Glow Drip', includedServices: ['Ageless Drip'], totalSessions: 4, price: 9000 },
+    { name: 'Laser Upper Lip - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Upper Lip'], totalSessions: 6, price: 10000 },
+    { name: 'Laser Side Locks - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Side Locks'], totalSessions: 6, price: 10000 },
+    { name: 'Laser Forehead - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Forehead'], totalSessions: 6, price: 10000 },
+    { name: 'Laser Chin - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Chin'], totalSessions: 6, price: 12750 },
+    { name: 'Laser Lower Face - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Lower Face'], totalSessions: 6, price: 25500 },
+    { name: 'Laser Full Face - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Full Face'], totalSessions: 6, price: 33150 },
+    { name: 'Laser Beard Shaping - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Beard Shaping'], totalSessions: 6, price: 16320 },
+    { name: 'Laser Ear Lobe - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Ear Lobe'], totalSessions: 6, price: 10000 },
+    { name: 'Laser Mid Brow - 6 Sessions', category: 'Laser Hair Reduction Face', includedServices: ['Laser Hair Reduction - Mid Brow'], totalSessions: 6, price: 5000 },
+    { name: 'Laser Underarms - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Underarms'], totalSessions: 6, price: 12500 },
+    { name: 'Laser Full Hands - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Full Hands'], totalSessions: 6, price: 35700 },
+    { name: 'Laser Half Hands - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Half Hands'], totalSessions: 6, price: 25500 },
+    { name: 'Laser Full Legs - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Full Legs'], totalSessions: 6, price: 45900 },
+    { name: 'Laser Half Legs - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Half Legs'], totalSessions: 6, price: 25500 },
+    { name: 'Laser Full Front - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Full Front'], totalSessions: 6, price: 40800 },
+    { name: 'Laser Half Chest - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Half Chest'], totalSessions: 6, price: 20400 },
+    { name: 'Laser Full Back - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Full Back'], totalSessions: 6, price: 40800 },
+    { name: 'Laser Half Back - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Half Back'], totalSessions: 6, price: 20400 },
+    { name: 'Laser Abdomen - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Abdomen'], totalSessions: 6, price: 20400 },
+    { name: 'Laser Mid Abdomen Line - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Mid Abdomen Line'], totalSessions: 6, price: 10000 },
+    { name: 'Laser Bikini - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Bikini'], totalSessions: 6, price: 25500 },
+    { name: 'Laser Bikini Line - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Bikini Line'], totalSessions: 6, price: 10000 },
+    { name: 'Laser Buttock - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Buttock'], totalSessions: 6, price: 25500 },
+    { name: 'Laser Periareola - 6 Sessions', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Periareola'], totalSessions: 6, price: 10000 },
+    { name: 'Laser Full Body Five Parts', category: 'Laser Hair Reduction Body', includedServices: ['Laser Hair Reduction - Lower Face', 'Laser Hair Reduction - Underarms', 'Laser Hair Reduction - Full Hands', 'Laser Hair Reduction - Full Legs', 'Laser Hair Reduction - Bikini'], totalSessions: 6, price: 120000 },
+  ].map((packageMaster) => ({ id: catalogId('package_master', packageMaster.name), ...packageMaster, validityDays: packageMaster.totalSessions >= 6 ? 365 : 180, taxPercent: 18, maximumDiscountPercent: 10 }));
   for (const packageMaster of packageMasters) {
-    await prisma.packageMaster.upsert({ where: { id: packageMaster.id }, update: { ...packageMaster, active: true }, create: { ...packageMaster, active: true, transferRules: 'Manager approval required.', pauseRules: 'One pause of up to 30 days.', extensionRules: 'Manager approval and documented reason required.', cancellationRules: 'Subject to consumed sessions and signed agreement.', refundRules: 'Refunds require approval and package-ledger entry.' } });
+    const { category, ...data } = packageMaster;
+    await prisma.packageMaster.upsert({ where: { id: data.id }, update: { ...data, description: `${category} package from latest Revive rate list.`, active: true }, create: { ...data, description: `${category} package from latest Revive rate list.`, active: true, transferRules: 'Manager approval required.', pauseRules: 'One pause of up to 30 days.', extensionRules: 'Manager approval and documented reason required.', cancellationRules: 'Subject to consumed sessions and signed agreement.', refundRules: 'Refunds require approval and package-ledger entry.' } });
   }
 
   const appointmentBackfillRecords = await prisma.appointment.findMany({

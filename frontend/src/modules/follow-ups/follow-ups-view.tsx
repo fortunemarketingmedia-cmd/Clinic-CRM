@@ -86,14 +86,6 @@ const stages: PipelineStage[] = [
     marker: 'bg-indigo-500',
   },
   {
-    id: 'booked',
-    label: 'Appointment Booked',
-    description: 'Visit confirmed',
-    target: 'APPOINTMENT_BOOKED',
-    statuses: ['APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED', 'ARRIVED'],
-    marker: 'bg-emerald-500',
-  },
-  {
     id: 'closed',
     label: 'Closed',
     description: 'Won, lost or disqualified',
@@ -390,7 +382,10 @@ export function FollowUpsView() {
       )}
 
       <div className="-mx-4 overflow-x-auto px-4 pb-3 md:-mx-6 md:px-6 xl:-mx-8 xl:px-8">
-        <div className="grid min-w-[1120px] grid-cols-6 overflow-hidden rounded-lg border border-border bg-muted/20">
+        <div
+          className="grid min-w-[980px] overflow-hidden rounded-lg border border-border bg-muted/20"
+          style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(190px, 1fr))` }}
+        >
           {stages.map((stage) => {
             const stageLeads = filteredLeads.filter((lead) => stage.statuses.includes(lead.status));
             const isDropTarget = dropStageId === stage.id;
@@ -404,7 +399,7 @@ export function FollowUpsView() {
                 }}
                 onDrop={(event) => handleDrop(event, stage)}
                 className={cn(
-                  'min-h-[440px] border-l border-border p-2 first:border-l-0 transition',
+                  'min-h-[260px] border-l border-border p-2 first:border-l-0 transition',
                   isDropTarget && 'bg-primary/5 ring-2 ring-inset ring-primary/20',
                 )}
               >
@@ -421,7 +416,7 @@ export function FollowUpsView() {
                   </span>
                 </div>
 
-                <div className="min-h-32 space-y-2">
+                <div className="space-y-2">
                   {stageLeads.map((lead) => (
                     <LeadCard
                       key={lead.id}
@@ -441,7 +436,7 @@ export function FollowUpsView() {
                   ))}
                   {!stageLeads.length && (
                     <div className={cn(
-                      'flex min-h-20 items-center justify-center rounded-md border border-dashed border-border px-3 text-center text-[11px] text-muted-foreground',
+                      'flex min-h-16 items-center justify-center rounded-md border border-dashed border-border px-3 text-center text-[11px] text-muted-foreground',
                       isDropTarget && 'border-primary text-primary',
                     )}>
                       {draggingId ? `Drop lead in ${stage.label}` : 'No leads in this stage'}
@@ -763,7 +758,7 @@ function MoveLeadDialog({
                     }}
                   >
                     <option value="">No service selected</option>
-                    {activeServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+                    {activeServices.map((service) => <option key={service.id} value={service.id}>{service.category ? `${service.category} - ` : ''}{service.name}</option>)}
                   </Select>
                 </Field>
                 <Field label="Doctor / provider">

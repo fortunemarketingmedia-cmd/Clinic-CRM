@@ -3,6 +3,7 @@ import { AppointmentStatus as AppointmentStatusEnum, LeadStatus as LeadStatusEnu
 import { appointmentRepository } from '../repositories/appointment.repository.js';
 import { branchRepository } from '../repositories/branch.repository.js';
 import { leadRepository } from '../repositories/lead.repository.js';
+import { followUpRepository } from '../repositories/follow-up.repository.js';
 import { timelineRepository } from '../repositories/timeline.repository.js';
 import { HttpError } from '../utils/http-error.js';
 import { personService } from './person.service.js';
@@ -163,6 +164,7 @@ export const appointmentService = {
         description: appointment.appointmentAt.toISOString(),
         createdById: input.createdById,
       });
+      await followUpRepository.closeOpenLeadFollowUps(appointment.leadId, 'Appointment booked');
       if (audit) await auditService.record({ ...audit, branchId: input.branchId }, { action: 'APPOINTMENT_CREATED', entity: 'Appointment', entityId: appointment.id });
       await leadScoringService.recalculate(appointment.leadId);
       await whatsappService.rescheduleAppointmentAutomations(appointment.id, appointment.branchId, appointment.appointmentAt);
@@ -200,6 +202,7 @@ export const appointmentService = {
       description: appointment.appointmentAt.toISOString(),
       createdById: input.createdById,
     });
+    await followUpRepository.closeOpenLeadFollowUps(appointment.leadId, 'Appointment booked');
     if (audit) await auditService.record({ ...audit, branchId: input.branchId }, { action: 'APPOINTMENT_CREATED', entity: 'Appointment', entityId: appointment.id });
     await leadScoringService.recalculate(appointment.leadId);
     await whatsappService.rescheduleAppointmentAutomations(appointment.id, appointment.branchId, appointment.appointmentAt);
