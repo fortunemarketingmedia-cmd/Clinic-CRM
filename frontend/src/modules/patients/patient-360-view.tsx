@@ -369,7 +369,7 @@ function PackageInvoiceModal({ patient, onClose, onSaved }: { patient: Patient36
     onSuccess: onSaved,
   });
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-    <Card className="w-full max-w-lg">
+    <Card className="w-full max-w-lg"> 
       <div className="flex items-start justify-between gap-3">
         <div><h2 className="text-lg font-semibold">Create package invoice</h2><p className="mt-1 text-sm text-muted-foreground">{patient.fullName} · package, invoice and payment in one flow</p></div>
         <Button variant="ghost" onClick={onClose}>Close</Button>
