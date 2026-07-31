@@ -13,11 +13,11 @@ import { apiRequest } from '@/services/api';
 import type { Lead, TimelineEvent } from '@/types/lead';
 
 const profileStageOptions = [
-  { label: 'New Lead', value: 'ASSIGNED' },
-  { label: 'Contact Made', value: 'CONNECTED' },
-  { label: 'Needs Defined', value: 'QUALIFIED' },
-  { label: 'Appointment Proposed', value: 'APPOINTMENT_PROPOSED' },
-  { label: 'Closed', value: 'CONVERTED' },
+  { label: 'New enquiry', value: 'ASSIGNED' },
+  { label: 'Contacted', value: 'CONNECTED' },
+  { label: 'Follow-up required', value: 'NURTURING' },
+  { label: 'Appointment proposed', value: 'APPOINTMENT_PROPOSED' },
+  { label: 'Not interested', value: 'LOST' },
 ] as const;
 
 export function LeadProfileView({ leadId }: { leadId: string }) {
@@ -39,7 +39,7 @@ export function LeadProfileView({ leadId }: { leadId: string }) {
       <Card><h2 className="font-semibold">Journey</h2><div className="mt-4 space-y-4">{timelineQuery.isLoading ? <RowsSkeleton rows={4} /> : (timelineQuery.data?.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">No activity yet.</p> : timelineQuery.data?.data.map((event) => <div key={event.id} className="flex gap-3"><div className="mt-1.5 size-2 rounded-full bg-primary" /><div><div className="text-sm font-medium">{event.title}</div><div className="text-xs text-muted-foreground">{event.description ? `${event.description} · ` : ''}{new Date(event.createdAt).toLocaleString()}</div></div></div>)}</div></Card></div>
       <div className="space-y-4"><Card><h2 className="font-semibold">Person</h2><div className="mt-4 space-y-3"><IconRow icon={UserRound} text={lead.name} /><IconRow icon={Phone} text={lead.mobile} /><IconRow icon={CalendarDays} text={`${lead.appointments?.length ?? 0} appointments`} /><IconRow icon={Clock3} text={`${lead.followUps?.length ?? 0} follow-ups`} /><IconRow icon={CheckSquare} text={`${lead.tasks?.length ?? 0} tasks`} /></div></Card>
       <Card><h2 className="font-semibold">Why this score?</h2><div className="mt-3 space-y-2">{lead.scoreHistory?.[0]?.reasons?.length ? lead.scoreHistory[0].reasons.map((reason) => <div key={reason.rule} className="flex justify-between text-sm"><span>{reason.rule}</span><span className={reason.points >= 0 ? 'text-emerald-600' : 'text-red-600'}>{reason.points >= 0 ? '+' : ''}{reason.points}</span></div>) : <p className="text-sm text-muted-foreground">No scoring factors have applied.</p>}</div></Card>
-      <Card><h2 className="font-semibold">Change CRM stage</h2><div className="mt-3 space-y-2"><Select value={stage} onChange={(event) => setStage(event.target.value)}><option value="">Select next stage</option>{profileStageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>{['QUALIFIED', 'CONVERTED'].includes(stage) ? <Input placeholder={stage === 'QUALIFIED' ? 'Qualification notes' : 'Closing note'} value={stageNotes} onChange={(event) => setStageNotes(event.target.value)} /> : null}{stage === 'QUALIFIED' ? <Input type="number" min="0" max="100" value={manualScore} onChange={(event) => setManualScore(event.target.value)} /> : null}{transition.isError ? <p className="text-xs text-red-600">{transition.error.message}</p> : null}<Button className="w-full" disabled={!stage || (['QUALIFIED', 'CONVERTED'].includes(stage) && !stageNotes) || transition.isPending} onClick={() => transition.mutate()}>Apply stage</Button></div></Card>
+      <Card><h2 className="font-semibold">Change CRM stage</h2><div className="mt-3 space-y-2"><Select value={stage} onChange={(event) => setStage(event.target.value)}><option value="">Select next stage</option>{profileStageOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>{['QUALIFIED', 'LOST'].includes(stage) ? <Input placeholder={stage === 'QUALIFIED' ? 'Qualification notes' : 'Reason or closing note'} value={stageNotes} onChange={(event) => setStageNotes(event.target.value)} /> : null}{stage === 'QUALIFIED' ? <Input type="number" min="0" max="100" value={manualScore} onChange={(event) => setManualScore(event.target.value)} /> : null}{transition.isError ? <p className="text-xs text-red-600">{transition.error.message}</p> : null}<Button className="w-full" disabled={!stage || (['QUALIFIED', 'LOST'].includes(stage) && !stageNotes) || transition.isPending} onClick={() => transition.mutate()}>Apply stage</Button></div></Card>
       <Card><h2 className="font-semibold">Attribution</h2><div className="mt-3 space-y-2 text-sm"><Detail label="Source" value={lead.source.replaceAll('_', ' ')} />{lead.adLeads?.[0] ? <><Detail label="Campaign" value={lead.adLeads[0].campaignName ?? '—'} /><Detail label="Ad" value={lead.adLeads[0].adName ?? '—'} /><Detail label="Form" value={lead.adLeads[0].formName ?? '—'} /></> : <p className="text-muted-foreground">No paid-media attribution.</p>}</div></Card></div>
     </div>
   </section>;

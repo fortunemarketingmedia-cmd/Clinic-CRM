@@ -1,5 +1,8 @@
 # Revive Clinic CRM Architecture
 
+For the complete product workflow that all screens should follow, see
+[`clinical-crm-workflow.md`](./clinical-crm-workflow.md).
+
 ## Roles
 
 ### Admin

@@ -44,6 +44,10 @@ function addDays(value: Date, days: number) {
   return date;
 }
 
+function addMinutes(value: Date, minutes: number) {
+  return new Date(value.getTime() + minutes * 60_000);
+}
+
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat('en-IN', {
     weekday: 'short',
@@ -53,11 +57,23 @@ function formatDate(value: Date) {
   }).format(value);
 }
 
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat('en-IN', {
+function formatTimeRange(appointment: Appointment) {
+  const start = new Date(appointment.appointmentAt);
+  const treatmentEnd = appointment.endAt
+    ? new Date(appointment.endAt)
+    : addMinutes(start, appointment.durationMinutes);
+  const blockedEnd = addMinutes(treatmentEnd, appointment.bufferMinutes ?? 0);
+  const formatter = new Intl.DateTimeFormat('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(value));
+  });
+  return `${formatter.format(start)} - ${formatter.format(blockedEnd)}`;
+}
+
+function busyDurationLabel(appointment: Appointment) {
+  const total = appointment.durationMinutes + (appointment.bufferMinutes ?? 0);
+  if (!appointment.bufferMinutes) return `${appointment.durationMinutes} min`;
+  return `${total} min blocked (${appointment.durationMinutes} min + ${appointment.bufferMinutes} min buffer)`;
 }
 
 function appointmentResourceLabel(appointment: Appointment) {
@@ -292,7 +308,7 @@ export function SchedulesView() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted/40">
                     <tr>
-                      <th className="px-4 py-3">Date & time</th>
+                      <th className="px-4 py-3">Busy time</th>
                       {allRoomBranches ? <th className="px-4 py-3">Branch</th> : null}
                       <th className="px-4 py-3">Client/lead</th>
                       <th className="px-4 py-3">Practitioner</th>
@@ -304,7 +320,10 @@ export function SchedulesView() {
                     {allAppointments.map((appointment) => (
                       <tr key={appointment.id} className="border-t border-border">
                         <td className="whitespace-nowrap px-4 py-3">
-                          {new Date(appointment.appointmentAt).toLocaleString('en-IN')}
+                          <div className="font-medium">{formatTimeRange(appointment)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(appointment.appointmentAt).toLocaleDateString('en-IN')} · {busyDurationLabel(appointment)}
+                          </div>
                         </td>
                         {allRoomBranches ? (
                           <td className="px-4 py-3">{appointment.branch?.name ?? '-'}</td>
@@ -402,12 +421,15 @@ function RoomBoard({
               >
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <Clock className="size-4 text-primary" />
-                  {formatTime(appointment.appointmentAt)}
+                  {formatTimeRange(appointment)}
                 </div>
                 <div className="mt-1 truncate text-sm">{appointment.lead?.name ?? 'Client'}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   {appointment.status.replaceAll('_', ' ')}
                   {appointment.service?.name ? ` Â· ${appointment.service.name}` : ''}
+                </div>
+                <div className="mt-1 text-[11px] font-medium text-muted-foreground">
+                  Busy for {busyDurationLabel(appointment)}
                 </div>
               </div>
             ))}

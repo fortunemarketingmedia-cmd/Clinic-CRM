@@ -143,13 +143,9 @@ export function TasksView() {
 
       {showCreate ? (
         <Card className="border-primary/30 bg-primary/5">
-          <div><h2 className="font-semibold">Create a task</h2><p className="mt-1 text-sm text-muted-foreground">Choose an active team member from the selected branch.</p></div>
+          <div><h2 className="font-semibold">Create a task</h2><p className="mt-1 text-sm text-muted-foreground">New tasks are assigned automatically to your active branch user.</p></div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <Input placeholder="Task title" value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} />
-            <Select aria-label="Assign task to" value={taskForm.assignedUserId} onChange={(event) => setTaskForm((current) => ({ ...current, assignedUserId: event.target.value }))}>
-              <option value="">{staffQuery.isLoading ? 'Loading team members…' : 'Select assignee'}</option>
-              {staff.map((member) => <option key={member.id} value={member.id}>{member.name} · {member.role === 'ADMIN' ? 'Dr. Revive' : 'Receptionist'}</option>)}
-            </Select>
             <Select value={taskForm.type} onChange={(event) => setTaskForm((current) => ({ ...current, type: event.target.value }))}>
               <option value="GENERAL">General task</option>
               <option value="CALL">Call</option>

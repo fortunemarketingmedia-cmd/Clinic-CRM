@@ -18,12 +18,12 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { PageSkeleton } from '@/components/ui/skeleton';
-import { apiRequest } from '@/services/api';
+import { ApiError, apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment, ClinicService } from '@/types/appointment';
-import type { StaffMember } from '@/types/front-desk';
 import type { Branch } from '@/types/branch';
 import type { AppointmentStatus } from '@/types/appointment';
+import type { Lead } from '@/types/lead';
 
 type PackageMaster = {
   id: string;
@@ -107,6 +107,61 @@ function optionLabel<T extends string>(options: ReadonlyArray<{ label: string; v
   return options.find((item) => item.value === value)?.label ?? value?.replaceAll('_', ' ').toLowerCase() ?? '-';
 }
 
+function appointmentSourceFromLead(source: Lead['source']) {
+  if (source === 'WEBSITE' || source === 'WALK_IN' || source === 'PHONE_CALL') return source;
+  return 'PHONE_CALL';
+}
+
+function appointmentProblem(error: unknown) {
+  if (!error) return null;
+  const message = error instanceof Error ? error.message : 'Appointment could not be booked.';
+  const status = error instanceof ApiError ? error.status : undefined;
+  const lower = message.toLowerCase();
+
+  if (status === 409 || lower.includes('not available') || lower.includes('interval')) {
+    return {
+      title: 'Selected slot is not available',
+      reason: 'Another booking, room, or resource is already using this time.',
+      guidance: 'Try a different time or select another available room.',
+      kind: 'availability' as const,
+    };
+  }
+
+  if (lower.includes('branch')) {
+    return {
+      title: 'Branch needs attention',
+      reason: 'This appointment cannot be saved with the selected branch.',
+      guidance: 'Select the correct branch and then book the appointment again.',
+      kind: 'branch' as const,
+    };
+  }
+
+  if (lower.includes('service')) {
+    return {
+      title: 'Treatment service is not available',
+      reason: 'The selected treatment service could not be found for this branch.',
+      guidance: 'Choose another treatment service or switch to consultation.',
+      kind: 'service' as const,
+    };
+  }
+
+  if (status === 400 || lower.includes('required')) {
+    return {
+      title: 'Some appointment details are missing',
+      reason: message,
+      guidance: 'Check name, mobile, branch, date/time, and room selection before saving.',
+      kind: 'validation' as const,
+    };
+  }
+
+  return {
+    title: 'Appointment could not be booked',
+    reason: message,
+    guidance: 'Please review the appointment details and try again.',
+    kind: 'unknown' as const,
+  };
+}
+
 function quickStatuses(status: AppointmentStatus) {
   const allowed: Partial<Record<AppointmentStatus, AppointmentStatus[]>> = {
     REQUESTED: ['SLOT_PROPOSED', 'SCHEDULED'],
@@ -128,6 +183,7 @@ function quickStatuses(status: AppointmentStatus) {
 const appointmentSchema = z
   .object({
     name: z.string().min(2, 'Name is required'),
+    leadId: z.string().optional(),
     mobile: z.string().min(8, 'Mobile number is required'),
     address: z.string().optional(),
     source: z.string().min(1, 'Source is required'),
@@ -321,6 +377,7 @@ export function AppointmentsView() {
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
       name: '',
+      leadId: '',
       mobile: '',
       address: '',
       source: '',
@@ -420,14 +477,18 @@ export function AppointmentsView() {
     return { serviceOptions, packageOptions };
   }, [availablePackageMasters, servicesQuery.data?.data]);
   const selectedTreatmentBillingValue = formPackageMasterId ? `package:${formPackageMasterId}` : formServiceId ? `service:${formServiceId}` : '';
-  const staffQuery = useQuery({
-    queryKey: ['appointment-staff', formDataBranchId],
-    queryFn: () =>
-      apiRequest<{ data: StaffMember[] }>(
-        `/front-desk/staff${formDataBranchId ? `?branchId=${formDataBranchId}` : ''}`,
-      ),
-    enabled: Boolean(formDataBranchId),
+  const proposedLeadQueryString = useMemo(() => {
+    const params = new URLSearchParams({ status: 'APPOINTMENT_PROPOSED' });
+    if (!isAdmin || activeBranchId) params.set('branchId', activeBranchId);
+    return params.toString();
+  }, [activeBranchId, isAdmin]);
+  const proposedLeadsQuery = useQuery({
+    queryKey: ['appointment-proposed-leads', proposedLeadQueryString],
+    queryFn: () => apiRequest<{ data: Lead[] }>(`/leads?${proposedLeadQueryString}`),
+    enabled: Boolean(isAdmin || activeBranchId),
   });
+  const proposedLeads = proposedLeadsQuery.data?.data ?? [];
+  const selectedLeadForBooking = proposedLeads.find((lead) => lead.id === form.watch('leadId'));
   const roomAppointmentsQuery = useQuery({
     queryKey: [
       'appointment-room-availability',
@@ -520,13 +581,14 @@ export function AppointmentsView() {
         method: 'POST',
         body: JSON.stringify({
           ...values,
+          leadId: values.leadId || undefined,
           notes: [bookingSummary, values.notes].filter(Boolean).join('\n\n') || undefined,
           serviceId: values.resourceType === 'CONSULTATION' ? undefined : values.serviceId || undefined,
           packageMasterId: values.resourceType === 'TREATMENT_ROOM' && values.bookingPlan === 'PACKAGE' ? values.packageMasterId || undefined : undefined,
           estimatedAmount: bookingTotal || undefined,
           paymentStatus: values.paymentStatus,
           paymentMode: values.paymentMode || undefined,
-          doctorId: values.doctorId || undefined,
+          doctorId: undefined,
           resourceId: values.resourceId || undefined,
           equipmentId: values.equipmentId || undefined,
         }),
@@ -535,6 +597,7 @@ export function AppointmentsView() {
     onSuccess: () => {
       form.reset({
         name: '',
+        leadId: '',
         mobile: '',
         address: '',
         source: '',
@@ -557,6 +620,8 @@ export function AppointmentsView() {
       });
       setShowAppointmentForm(false);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      queryClient.invalidateQueries({ queryKey: ['appointment-proposed-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
     },
   });
@@ -589,12 +654,15 @@ export function AppointmentsView() {
       queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
     },
   });
+  const bookingError = createAppointment.error ?? updateAppointment.error;
+  const bookingProblem = appointmentProblem(bookingError);
 
   function startEdit(appointment: Appointment) {
     setEditingAppointment(appointment);
     setShowAppointmentForm(true);
     form.reset({
       name: appointment.lead?.name ?? '',
+      leadId: '',
       mobile: appointment.lead?.mobile ?? '',
       address: appointment.lead?.address ?? '',
       source:
@@ -620,6 +688,34 @@ export function AppointmentsView() {
     });
   }
 
+  function startLeadBooking(lead: Lead) {
+    setEditingAppointment(null);
+    setShowAppointmentForm(true);
+    form.reset({
+      name: lead.name,
+      leadId: lead.id,
+      mobile: lead.mobile,
+      address: lead.address ?? '',
+      source: appointmentSourceFromLead(lead.source),
+      branchId: lead.branchId,
+      appointmentAt: lead.appointmentAt ? toDateTimeLocal(lead.appointmentAt) : '',
+      appointmentType: lead.appointmentType,
+      resourceType: 'CONSULTATION',
+      roomNumber: undefined,
+      notes: lead.interestedTreatment ? `Treatment concern: ${lead.interestedTreatment}` : '',
+      serviceId: '',
+      durationMinutes: STANDARD_CONSULTATION_MINUTES,
+      bufferMinutes: STANDARD_CONSULTATION_BUFFER_MINUTES,
+      doctorId: '',
+      resourceId: '',
+      equipmentId: '',
+      bookingPlan: 'CONSULTATION',
+      packageMasterId: '',
+      paymentStatus: 'NOT_PAID',
+      paymentMode: undefined,
+    });
+  }
+
   function onSubmit(values: AppointmentFormValues) {
     if (editingAppointment) {
       updateAppointment.mutate({
@@ -634,7 +730,7 @@ export function AppointmentsView() {
           serviceId: values.resourceType === 'CONSULTATION' ? null : values.serviceId || null,
           durationMinutes: values.durationMinutes,
           bufferMinutes: values.bufferMinutes,
-          doctorId: values.doctorId || null,
+          doctorId: null,
           resourceId: values.resourceId || null,
           equipmentId: values.equipmentId || null,
         },
@@ -668,6 +764,46 @@ export function AppointmentsView() {
           <AppointmentMetric key={metric.label} label={metric.label} value={metric.value} />
         ))}
       </div>
+
+      <Card className="p-4">
+        <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="font-semibold">Lead appointment confirmations</h2>
+            <p className="text-sm text-muted-foreground">
+              Leads moved to Appointment proposed appear here until reception books the actual slot.
+            </p>
+          </div>
+          <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
+            {proposedLeads.length} pending
+          </span>
+        </div>
+        {proposedLeadsQuery.isLoading ? (
+          <p className="py-5 text-sm text-muted-foreground">Loading proposed leads...</p>
+        ) : proposedLeads.length ? (
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+            {proposedLeads.map((lead) => (
+              <div key={lead.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="font-medium">{lead.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {lead.mobile} · {lead.branch?.name ?? 'Branch not set'} · {lead.interestedTreatment ?? 'Treatment not specified'}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {lead.appointmentAt ? `Preferred slot: ${new Date(lead.appointmentAt).toLocaleString('en-IN')}` : 'No preferred slot recorded'}
+                  </div>
+                </div>
+                <Button type="button" variant="secondary" onClick={() => startLeadBooking(lead)}>
+                  Book appointment
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="py-5 text-sm text-muted-foreground">
+            No proposed appointments are waiting for confirmation.
+          </p>
+        )}
+      </Card>
 
       <Card>
         <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1004,9 +1140,15 @@ export function AppointmentsView() {
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 p-4">
           <Card className="mx-auto max-w-5xl">
             <h2 className="text-base font-semibold">
-              {editingAppointment ? 'Reschedule Appointment' : 'Create New Appointment'}
+              {editingAppointment ? 'Reschedule Appointment' : selectedLeadForBooking ? 'Book Proposed Lead' : 'Create New Appointment'}
             </h2>
+            {selectedLeadForBooking ? (
+              <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+                Booking appointment for {selectedLeadForBooking.name}. Saving this form will move the lead out of the active lead pipeline.
+              </div>
+            ) : null}
             <form className="mt-5 grid gap-5 lg:grid-cols-3 [&>*]:min-w-0" onSubmit={form.handleSubmit(onSubmit)}>
+              <input type="hidden" {...form.register('leadId')} />
               <label className="order-2 block space-y-2">
                 <span className="text-sm font-medium">Source</span>
                 <Select {...form.register('source')} disabled={Boolean(editingAppointment)}>
@@ -1142,19 +1284,6 @@ export function AppointmentsView() {
                 <span className="text-sm font-medium">Buffer (minutes)</span>
                 <Input type="number" {...form.register('bufferMinutes')} />
               </label>
-              <label className="order-[13] block space-y-2">
-                <span className="text-sm font-medium">Doctor / provider</span>
-                <Select {...form.register('doctorId')} disabled={!formDataBranchId}>
-                  <option value="">{formDataBranchId ? 'No doctor assigned' : 'Select branch first'}</option>
-                  {staffQuery.data?.data
-                    .filter((staff) => staff.role === 'ADMIN')
-                    .map((staff) => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.name}
-                      </option>
-                    ))}
-                </Select>
-              </label>
               <label className="order-5 block space-y-2">
                 <span className="text-sm font-medium">Client name</span>
                 <Input
@@ -1269,8 +1398,54 @@ export function AppointmentsView() {
                 ) : null}
               </div>
               {createAppointment.error || updateAppointment.error ? (
-                <div className="order-[19] rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 lg:col-span-3">
-                  {createAppointment.error?.message ?? updateAppointment.error?.message}
+                <div className="order-[19] rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 lg:col-span-3">
+                  <div className="font-semibold">{bookingProblem?.title ?? 'Appointment could not be booked'}</div>
+                  <p className="mt-1">{bookingProblem?.reason ?? 'Please review the appointment details and try again.'}</p>
+                  <p className="mt-1 text-red-700">{bookingProblem?.guidance}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {bookingProblem?.kind === 'availability' ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            const current = form.getValues('appointmentAt');
+                            const date = current ? new Date(current) : new Date();
+                            date.setMinutes(date.getMinutes() + 30);
+                            form.setValue('appointmentAt', toDateTimeLocal(date.toISOString()), { shouldDirty: true, shouldValidate: true });
+                          }}
+                        >
+                          Try next 30 min
+                        </Button>
+                        {formResourceType === 'TREATMENT_ROOM' ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => form.setValue('roomNumber', undefined, { shouldDirty: true, shouldValidate: true })}
+                          >
+                            Choose another room
+                          </Button>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {bookingProblem?.kind === 'service' ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          form.setValue('resourceType', 'CONSULTATION', { shouldDirty: true, shouldValidate: true });
+                          form.setValue('serviceId', '');
+                        }}
+                      >
+                        Switch to consultation
+                      </Button>
+                    ) : null}
+                    {bookingProblem?.kind === 'branch' ? (
+                      <Button type="button" variant="secondary" onClick={() => form.setFocus('branchId')}>
+                        Select branch
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
               <div className="order-[20] flex gap-3 lg:col-span-3">
@@ -1290,6 +1465,7 @@ export function AppointmentsView() {
                       setShowAppointmentForm(false);
                       form.reset({
                         name: '',
+                        leadId: '',
                         mobile: '',
                         address: '',
                         source: '',
@@ -1323,6 +1499,7 @@ export function AppointmentsView() {
                       setShowAppointmentForm(false);
                       form.reset({
                         name: '',
+                        leadId: '',
                         mobile: '',
                         address: '',
                         source: '',

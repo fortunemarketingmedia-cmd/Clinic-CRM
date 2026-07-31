@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -55,7 +55,7 @@ type MoveRequest = { lead: Lead; stage: PipelineStage };
 const stages: PipelineStage[] = [
   {
     id: 'new',
-    label: 'New Lead',
+    label: 'New enquiry',
     description: 'Fresh enquiries',
     target: 'ASSIGNED',
     statuses: ['NEW', 'UNASSIGNED', 'ASSIGNED'],
@@ -63,18 +63,18 @@ const stages: PipelineStage[] = [
   },
   {
     id: 'contacted',
-    label: 'Contact Made',
-    description: 'Outreach and nurturing',
+    label: 'Contacted',
+    description: 'Patient reached',
     target: 'CONNECTED',
-    statuses: ['ATTEMPTING_CONTACT', 'CONNECTED', 'NURTURING', 'POSTPONED', 'NOT_ARRIVED', 'CANCELLED'],
+    statuses: ['ATTEMPTING_CONTACT', 'CONNECTED'],
     marker: 'bg-amber-400',
   },
   {
-    id: 'qualified',
-    label: 'Needs Defined',
-    description: 'Qualified opportunity',
-    target: 'QUALIFIED',
-    statuses: ['QUALIFIED'],
+    id: 'follow_up',
+    label: 'Follow-up required',
+    description: 'Next action needed',
+    target: 'NURTURING',
+    statuses: ['NURTURING', 'POSTPONED', 'NOT_ARRIVED', 'CANCELLED'],
     marker: 'bg-violet-500',
   },
   {
@@ -87,10 +87,10 @@ const stages: PipelineStage[] = [
   },
   {
     id: 'closed',
-    label: 'Closed',
-    description: 'Won, lost or disqualified',
-    target: 'CONVERTED',
-    statuses: ['CONVERTED', 'LOST', 'DISQUALIFIED'],
+    label: 'Not interested',
+    description: 'Closed as not interested',
+    target: 'LOST',
+    statuses: ['LOST', 'DISQUALIFIED'],
     marker: 'bg-green-600',
   },
 ];
@@ -212,9 +212,8 @@ export function FollowUpsView() {
         Boolean(lead.nextActionDueAt) &&
         new Date(lead.nextActionDueAt!).getTime() < now,
     ).length;
-    const won = leads.filter((lead) => lead.status === 'CONVERTED').length;
-    const closed = won + leads.filter((lead) => lead.status === 'LOST' || lead.status === 'DISQUALIFIED').length;
-    return { active, hot, overdue, conversion: closed ? Math.round((won / closed) * 100) : 0 };
+    const proposed = leads.filter((lead) => lead.status === 'APPOINTMENT_PROPOSED').length;
+    return { active, hot, overdue, proposed };
   }, [leads]);
 
   const moveLead = useMutation({
@@ -336,7 +335,7 @@ export function FollowUpsView() {
         <PipelineMetric label="Active leads" value={metrics.active} icon={Target} />
         <PipelineMetric label="Hot leads" value={metrics.hot} icon={Flame} />
         <PipelineMetric label="Overdue actions" value={metrics.overdue} icon={AlertCircle} />
-        <PipelineMetric label="Win rate" value={`${metrics.conversion}%`} icon={CheckCircle2} />
+        <PipelineMetric label="Slots proposed" value={metrics.proposed} icon={CheckCircle2} />
       </div>
 
       <Card className="p-4">
@@ -530,7 +529,7 @@ function LeadCard({
             <div className="min-w-0">
               <h3 className="truncate text-xs font-semibold text-foreground">{lead.name}</h3>
               <p className="truncate text-[10px] text-muted-foreground">
-                {lead.owner?.name || 'Unassigned'} · {lead.mobile}
+                {lead.owner?.name || 'Unassigned'} Â· {lead.mobile}
               </p>
             </div>
             {(lead.scoreCategory === 'HOT' || lead.priority === 'URGENT') && (
@@ -556,7 +555,7 @@ function LeadCard({
           <div className="mt-1.5 border-t border-border pt-1.5">
             <p className={cn('flex min-w-0 items-center gap-1 text-[10px]', overdue ? 'font-medium text-primary' : 'text-muted-foreground')}>
               <CalendarCheck className="size-3 shrink-0" />
-              <span className="truncate" title={`${lead.nextAction || 'No next action'} · ${formatDueDate(lead.nextActionDueAt)}`}>
+              <span className="truncate" title={`${lead.nextAction || 'No next action'} Â· ${formatDueDate(lead.nextActionDueAt)}`}>
                 {lead.nextAction || formatDueDate(lead.nextActionDueAt)}
               </span>
             </p>
@@ -580,7 +579,7 @@ function LeadCard({
             value=""
             onChange={(event) => { if (event.target.value) onMove(event.target.value as LeadStatus); }}
           >
-            <option value="">Move to stage…</option>
+            <option value="">Move to stageâ€¦</option>
             {stages.filter((stage) => stage.id !== stageForStatus(lead.status).id).map((stage) => (
               <option key={stage.id} value={stage.target}>{stage.label}</option>
             ))}
@@ -612,7 +611,7 @@ function MoveLeadDialog({
 }) {
   const queryClient = useQueryClient();
   const { lead, stage } = request;
-  const [ownerId, setOwnerId] = useState(lead.ownerId ?? '');
+  const [ownerId] = useState(lead.ownerId ?? staff[0]?.id ?? '');
   const [nextAction, setNextAction] = useState(lead.nextAction ?? '');
   const [nextActionDueAt, setNextActionDueAt] = useState(toDateTimeLocal(lead.nextActionDueAt));
   const [qualificationNotes, setQualificationNotes] = useState(lead.qualificationNotes ?? '');
@@ -622,7 +621,6 @@ function MoveLeadDialog({
   const [appointmentAt, setAppointmentAt] = useState(toDateTimeLocal(lead.appointmentAt) || defaultAppointmentDateTime());
   const [appointmentType, setAppointmentType] = useState<'CLINIC_VISIT' | 'VIDEO_CONSULTATION'>(lead.appointmentType ?? 'CLINIC_VISIT');
   const [serviceId, setServiceId] = useState('');
-  const [doctorId, setDoctorId] = useState(ownerId);
   const [resourceType, setResourceType] = useState<'CONSULTATION' | 'TREATMENT_ROOM'>('CONSULTATION');
   const [roomNumber, setRoomNumber] = useState('');
   const [resourceId, setResourceId] = useState('');
@@ -631,7 +629,6 @@ function MoveLeadDialog({
   const needsActiveFields = !closedStatuses.has(targetStatus);
   const appointmentExists = Boolean(lead.appointmentAt || lead.appointments?.length);
   const bookingBlocked = targetStatus === 'APPOINTMENT_BOOKED' && !appointmentExists;
-  const doctors = staff.filter((member) => member.role === 'DOCTOR' || member.role === 'DR_REVIVE' || member.role === 'ADMIN');
   const activeServices = services.filter((service) => service.active);
   const selectedService = activeServices.find((service) => service.id === serviceId);
   const roomResources = resources.filter((resource) => resource.active && ['ROOM', 'TREATMENT_CHAIR'].includes(resource.type));
@@ -650,7 +647,7 @@ function MoveLeadDialog({
           serviceId: serviceId || undefined,
           durationMinutes: selectedService?.durationMinutes ?? 30,
           bufferMinutes: selectedService?.bufferMinutes ?? 0,
-          doctorId: doctorId || undefined,
+          doctorId: undefined,
           resourceId: resourceId || undefined,
           notes: notes.trim() || undefined,
           bookingSource: 'SALES_PIPELINE',
@@ -675,7 +672,7 @@ function MoveLeadDialog({
     setValidationError('');
     if (bookingBlocked) return;
     if (needsActiveFields && (!ownerId || !nextAction.trim() || !nextActionDueAt)) {
-      setValidationError('Owner, next action, and due date are required for an active pipeline stage.');
+      setValidationError('Next action and due date are required for an active pipeline stage.');
       return;
     }
     if (targetStatus === 'QUALIFIED' && (!qualificationNotes.trim() || leadScore === '')) {
@@ -761,12 +758,6 @@ function MoveLeadDialog({
                     {activeServices.map((service) => <option key={service.id} value={service.id}>{service.category ? `${service.category} - ` : ''}{service.name}</option>)}
                   </Select>
                 </Field>
-                <Field label="Doctor / provider">
-                  <Select className="w-full" value={doctorId} onChange={(event) => setDoctorId(event.target.value)}>
-                    <option value="">Assign later</option>
-                    {(doctors.length ? doctors : staff).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-                  </Select>
-                </Field>
                 <Field label="Visit purpose">
                   <Select
                     className="w-full"
@@ -821,8 +812,7 @@ function MoveLeadDialog({
                       setValidationError('');
                     }}
                   >
-                    <option value="CONVERTED">Won / Converted</option>
-                    <option value="LOST">Lost</option>
+                    <option value="LOST">Not interested</option>
                     <option value="DISQUALIFIED">Disqualified</option>
                   </Select>
                 </Field>
@@ -830,12 +820,7 @@ function MoveLeadDialog({
 
               {needsActiveFields && (
                 <>
-                  <Field label="Lead owner">
-                    <Select className="w-full" value={ownerId} onChange={(event) => setOwnerId(event.target.value)}>
-                      <option value="">Select owner</option>
-                      {staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-                    </Select>
-                  </Field>
+
                   <Field label="Next action">
                     <Input value={nextAction} onChange={(event) => setNextAction(event.target.value)} placeholder="Example: Call to confirm preferred appointment time" />
                   </Field>
@@ -856,7 +841,7 @@ function MoveLeadDialog({
                       className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                     />
                   </Field>
-                  <Field label="Lead score (0–100)">
+                  <Field label="Lead score (0â€“100)">
                     <Input type="number" min={0} max={100} value={leadScore} onChange={(event) => setLeadScore(event.target.value)} />
                   </Field>
                 </>

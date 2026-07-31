@@ -78,7 +78,7 @@ export function Patient360View({ patientId }: { patientId: string }) {
     {tab === 'Medical Profile' ? <MedicalProfile patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
     {tab === 'Documents' ? <PatientDocumentsPanel patient={patient} /> : null}
 
-    {composer ? <ClinicalComposer kind={composer} patient={patient} staff={staff} resources={resourcesQuery.data?.data ?? []} defaultDoctorId={session?.user.role === 'DOCTOR' ? session.user.id : doctors[0]?.id} onClose={() => setComposer(null)} onSaved={() => { setComposer(null); invalidate(); }} /> : null}
+    {composer ? <ClinicalComposer kind={composer} patient={patient} staff={staff} resources={resourcesQuery.data?.data ?? []} defaultDoctorId={doctors[0]?.id ?? staff[0]?.id} onClose={() => setComposer(null)} onSaved={() => { setComposer(null); invalidate(); }} /> : null}
   </section>;
 }
 
@@ -231,7 +231,7 @@ function Overview({ patient }: { patient: Patient360 }) {
           <Detail title="Latest visit" value={format(latestAppointment?.appointmentAt ?? patient.lastVisitAt)} />
           <Detail title="Next appointment" value={format(patient.summary.nextAppointment?.appointmentAt ?? patient.nextVisitAt)} />
           <Detail title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} />
-          <Detail title="Outstanding amount" value={`₹${patient.summary.outstandingAmount.toLocaleString('en-IN')}`} />
+          <Detail title="Outstanding amount" value={`?${patient.summary.outstandingAmount.toLocaleString('en-IN')}`} />
         </dl>
       </Card>
 
@@ -284,15 +284,15 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
     <div className="grid gap-4 lg:grid-cols-3">
       <Card>
         <div className="text-sm text-muted-foreground">Total billed</div>
-        <div className="mt-1 text-2xl font-semibold">₹{invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount ?? 0), 0).toLocaleString('en-IN')}</div>
+        <div className="mt-1 text-2xl font-semibold">?{invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount ?? 0), 0).toLocaleString('en-IN')}</div>
       </Card>
       <Card>
         <div className="text-sm text-muted-foreground">Collected</div>
-        <div className="mt-1 text-2xl font-semibold">₹{invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount ?? invoice.payments.reduce((paid, payment) => paid + Number(payment.amount), 0)), 0).toLocaleString('en-IN')}</div>
+        <div className="mt-1 text-2xl font-semibold">?{invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount ?? invoice.payments.reduce((paid, payment) => paid + Number(payment.amount), 0)), 0).toLocaleString('en-IN')}</div>
       </Card>
       <Card>
         <div className="text-sm text-muted-foreground">Outstanding</div>
-        <div className="mt-1 text-2xl font-semibold">₹{patient.summary.outstandingAmount.toLocaleString('en-IN')}</div>
+        <div className="mt-1 text-2xl font-semibold">?{patient.summary.outstandingAmount.toLocaleString('en-IN')}</div>
       </Card>
     </div>
 
@@ -310,7 +310,7 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
                 <div className="font-medium">{item.name}</div>
                 <div className="text-xs text-muted-foreground">{remaining}/{item.totalSessions} sessions remaining</div>
               </div>
-              <div className="text-sm font-semibold">₹{Number(item.amount).toLocaleString('en-IN')}</div>
+              <div className="text-sm font-semibold">?{Number(item.amount).toLocaleString('en-IN')}</div>
             </div>
           </div>;
         }) : <p className="py-6 text-center text-sm text-muted-foreground">No treatment package purchased yet.</p>}
@@ -328,11 +328,11 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
               <div>
                 <div className="font-medium">{invoice.invoiceNo} · {label(invoice.status)}</div>
                 <div className="text-xs text-muted-foreground">{format(invoice.invoiceDate)}</div>
-                {invoice.items?.length ? <div className="mt-2 space-y-1 text-sm">{invoice.items.map((item) => <div key={item.id}>{item.description} · ₹{Number(item.totalAmount).toLocaleString('en-IN')}</div>)}</div> : null}
+                {invoice.items?.length ? <div className="mt-2 space-y-1 text-sm">{invoice.items.map((item) => <div key={item.id}>{item.description} · ?{Number(item.totalAmount).toLocaleString('en-IN')}</div>)}</div> : null}
               </div>
               <div className="text-left sm:text-right">
-                <div className="text-sm font-semibold">₹{Number(invoice.totalAmount).toLocaleString('en-IN')}</div>
-                <div className={outstanding > 0 ? 'text-xs text-red-700' : 'text-xs text-emerald-700'}>{outstanding > 0 ? `Outstanding ₹${outstanding.toLocaleString('en-IN')}` : 'Paid'}</div>
+                <div className="text-sm font-semibold">?{Number(invoice.totalAmount).toLocaleString('en-IN')}</div>
+                <div className={outstanding > 0 ? 'text-xs text-red-700' : 'text-xs text-emerald-700'}>{outstanding > 0 ? `Outstanding ?${outstanding.toLocaleString('en-IN')}` : 'Paid'}</div>
                 {canBill && outstanding > 0 && ['ISSUED', 'PARTIAL', 'OVERDUE'].includes(invoice.status) ? <Button className="mt-2" variant="secondary" onClick={() => setPayingInvoice(invoice)}>Record payment</Button> : null}
               </div>
             </div>
@@ -375,11 +375,11 @@ function PackageInvoiceModal({ patient, onClose, onSaved }: { patient: Patient36
         <Button variant="ghost" onClick={onClose}>Close</Button>
       </div>
       <div className="mt-5 grid gap-3">
-        <Field label="Package"><Select value={packageMasterId} onChange={(event) => setPackageMasterId(event.target.value)} disabled={packagesQuery.isLoading}><option value="">{packagesQuery.isLoading ? 'Loading packages...' : availablePackageMasters.length ? 'Select package' : 'No packages found'}</option>{availablePackageMasters.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.totalSessions} sessions · ₹{Number(item.price).toLocaleString('en-IN')}</option>)}</Select></Field>
+        <Field label="Package"><Select value={packageMasterId} onChange={(event) => setPackageMasterId(event.target.value)} disabled={packagesQuery.isLoading}><option value="">{packagesQuery.isLoading ? 'Loading packages...' : availablePackageMasters.length ? 'Select package' : 'No packages found'}</option>{availablePackageMasters.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.totalSessions} sessions · ?{Number(item.price).toLocaleString('en-IN')}</option>)}</Select></Field>
         <div className="rounded-xl border border-border bg-muted/20 p-4">
-          <div className="flex items-center justify-between text-sm"><span>Package rate</span><span>₹{base.toLocaleString('en-IN')}</span></div>
-          <div className="mt-1 flex items-center justify-between text-sm"><span>Tax</span><span>₹{tax.toLocaleString('en-IN')}</span></div>
-          <div className="mt-3 flex items-center justify-between border-t pt-3 font-semibold"><span>Total</span><span>₹{total.toLocaleString('en-IN')}</span></div>
+          <div className="flex items-center justify-between text-sm"><span>Package rate</span><span>?{base.toLocaleString('en-IN')}</span></div>
+          <div className="mt-1 flex items-center justify-between text-sm"><span>Tax</span><span>?{tax.toLocaleString('en-IN')}</span></div>
+          <div className="mt-3 flex items-center justify-between border-t pt-3 font-semibold"><span>Total</span><span>?{total.toLocaleString('en-IN')}</span></div>
         </div>
         <Field label="Payment status"><Select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as 'NOT_PAID' | 'PAID')}><option value="NOT_PAID">Not paid</option><option value="PAID">Paid now</option></Select></Field>
         {paymentStatus === 'PAID' ? <Field label="Payment mode"><Select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value)}><option value="UPI">UPI</option><option value="CASH">Cash</option><option value="CARD">Card</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option></Select></Field> : null}
@@ -401,7 +401,7 @@ function PaymentModal({ patient, invoice, onClose, onSaved }: { patient: Patient
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <Card className="w-full max-w-md">
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold">Record payment</h2><p className="mt-1 text-sm text-muted-foreground">{invoice.invoiceNo} · Outstanding ₹{outstanding.toLocaleString('en-IN')}</p></div>
+        <div><h2 className="text-lg font-semibold">Record payment</h2><p className="mt-1 text-sm text-muted-foreground">{invoice.invoiceNo} · Outstanding ?{outstanding.toLocaleString('en-IN')}</p></div>
         <Button variant="ghost" onClick={onClose}>Close</Button>
       </div>
       <div className="mt-5 grid gap-3">
@@ -457,16 +457,14 @@ function ClinicalComposer({ kind, patient, staff, resources, defaultDoctorId, on
     if (kind === 'procedure') return apiRequest(`/clinical/patients/${patient.id}/procedure-sessions`, { method: 'POST', body: JSON.stringify({ branchId: patient.branchId, procedureName: values.procedureName, treatmentArea: values.treatmentArea, practitionerId: values.practitionerId, roomId: values.roomId || undefined, deviceId: values.deviceId || undefined, procedureNotes: values.procedureNotes, postCareInstructions: values.postCareInstructions, consentVerified: values.consentVerified, status: values.status, performedAt: values.status === 'COMPLETED' ? nowLocal() : undefined }) });
     return apiRequest(`/clinical/patients/${patient.id}/prescriptions`, { method: 'POST', body: JSON.stringify({ doctorId: values.doctorId, prescribedAt: values.prescribedAt, diagnosisSummary: values.diagnosis, instructions: values.instructions, precautions: values.precautions, items: [{ medicineName: values.medicineName, strength: values.strength, dosage: values.dosage, frequency: values.frequency, duration: values.duration, route: values.route, timing: values.timing, instructions: values.medicineInstructions }] }) });
   }, onSuccess: onSaved });
-  const clinicians = staff.filter((member) => ['ADMIN', 'RECEPTIONIST'].includes(member.role)); const rooms = resources.filter((item) => item.type === 'ROOM'); const devices = resources.filter((item) => item.type === 'EQUIPMENT');
+  const rooms = resources.filter((item) => item.type === 'ROOM'); const devices = resources.filter((item) => item.type === 'EQUIPMENT');
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto"><div className="flex justify-between"><div><h2 className="text-lg font-semibold">New {kind.replaceAll('_', ' ')}</h2><p className="text-sm text-muted-foreground">{patient.fullName} Â· {patient.patientNo}</p></div><Button variant="ghost" onClick={onClose}>Close</Button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
-    {(kind === 'encounter' || kind === 'plan' || kind === 'prescription') ? <Field label="Dr. Revive"><Select value={String(values.doctorId)} onChange={(event) => set('doctorId', event.target.value)}><option value="">Select Dr. Revive</option>{staff.filter((item) => item.role === 'ADMIN').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field> : null}
     {kind === 'encounter' ? <><Field label="Encounter type"><Select value={String(values.type)} onChange={(event) => set('type', event.target.value)}>{['CONSULTATION', 'VIDEO_CONSULTATION', 'FOLLOW_UP_CONSULTATION', 'PROCEDURE', 'TREATMENT_SESSION', 'REVIEW', 'EMERGENCY_REVIEW', 'OTHER'].map((item) => <option key={item}>{label(item)}</option>)}</Select></Field><Field label="Visit date"><Input type="datetime-local" value={String(values.visitDate)} onChange={(event) => set('visitDate', event.target.value)} /></Field><TextField label="Chief complaint" name="chiefComplaint" values={values} set={set} /><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><TextField label="Assessment" name="assessment" values={values} set={set} /><TextField label="Treatment advised" name="treatmentAdvised" values={values} set={set} /><Area label="Clinical notes" name="clinicalNotes" values={values} set={set} /></> : null}
     {kind === 'plan' ? <><TextField label="Concern" name="concern" values={values} set={set} /><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><TextField label="Goals" name="goals" values={values} set={set} /><TextField label="Estimated cost" name="estimatedCost" values={values} set={set} type="number" /><TextField label="Plan item / service" name="itemName" values={values} set={set} /><TextField label="Planned sessions" name="plannedSessions" values={values} set={set} type="number" /><TextField label="Frequency" name="frequency" values={values} set={set} /><TextField label="Item amount" name="itemAmount" values={values} set={set} type="number" /></> : null}
-    {kind === 'procedure' ? <><Field label="Practitioner"><Select value={String(values.practitionerId)} onChange={(event) => set('practitionerId', event.target.value)}>{clinicians.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Procedure"><Select value={String(values.serviceId ?? '')} onChange={(event) => onProcedureChange(event.target.value)} disabled={servicesQuery.isLoading}><option value="">{servicesQuery.isLoading ? 'Loading treatments...' : 'Select treatment name'}</option>{procedureServices.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}</Select></Field><TextField label="Treatment area" name="treatmentArea" values={values} set={set} /><Field label="Room"><Select value={String(values.roomId ?? '')} onChange={(event) => set('roomId', event.target.value)}><option value="">Not selected</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Device"><Select value={String(values.deviceId ?? '')} onChange={(event) => set('deviceId', event.target.value)}><option value="">Not selected</option>{devices.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Status"><Select value={String(values.status)} onChange={(event) => set('status', event.target.value)}>{['PLANNED', 'READY', 'IN_PROGRESS', 'COMPLETED'].map((item) => <option key={item}>{label(item)}</option>)}</Select></Field><Area label="Procedure notes" name="procedureNotes" values={values} set={set} /><Area label="Post-care instructions" name="postCareInstructions" values={values} set={set} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(values.consentVerified)} onChange={(event) => set('consentVerified', event.target.checked)} />Consent verified</label></> : null}
+    {kind === 'procedure' ? <><Field label="Procedure"><Select value={String(values.serviceId ?? '')} onChange={(event) => onProcedureChange(event.target.value)} disabled={servicesQuery.isLoading}><option value="">{servicesQuery.isLoading ? 'Loading treatments...' : 'Select treatment name'}</option>{procedureServices.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}</Select></Field><TextField label="Treatment area" name="treatmentArea" values={values} set={set} /><Field label="Room"><Select value={String(values.roomId ?? '')} onChange={(event) => set('roomId', event.target.value)}><option value="">Not selected</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Device"><Select value={String(values.deviceId ?? '')} onChange={(event) => set('deviceId', event.target.value)}><option value="">Not selected</option>{devices.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Status"><Select value={String(values.status)} onChange={(event) => set('status', event.target.value)}>{['PLANNED', 'READY', 'IN_PROGRESS', 'COMPLETED'].map((item) => <option key={item}>{label(item)}</option>)}</Select></Field><Area label="Procedure notes" name="procedureNotes" values={values} set={set} /><Area label="Post-care instructions" name="postCareInstructions" values={values} set={set} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(values.consentVerified)} onChange={(event) => set('consentVerified', event.target.checked)} />Consent verified</label></> : null}
     {kind === 'prescription' ? <><Field label="Prescription date"><Input type="datetime-local" value={String(values.prescribedAt)} onChange={(event) => set('prescribedAt', event.target.value)} /></Field><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><Field label="Medicine"><Select value={String(values.medicineId ?? '')} onChange={(event) => { const selected = medicines.find((medicine) => medicine.id === event.target.value); setValues((current) => ({ ...current, medicineId: event.target.value, medicineName: selected?.name ?? '', strength: selected?.strength ?? current.strength ?? '' })); }} disabled={medicineQuery.isLoading}><option value="">{medicineQuery.isLoading ? 'Loading medicines...' : 'Select medicine'}</option>{medicines.map((medicine) => <option key={medicine.id} value={medicine.id}>{medicine.name}{medicine.strength ? ` · ${medicine.strength}` : ''}{medicine.form ? ` · ${medicine.form}` : ''}</option>)}</Select></Field><TextField label="Strength" name="strength" values={values} set={set} /><TextField label="Dosage" name="dosage" values={values} set={set} /><TextField label="Frequency" name="frequency" values={values} set={set} /><TextField label="Duration" name="duration" values={values} set={set} /><TextField label="Route" name="route" values={values} set={set} /><TextField label="Timing" name="timing" values={values} set={set} /><Area label="Medicine instructions" name="medicineInstructions" values={values} set={set} /><Area label="General instructions" name="instructions" values={values} set={set} /><Area label="Precautions" name="precautions" values={values} set={set} /></> : null}
   </div>{mutation.isError ? <p className="mt-3 text-sm text-red-700">{mutation.error.message}</p> : null}<div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Savingâ€¦' : 'Save'}</Button></div></Card></div>;
 }
 function Field({ label: title, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-sm"><span className="font-medium">{title}</span>{children}</label>; }
 function TextField({ label: title, name, values, set, type = 'text' }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void; type?: string }) { return <Field label={title}><Input type={type} value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></Field>; }
 function Area({ label: title, name, values, set }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void }) { return <label className="grid gap-1 text-sm sm:col-span-2"><span className="font-medium">{title}</span><textarea className="min-h-24 rounded-md border border-border bg-surface px-3 py-2" value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></label>; }
-

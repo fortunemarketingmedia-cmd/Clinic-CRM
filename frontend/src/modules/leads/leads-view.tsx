@@ -19,16 +19,11 @@ import type { Branch } from '@/types/branch';
 import type { Lead, LeadStatus, TimelineEvent } from '@/types/lead';
 
 const leadStatuses: Array<{ label: string; value: LeadStatus }> = [
-  { label: 'New', value: 'NEW' },
-  { label: 'Unassigned', value: 'UNASSIGNED' },
-  { label: 'Assigned', value: 'ASSIGNED' },
-  { label: 'Attempting contact', value: 'ATTEMPTING_CONTACT' },
-  { label: 'Connected', value: 'CONNECTED' },
-  { label: 'Qualified', value: 'QUALIFIED' },
+  { label: 'New enquiry', value: 'ASSIGNED' },
+  { label: 'Contacted', value: 'CONNECTED' },
+  { label: 'Follow-up required', value: 'NURTURING' },
   { label: 'Appointment proposed', value: 'APPOINTMENT_PROPOSED' },
-  { label: 'Nurturing', value: 'NURTURING' },
-  { label: 'Lost', value: 'LOST' },
-  { label: 'Disqualified', value: 'DISQUALIFIED' },
+  { label: 'Not interested', value: 'LOST' },
 ];
 
 const leadSchema = z.object({
