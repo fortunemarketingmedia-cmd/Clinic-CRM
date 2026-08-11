@@ -11,7 +11,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (hasHydrated && session) {
-      router.replace(session.user.role === 'DEVELOPER' ? '/settings/integrations' : '/dashboard');
+      router.replace('/dashboard');
     }
   }, [hasHydrated, router, session]);
 

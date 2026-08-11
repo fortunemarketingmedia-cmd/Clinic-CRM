@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
   CalendarDays,
@@ -8,8 +8,10 @@ import {
   ChevronRight,
   Clock,
   DoorOpen,
+  Plus,
+  X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,7 +20,7 @@ import { RowsSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
-import type { Appointment, ClinicResource } from '@/types/appointment';
+import type { Appointment, ClinicResource, ClinicService } from '@/types/appointment';
 import type { Branch } from '@/types/branch';
 
 function branchQuery(branchId: string | null) {
@@ -87,10 +89,12 @@ function roomNumberFromName(name: string) {
 }
 
 export function SchedulesView() {
-  const { session } = useSessionStore();
-  const isAdmin = session?.user.role === 'ADMIN';
-  const [roomBranchId, setRoomBranchId] = useState('');
+  const queryClient = useQueryClient();
+  const { session, selectedBranchId } = useSessionStore();
+  const roomBranchId = selectedBranchId ?? '';
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+  const [viewMode, setViewMode] = useState<'rooms' | 'calendar'>('rooms');
+  const [showRoomBooking, setShowRoomBooking] = useState(false);
 
   const branches = useQuery({
     queryKey: ['branches'],
@@ -98,29 +102,24 @@ export function SchedulesView() {
     enabled: Boolean(session),
   });
   const roomBranches = useMemo(
-    () => (branches.data?.data ?? []).filter((branch) => /nashik road|sharanpur road/i.test(branch.name)),
+    () => branches.data?.data ?? [],
     [branches.data],
   );
-  const canUseAllRoomBranches = Boolean(isAdmin);
-  const canLoad = Boolean(session && (canUseAllRoomBranches || roomBranchId));
-  const allRoomBranches = canUseAllRoomBranches && !roomBranchId;
+  const canLoad = Boolean(session);
+  const allRoomBranches = !roomBranchId;
   const allowedRoomBranchIds = useMemo(() => new Set(roomBranches.map((branch) => branch.id)), [roomBranches]);
   const selectedRoomBranch = roomBranches.find((branch) => branch.id === roomBranchId);
-
-  useEffect(() => {
-    if (!branches.data?.data.length) return;
-    if (roomBranchId && !roomBranches.some((branch) => branch.id === roomBranchId)) {
-      setRoomBranchId('');
-      return;
-    }
-    if (!canUseAllRoomBranches && !roomBranchId && roomBranches.length) {
-      setRoomBranchId(roomBranches[0].id);
-    }
-  }, [branches.data, canUseAllRoomBranches, roomBranchId, roomBranches]);
 
   const range = useMemo(() => {
     const dateFrom = startOfDay(selectedDate);
     const dateTo = addDays(dateFrom, 6);
+    dateTo.setHours(23, 59, 59, 999);
+    return { dateFrom, dateTo };
+  }, [selectedDate]);
+  const calendarRange = useMemo(() => {
+    const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    const dateFrom = addDays(monthStart, -monthStart.getDay());
+    const dateTo = addDays(dateFrom, 41);
     dateTo.setHours(23, 59, 59, 999);
     return { dateFrom, dateTo };
   }, [selectedDate]);
@@ -135,11 +134,11 @@ export function SchedulesView() {
   });
 
   const appointments = useQuery({
-    queryKey: ['schedule-appointments', roomBranchId, range.dateFrom.toISOString()],
+    queryKey: ['schedule-appointments', roomBranchId, calendarRange.dateFrom.toISOString()],
     queryFn: () => {
       const params = new URLSearchParams({
-        dateFrom: range.dateFrom.toISOString(),
-        dateTo: range.dateTo.toISOString(),
+        dateFrom: calendarRange.dateFrom.toISOString(),
+        dateTo: calendarRange.dateTo.toISOString(),
       });
       if (roomBranchId) params.set('branchId', roomBranchId);
       return apiRequest<{ data: Appointment[] }>(
@@ -166,6 +165,13 @@ export function SchedulesView() {
   const roomAppointments = dayAppointments.filter(
     (appointment) => appointment.resourceType === 'TREATMENT_ROOM',
   );
+  const allRoomAppointments = allAppointments.filter(
+    (appointment) => appointment.resourceType === 'TREATMENT_ROOM',
+  );
+  const nextSevenRoomAppointments = allRoomAppointments.filter((appointment) => {
+    const startsAt = new Date(appointment.appointmentAt);
+    return startsAt >= range.dateFrom && startsAt <= range.dateTo;
+  });
   const configuredRooms = (resources.data?.data ?? []).filter(
     (resource) =>
       resource.active &&
@@ -197,22 +203,14 @@ export function SchedulesView() {
             Daily treatment-room flow and upcoming bookings.
           </p>
         </div>
-        <label className="grid w-full gap-1 sm:max-w-xs">
-          <span className="text-xs font-medium text-muted-foreground">Room branch</span>
-          <div className="relative">
-            <Building2 className="pointer-events-none absolute left-3 top-3 size-4 text-primary" />
-            <Select className="pl-9" value={roomBranchId} onChange={(event) => setRoomBranchId(event.target.value)}>
-              {canUseAllRoomBranches ? <option value="">All room branches</option> : null}
-              {roomBranches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </Select>
-          </div>
-        </label>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Building2 className="size-3.5" />Branch: {selectedRoomBranch?.name ?? 'All branches'} (change in Settings)</p>
+          <Button type="button" onClick={() => setShowRoomBooking(true)}><Plus className="size-4" />Create appointment</Button>
+        </div>
       </div>
 
       {!canLoad ? (
-        <Card className="text-sm text-muted-foreground">Select Nashik Road or Sharanpur Road to view rooms.</Card>
+        <Card className="text-sm text-muted-foreground">Select the clinic branch in Settings to view room schedules.</Card>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -231,11 +229,13 @@ export function SchedulesView() {
                 <div>
                   <h2 className="font-semibold">Daily room board</h2>
                   <p className="text-sm text-muted-foreground">
-                    {formatDate(selectedDate)} · {selectedRoomBranch?.name ?? 'Nashik Road and Sharanpur Road'} rooms
+                    {formatDate(selectedDate)} - {selectedRoomBranch?.name ?? 'Nashik Road and Sharanpur Road'} rooms
                   </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button type="button" variant={viewMode === 'rooms' ? 'primary' : 'secondary'} onClick={() => setViewMode('rooms')}>Room board</Button>
+                <Button type="button" variant={viewMode === 'calendar' ? 'primary' : 'secondary'} onClick={() => setViewMode('calendar')}>Calendar</Button>
                 <Button
                   type="button"
                   variant="secondary"
@@ -277,12 +277,18 @@ export function SchedulesView() {
               <State text="Loading room bookings..." />
             ) : appointments.isError ? (
               <State text="Room bookings could not be loaded." error />
-            ) : (
+            ) : viewMode === 'rooms' ? (
               <RoomBoard
                 appointments={roomAppointments}
                 configuredRooms={configuredRooms}
                 allBranches={allRoomBranches}
                 roomBranches={displayedRoomBranches}
+              />
+            ) : (
+              <RoomCalendar
+                appointments={allRoomAppointments}
+                selectedDate={selectedDate}
+                onSelectDate={setSelectedDate}
               />
             )}
           </Card>
@@ -301,7 +307,7 @@ export function SchedulesView() {
               <State text="Loading appointments..." />
             ) : appointments.isError ? (
               <State text="Appointments could not be loaded." error />
-            ) : allAppointments.length === 0 ? (
+            ) : nextSevenRoomAppointments.length === 0 ? (
               <State text="No scheduled appointments." />
             ) : (
               <div className="overflow-x-auto">
@@ -317,12 +323,12 @@ export function SchedulesView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allAppointments.map((appointment) => (
+                    {nextSevenRoomAppointments.map((appointment) => (
                       <tr key={appointment.id} className="border-t border-border">
                         <td className="whitespace-nowrap px-4 py-3">
                           <div className="font-medium">{formatTimeRange(appointment)}</div>
                           <div className="text-xs text-muted-foreground">
-                            {new Date(appointment.appointmentAt).toLocaleDateString('en-IN')} · {busyDurationLabel(appointment)}
+                            {new Date(appointment.appointmentAt).toLocaleDateString('en-IN')} - {busyDurationLabel(appointment)}
                           </div>
                         </td>
                         {allRoomBranches ? (
@@ -341,6 +347,23 @@ export function SchedulesView() {
               </div>
             )}
           </Card>
+          {showRoomBooking ? (
+            <RoomBookingDialog
+              branches={roomBranches}
+              resources={configuredRooms}
+              initialBranchId={roomBranchId || roomBranches[0]?.id || ''}
+              initialDate={selectedDate}
+              onClose={() => setShowRoomBooking(false)}
+              onBooked={async () => {
+                setShowRoomBooking(false);
+                await Promise.all([
+                  queryClient.invalidateQueries({ queryKey: ['schedule-appointments'] }),
+                  queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+                  queryClient.invalidateQueries({ queryKey: ['daily-client-queue'] }),
+                ]);
+              }}
+            />
+          ) : null}
         </>
       )}
     </section>
@@ -352,6 +375,8 @@ type RoomSlot = {
   label: string;
   appointments: Appointment[];
   branch?: string;
+  branchId: string;
+  roomNumber: number;
 };
 
 function RoomBoard({
@@ -374,6 +399,8 @@ function RoomBoard({
         label: `Room ${roomNumber}`,
         appointments: appointments.filter((appointment) => appointment.branchId === branch.id && appointment.roomNumber === roomNumber),
         branch: branch.name,
+        branchId: branch.id,
+        roomNumber,
       })),
     );
   const slots: RoomSlot[] = [
@@ -390,6 +417,8 @@ function RoomBoard({
           ),
       ),
       branch: resource.branch?.name,
+      branchId: resource.branchId,
+      roomNumber: roomNumberFromName(resource.name) ?? 1,
     })),
     ...fallbackSlots,
   ];
@@ -426,7 +455,7 @@ function RoomBoard({
                 <div className="mt-1 truncate text-sm">{appointment.lead?.name ?? 'Client'}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
                   {appointment.status.replaceAll('_', ' ')}
-                  {appointment.service?.name ? ` Â· ${appointment.service.name}` : ''}
+                  {appointment.service?.name ? ` - ${appointment.service.name}` : ''}
                 </div>
                 <div className="mt-1 text-[11px] font-medium text-muted-foreground">
                   Busy for {busyDurationLabel(appointment)}
@@ -443,6 +472,72 @@ function RoomBoard({
       ))}
     </div>
   );
+}
+
+function RoomCalendar({ appointments, selectedDate, onSelectDate }: { appointments: Appointment[]; selectedDate: Date; onSelectDate: (date: Date) => void }) {
+  const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  const gridStart = addDays(monthStart, -monthStart.getDay());
+  const days = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
+  const grouped = appointments.reduce<Record<string, Appointment[]>>((result, appointment) => {
+    const key = localDateKey(new Date(appointment.appointmentAt));
+    result[key] = [...(result[key] ?? []), appointment];
+    return result;
+  }, {});
+  return (
+    <div className="p-4">
+      <div className="grid grid-cols-7 overflow-hidden rounded-lg border border-border text-sm">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day} className="border-b border-border bg-muted/50 p-2 text-center text-xs font-medium text-muted-foreground">{day}</div>)}
+        {days.map((day) => {
+          const key = localDateKey(day);
+          const bookings = grouped[key] ?? [];
+          const selected = key === localDateKey(selectedDate);
+          return <button key={key} type="button" onClick={() => onSelectDate(startOfDay(day))} className={cn('min-h-28 border-b border-r border-border p-2 text-left hover:bg-muted/40', day.getMonth() !== selectedDate.getMonth() && 'bg-muted/20 text-muted-foreground', selected && 'bg-primary/10 ring-2 ring-inset ring-primary')}>
+            <span className={cn('inline-grid size-7 place-items-center rounded-full text-xs font-semibold', selected && 'bg-primary text-white')}>{day.getDate()}</span>
+            <div className="mt-2 space-y-1">{bookings.slice(0, 3).map((item) => <div key={item.id} className="truncate rounded bg-primary/10 px-1.5 py-1 text-[11px] text-primary">{new Date(item.appointmentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} · R{item.roomNumber} · {item.lead?.name ?? 'Client'}</div>)}{bookings.length > 3 ? <div className="text-[11px] text-muted-foreground">+{bookings.length - 3} more</div> : null}</div>
+          </button>;
+        })}
+      </div>
+    </div>
+  );
+}
+
+function RoomBookingDialog({ branches, resources, initialBranchId, initialDate, onClose, onBooked }: { branches: Branch[]; resources: ClinicResource[]; initialBranchId: string; initialDate: Date; onClose: () => void; onBooked: () => void }) {
+  const [branchId, setBranchId] = useState(initialBranchId);
+  const [name, setName] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [source, setSource] = useState('PHONE_CALL');
+  const [appointmentAt, setAppointmentAt] = useState(`${localDateKey(initialDate)}T10:00`);
+  const [roomNumber, setRoomNumber] = useState('');
+  const [serviceId, setServiceId] = useState('');
+  const [notes, setNotes] = useState('');
+  const services = useQuery({ queryKey: ['room-booking-services', branchId], queryFn: () => apiRequest<{ data: ClinicService[] }>(`/front-desk/services?branchId=${encodeURIComponent(branchId)}`), enabled: Boolean(branchId) });
+  const roomServices = (services.data?.data ?? []).filter((service) => service.resourceType === 'TREATMENT_ROOM' && service.active);
+  const selectedService = roomServices.find((service) => service.id === serviceId);
+  const selectedResource = resources.find((resource) => resource.branchId === branchId && roomNumberFromName(resource.name) === Number(roomNumber));
+  const booking = useMutation({
+    mutationFn: () => apiRequest('/appointments', { method: 'POST', body: JSON.stringify({ name: name.trim(), mobile: mobile.trim(), source, branchId, appointmentAt, appointmentType: 'CLINIC_VISIT', resourceType: 'TREATMENT_ROOM', roomNumber: Number(roomNumber), resourceId: selectedResource?.id, serviceId: serviceId || undefined, durationMinutes: selectedService?.durationMinutes ?? 30, bufferMinutes: selectedService?.bufferMinutes ?? 0, notes: notes.trim() || undefined, bookingSource: 'SCHEDULES_AND_ROOMS', bookingChannel: 'ROOM_BOARD' }) }),
+    onSuccess: onBooked,
+  });
+  const branchRooms = resources.filter((resource) => resource.branchId === branchId);
+  const roomNumbers = branchRooms.length ? branchRooms.map((resource) => roomNumberFromName(resource.name)).filter((room): room is number => Boolean(room)) : [1, 2, 3, 4];
+  const valid = branchId && name.trim().length >= 2 && mobile.trim().length >= 8 && appointmentAt && roomNumber;
+  return <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="room-booking-title" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <Card className="mx-auto max-w-3xl">
+      <div className="flex items-start justify-between gap-4 border-b border-border pb-4"><div><h2 id="room-booking-title" className="text-xl font-semibold">Book a treatment room</h2><p className="mt-1 text-sm text-muted-foreground">This booking is restricted to treatment rooms and will appear on the room board and calendar.</p></div><Button type="button" variant="secondary" className="w-10 px-0" onClick={onClose} aria-label="Close"><X className="size-4" /></Button></div>
+      <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); if (valid) booking.mutate(); }}>
+        <label className="space-y-2 text-sm font-medium">Branch<Select value={branchId} onChange={(event) => { setBranchId(event.target.value); setRoomNumber(''); setServiceId(''); }}><option value="">Select branch</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select></label>
+        <label className="space-y-2 text-sm font-medium">Room<Select value={roomNumber} onChange={(event) => setRoomNumber(event.target.value)}><option value="">Select treatment room</option>{Array.from(new Set(roomNumbers)).sort().map((room) => <option key={room} value={room}>Treatment Room {room}</option>)}</Select></label>
+        <label className="space-y-2 text-sm font-medium">Client name<Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Full name" /></label>
+        <label className="space-y-2 text-sm font-medium">Mobile<Input value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder="Mobile number" /></label>
+        <label className="space-y-2 text-sm font-medium">Date and time<Input type="datetime-local" value={appointmentAt} onChange={(event) => setAppointmentAt(event.target.value)} /></label>
+        <label className="space-y-2 text-sm font-medium">Source<Select value={source} onChange={(event) => setSource(event.target.value)}><option value="PHONE_CALL">Phone call</option><option value="WALK_IN">Walk-in</option><option value="WEBSITE">Website</option></Select></label>
+        <label className="space-y-2 text-sm font-medium sm:col-span-2">Treatment service<Select value={serviceId} onChange={(event) => setServiceId(event.target.value)}><option value="">General room treatment (30 min)</option>{roomServices.map((service) => <option key={service.id} value={service.id}>{service.name} · {service.durationMinutes} min</option>)}</Select></label>
+        <label className="space-y-2 text-sm font-medium sm:col-span-2">Booking notes<Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Treatment or room preparation notes" /></label>
+        {booking.isError ? <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">{booking.error.message}</p> : null}
+        <div className="flex gap-2 sm:col-span-2"><Button type="submit" disabled={!valid || booking.isPending}>{booking.isPending ? 'Booking...' : 'Book room appointment'}</Button><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button></div>
+      </form>
+    </Card>
+  </div>;
 }
 
 function State({ text, error = false }: { text: string; error?: boolean }) {

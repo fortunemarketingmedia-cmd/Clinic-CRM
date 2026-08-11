@@ -107,8 +107,8 @@ export function LeadScoringView() {
 
       <div className="grid gap-3 sm:grid-cols-4">
         <Band label="Hot" range="60 points or more" tone="bg-red-50 text-red-700" />
-        <Band label="Warm" range="30–59 points" tone="bg-amber-50 text-amber-700" />
-        <Band label="Cold" range="0–29 points" tone="bg-blue-50 text-blue-700" />
+        <Band label="Warm" range="30-59 points" tone="bg-amber-50 text-amber-700" />
+        <Band label="Cold" range="0-29 points" tone="bg-blue-50 text-blue-700" />
         <Band label="Unqualified" range="Below 0" tone="bg-slate-100 text-slate-700" />
       </div>
 
@@ -199,7 +199,7 @@ export function LeadScoringView() {
             </p>
           </div>
           {rules.isLoading ? (
-            <State text="Loading rules…" />
+            <State text="Loading rules..." />
           ) : rules.isError ? (
             <State text="Scoring rules could not be loaded." />
           ) : (rules.data?.data.length ?? 0) === 0 ? (
@@ -219,7 +219,7 @@ export function LeadScoringView() {
                       </span>
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      {rule.branch?.name ?? 'All branches'} · {rule.field} ·{' '}
+                      {rule.branch?.name ?? 'All branches'} - {rule.field} -{' '}
                       {rule.operator.replaceAll('_', ' ')} {rule.value ?? ''}
                     </div>
                   </div>

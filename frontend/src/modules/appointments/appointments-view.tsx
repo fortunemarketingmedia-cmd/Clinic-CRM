@@ -11,6 +11,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -286,6 +287,7 @@ function statusClass(status: AppointmentStatus) {
 }
 
 export function AppointmentsView() {
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { session, selectedBranchId, setSelectedBranchId } = useSessionStore();
   const isAdmin = session?.user.role === 'ADMIN';
@@ -405,7 +407,6 @@ export function AppointmentsView() {
   const formServiceId = form.watch('serviceId');
   const formPackageMasterId = form.watch('packageMasterId');
   const formBookingPlan = form.watch('bookingPlan');
-  const formPaymentStatus = form.watch('paymentStatus');
   const formDurationMinutes = form.watch('durationMinutes') ?? 30;
   const formBufferMinutes = form.watch('bufferMinutes') ?? 0;
   const selectedRoomNumber = form.watch('roomNumber');
@@ -468,9 +469,9 @@ export function AppointmentsView() {
         const rate = moneyNumber(service.basePrice);
         const fallbackRate = matchedPackage ? Math.round(moneyNumber(matchedPackage.price) / Math.max(1, matchedPackage.totalSessions)) : 0;
         const displayRate = rate || fallbackRate;
-        return { kind: 'service' as const, id: service.id, label: `${service.category ? `${service.category} - ` : ''}${service.name}`, meta: `${service.durationMinutes} min${displayRate ? ` · ${formatCurrency(displayRate)}` : ''}`, rate: displayRate };
+        return { kind: 'service' as const, id: service.id, label: `${service.category ? `${service.category} - ` : ''}${service.name}`, meta: `${service.durationMinutes} min${displayRate ? ` - ${formatCurrency(displayRate)}` : ''}`, rate: displayRate };
       });
-    const packageOptions = availablePackageMasters.map((item) => ({ kind: 'package' as const, id: item.id, label: item.name, meta: `${item.totalSessions} sessions · ${formatCurrency(moneyNumber(item.price))}`, rate: moneyNumber(item.price) }));
+    const packageOptions = availablePackageMasters.map((item) => ({ kind: 'package' as const, id: item.id, label: item.name, meta: `${item.totalSessions} sessions - ${formatCurrency(moneyNumber(item.price))}`, rate: moneyNumber(item.price) }));
     return { serviceOptions, packageOptions };
   }, [availablePackageMasters, servicesQuery.data?.data]);
   const selectedTreatmentBillingValue = formPackageMasterId ? `package:${formPackageMasterId}` : formServiceId ? `service:${formServiceId}` : '';
@@ -536,6 +537,22 @@ export function AppointmentsView() {
   useEffect(() => {
     if (!editingAppointment && activeBranchId) form.setValue('branchId', activeBranchId);
   }, [activeBranchId, editingAppointment, form]);
+
+  useEffect(() => {
+    const roomNumber = searchParams.get('room');
+    const roomBranchId = searchParams.get('branchId');
+    const createRequested = searchParams.get('create') === '1';
+    if (!createRequested && (!roomNumber || !roomBranchId)) return;
+    setShowAppointmentForm(true);
+    if (roomBranchId) form.setValue('branchId', roomBranchId);
+    if (roomNumber) {
+      form.setValue('resourceType', 'TREATMENT_ROOM');
+      form.setValue('roomNumber', Number(roomNumber));
+      form.setValue('bookingPlan', 'SINGLE_TREATMENT');
+    }
+    const date = searchParams.get('date');
+    if (date) form.setValue('appointmentAt', `${date}T10:00`);
+  }, [form, searchParams]);
 
   useEffect(() => {
     if (formResourceType !== 'CONSULTATION') return;
@@ -783,7 +800,7 @@ export function AppointmentsView() {
                 <div>
                   <div className="font-medium">{lead.name}</div>
                   <div className="text-sm text-muted-foreground">
-                    {lead.mobile} · {lead.branch?.name ?? 'Branch not set'} · {lead.interestedTreatment ?? 'Treatment not specified'}
+                    {lead.mobile} - {lead.branch?.name ?? 'Branch not set'} - {lead.interestedTreatment ?? 'Treatment not specified'}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {lead.appointmentAt ? `Preferred slot: ${new Date(lead.appointmentAt).toLocaleString('en-IN')}` : 'No preferred slot recorded'}
@@ -816,7 +833,7 @@ export function AppointmentsView() {
               {new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(
                 calendarMonth,
               )}{' '}
-              ·{' '}
+              -{' '}
               {activeBranchId
                 ? branches.find((branch) => branch.id === activeBranchId)?.name
                 : 'All branches'}
@@ -967,7 +984,7 @@ export function AppointmentsView() {
                       >
                         {formatTime(appointment.appointmentAt)} {appointment.lead?.name}
                         {appointment.resourceType === 'TREATMENT_ROOM'
-                          ? ` · R${appointment.roomNumber}`
+                          ? ` - R${appointment.roomNumber}`
                           : ''}
                       </div>
                     ))}
@@ -1032,7 +1049,7 @@ export function AppointmentsView() {
                 <div>
                   <div className="font-medium">{appointment.lead?.name ?? 'Patient'}</div>
                   <div className="text-xs text-muted-foreground">
-                    {appointment.lead?.mobile} · {appointment.branch?.name} ·{' '}
+                    {appointment.lead?.mobile} - {appointment.branch?.name} -{' '}
                     {appointment.lead?.source?.replace('_', ' ')}
                   </div>
                 </div>
@@ -1086,7 +1103,7 @@ export function AppointmentsView() {
                   {selectedAppointment.lead?.name ?? 'Appointment'}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  {formatDate(localDateKey(new Date(selectedAppointment.appointmentAt)))} ·{' '}
+                  {formatDate(localDateKey(new Date(selectedAppointment.appointmentAt)))} -{' '}
                   {formatTime(selectedAppointment.appointmentAt)}
                 </p>
               </div>
@@ -1153,32 +1170,6 @@ export function AppointmentsView() {
                   {sourceOptions.map((source) => (
                     <option key={source.value} value={source.value}>
                       {source.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="order-8 block space-y-2">
-                <span className="text-sm font-medium">Visit purpose</span>
-                <Select
-                  {...form.register('resourceType')}
-                  onChange={(event) => {
-                    const nextResourceType = event.target.value as AppointmentFormValues['resourceType'];
-                    form.setValue('resourceType', nextResourceType);
-                    if (nextResourceType === 'CONSULTATION') {
-                      form.setValue('serviceId', '');
-                      form.setValue('roomNumber', undefined);
-                      form.setValue('packageMasterId', '');
-                      form.setValue('bookingPlan', 'CONSULTATION');
-                      form.setValue('durationMinutes', STANDARD_CONSULTATION_MINUTES);
-                      form.setValue('bufferMinutes', STANDARD_CONSULTATION_BUFFER_MINUTES);
-                      return;
-                    }
-                    form.setValue('bookingPlan', 'SINGLE_TREATMENT');
-                  }}
-                >
-                  {visitPurposeOptions.map((purpose) => (
-                    <option key={purpose.value} value={purpose.value}>
-                      {purpose.label}
                     </option>
                   ))}
                 </Select>
@@ -1253,7 +1244,7 @@ export function AppointmentsView() {
                       <optgroup label="Single treatment services">
                         {treatmentBillingOptions.serviceOptions.map((option) => (
                           <option key={option.id} value={`service:${option.id}`}>
-                            {option.label} · {option.meta}
+                            {option.label} - {option.meta}
                           </option>
                         ))}
                       </optgroup>
@@ -1262,7 +1253,7 @@ export function AppointmentsView() {
                       <optgroup label="Treatment packages">
                         {treatmentBillingOptions.packageOptions.map((option) => (
                           <option key={option.id} value={`package:${option.id}`}>
-                            {option.label} · {option.meta}
+                            {option.label} - {option.meta}
                           </option>
                         ))}
                       </optgroup>
@@ -1273,14 +1264,6 @@ export function AppointmentsView() {
                   ) : null}
                 </label>
               ) : null}
-              <label className="order-11 block space-y-2">
-                <span className="text-sm font-medium">Duration (minutes)</span>
-                <Input type="number" {...form.register('durationMinutes')} />
-              </label>
-              <label className="order-12 block space-y-2">
-                <span className="text-sm font-medium">Buffer (minutes)</span>
-                <Input type="number" {...form.register('bufferMinutes')} />
-              </label>
               <label className="order-5 block space-y-2">
                 <span className="text-sm font-medium">Client name</span>
                 <Input
@@ -1343,57 +1326,6 @@ export function AppointmentsView() {
                 <span className="text-sm font-medium">Date and time</span>
                 <Input type="datetime-local" {...form.register('appointmentAt')} />
               </label>
-              <label className="order-[17] block space-y-2 lg:col-span-3">
-                <span className="text-sm font-medium">Notes</span>
-                <Input placeholder="Special instructions or internal note" {...form.register('notes')} />
-              </label>
-              <div className="order-[18] grid gap-3 rounded-xl border border-border bg-muted/20 p-4 lg:col-span-3 lg:grid-cols-[1fr_auto]">
-                <div>
-                  <div className="text-sm font-semibold">Booking estimate</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    {formResourceType === 'CONSULTATION' ? 'Standard consultation' : selectedService ? selectedService.name : 'No treatment selected'}
-                    {selectedPackage ? ` · ${selectedPackage.name}` : ''}
-                  </div>
-                  {formResourceType === 'CONSULTATION' ? (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      {STANDARD_CONSULTATION_MINUTES} min consultation · {STANDARD_CONSULTATION_BUFFER_MINUTES} min buffer
-                    </div>
-                  ) : selectedPackage ? (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Base {formatCurrency(selectedPackageBase)}
-                      {selectedPackageTax ? ` · GST ${formatCurrency(selectedPackageTax)}` : ''}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="text-left lg:text-right">
-                  <div className="text-xs text-muted-foreground">Total rate</div>
-                  <div className="text-2xl font-semibold">{formatCurrency(bookingTotal)}</div>
-                </div>
-                {bookingTotal > 0 ? (
-                  <div className="grid gap-3 lg:col-span-2 sm:grid-cols-2">
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium">Payment status</span>
-                      <Select {...form.register('paymentStatus')}>
-                        <option value="NOT_PAID">Not paid</option>
-                        <option value="PAID">Paid</option>
-                      </Select>
-                    </label>
-                    {formPaymentStatus === 'PAID' ? (
-                      <label className="block space-y-2">
-                        <span className="text-sm font-medium">Payment mode</span>
-                        <Select {...form.register('paymentMode')}>
-                          <option value="">Select mode</option>
-                          <option value="CASH">Cash</option>
-                          <option value="UPI">UPI</option>
-                          <option value="CARD">Card</option>
-                          <option value="BANK_TRANSFER">Bank transfer</option>
-                          <option value="OTHER">Other</option>
-                        </Select>
-                      </label>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
               {createAppointment.error || updateAppointment.error ? (
                 <div className="order-[19] rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 lg:col-span-3">
                   <div className="font-semibold">{bookingProblem?.title ?? 'Appointment could not be booked'}</div>
@@ -1566,11 +1498,11 @@ function AppointmentList({
           <div>
             <div className="font-medium">{appointment.lead?.name ?? 'Patient'}</div>
             <div className="text-xs text-muted-foreground">
-              {appointment.lead?.mobile} · {appointment.branch?.name} ·{' '}
+              {appointment.lead?.mobile} - {appointment.branch?.name} -{' '}
               {appointment.lead?.source?.replace('_', ' ')}
               {appointment.resourceType === 'TREATMENT_ROOM'
-                ? ` · Room ${appointment.roomNumber}`
-                : ' · Consultation'}
+                ? ` - Room ${appointment.roomNumber}`
+                : ' - Consultation'}
             </div>
           </div>
           <Select

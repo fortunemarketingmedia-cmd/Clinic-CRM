@@ -36,5 +36,4 @@ export const patient360Controller = {
   async prescriptionPdf(req: Request, res: Response) { const buffer = await patient360Service.getPrescriptionPdf(req.params.id, actor(req)); res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="prescription-${req.params.id}.pdf"`); return res.send(buffer); },
   async listMedicines(req: Request, res: Response) { const query = medicineQuerySchema.parse(req.query); return res.json({ data: await patient360Service.listMedicines(query.search) }); },
   async listTemplates(req: Request, res: Response) { const query = clinicalListQuerySchema.pick({ branchId: true }).parse(req.query); return res.json({ data: await patient360Service.listTemplates(query.branchId) }); },
-  async doctorWorkspace(req: Request, res: Response) { const query = clinicalListQuerySchema.parse(req.query); return res.json({ data: await patient360Service.doctorWorkspace(actor(req), query.branchId, query.date) }); },
 };

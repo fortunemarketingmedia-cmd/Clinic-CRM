@@ -37,7 +37,6 @@ const actions = [
   'ASSIGN_OWNER',
   'CHANGE_STAGE',
   'UPDATE_FIELD',
-  'SEND_WHATSAPP',
   'NOTIFY_ADMIN',
   'TRIGGER_WEBHOOK',
   'SEND_CONVERSION_EVENT',
@@ -173,7 +172,7 @@ export function AutomationBuilderView() {
           </p>
           <div className="mt-4 flex justify-end">
             <Button disabled={!form.name || create.isPending} onClick={() => create.mutate()}>
-              {create.isPending ? 'Saving…' : 'Save workflow'}
+              {create.isPending ? 'Saving...' : 'Save workflow'}
             </Button>
           </div>
         </Card>

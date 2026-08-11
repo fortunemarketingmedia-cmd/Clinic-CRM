@@ -9,7 +9,6 @@ import type { AuditContext } from './audit.service.js';
 import { auditService } from './audit.service.js';
 import { adLeadService } from './ad-lead.service.js';
 import { integrationProviderService } from './integration-provider.service.js';
-import { whatsappService } from './whatsapp.service.js';
 
 type ConnectionInput = {
   provider: IntegrationProvider;
@@ -519,12 +518,6 @@ export const integrationService = {
             occurredAt: full.created_time ? new Date(String(full.created_time)) : new Date(),
             metadata: { formId, connectionId: event.connectionId },
           });
-          await whatsappService.scheduleReferenceAutomations(
-            'LEAD_RECEIVED',
-            'Lead',
-            lead.id,
-            lead.branchId,
-          );
           await auditService.record(
             {
               userId: event.connection.createdById,

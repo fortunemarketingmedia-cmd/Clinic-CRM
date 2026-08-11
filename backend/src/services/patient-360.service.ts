@@ -231,14 +231,4 @@ export const patient360Service = {
 
   listMedicines(search?: string) { return patient360Repository.listMedicines(search); },
   listTemplates(branchId?: string) { return patient360Repository.listTemplates(branchId); },
-  async doctorWorkspace(actor: Actor, branchId?: string, date = new Date()) {
-    requireClinicalRole(actor); await accessService.assertBranchAccess(actor.id, actor.role, branchId);
-    const start = new Date(date); start.setHours(0, 0, 0, 0); const end = new Date(start); end.setDate(end.getDate() + 1);
-    const workspace = await patient360Repository.doctorWorkspace(actor.id, branchId, start, end);
-    return {
-      ...workspace,
-      waitingPatients: workspace.appointments.filter((item) => ['CHECKED_IN', 'WAITING'].includes(item.status)),
-      consultations: workspace.appointments.filter((item) => !['CANCELLED', 'NO_SHOW'].includes(item.status)),
-    };
-  },
 };

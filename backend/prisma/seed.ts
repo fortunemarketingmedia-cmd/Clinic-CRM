@@ -45,7 +45,6 @@ async function main() {
 
   const doctorPasswordHash = await bcrypt.hash('DrRevive@12345', 12);
   const receptionistPasswordHash = await bcrypt.hash('Reception@12345', 12);
-  const developerPasswordHash = await bcrypt.hash('Developer@12345', 12);
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@reviveclinic.local' },
@@ -65,16 +64,13 @@ async function main() {
     create: { name: 'Receptionist', email: 'receptionist@reviveclinic.local', passwordHash: receptionistPasswordHash, role: Role.RECEPTIONIST, accessLevel: 'RECEPTIONIST' },
   });
 
-  // Hidden system-maintenance account. It is excluded from the clinic user list
-  // and has access only to developer integration and diagnostic screens.
-  const developer = await prisma.user.upsert({
-    where: { email: 'developer@reviveclinic.local' },
-    update: { name: 'Developer Team', passwordHash: developerPasswordHash, role: Role.DEVELOPER, accessLevel: 'DEVELOPER', status: 'ACTIVE' },
-    create: { name: 'Developer Team', email: 'developer@reviveclinic.local', passwordHash: developerPasswordHash, role: Role.DEVELOPER, accessLevel: 'DEVELOPER' },
+  await prisma.user.updateMany({
+    where: { OR: [{ role: Role.DEVELOPER }, { accessLevel: 'DEVELOPER' }] },
+    data: { status: 'INACTIVE' },
   });
 
   await Promise.all(
-    [admin, receptionist, developer].flatMap((user) =>
+    [admin, receptionist].flatMap((user) =>
       [sharanpurBranch.id, nashikRoadBranch.id].map((branchId, index) =>
         prisma.userBranch.upsert({
           where: { userId_branchId: { userId: user.id, branchId } },
@@ -86,7 +82,7 @@ async function main() {
   );
   const defaultAutomations = [
     { name: 'New lead immediate follow-up', trigger: 'LEAD_CREATED' as const, workflow: [{ type: 'CREATE_TASK', delayMinutes: 0, config: { title: 'Contact new lead', dueMinutes: 15, priority: 'HIGH' } }] },
-    { name: 'Missed appointment recovery', trigger: 'APPOINTMENT_MISSED' as const, workflow: [{ type: 'CREATE_TASK', delayMinutes: 5, config: { title: 'Contact missed appointment', dueMinutes: 30, priority: 'HIGH' } }, { type: 'SEND_WHATSAPP', delayMinutes: 0, config: { templatePurpose: 'MISSED_APPOINTMENT' } }] },
+    { name: 'Missed appointment recovery', trigger: 'APPOINTMENT_MISSED' as const, workflow: [{ type: 'CREATE_TASK', delayMinutes: 5, config: { title: 'Contact missed appointment', dueMinutes: 30, priority: 'HIGH' } }] },
     { name: 'Consultation plan follow-up', trigger: 'CONSULTATION_COMPLETED' as const, workflow: [{ type: 'CREATE_TASK', delayMinutes: 1440, config: { title: 'Follow up after consultation', dueMinutes: 60 } }] },
     { name: 'Treatment plan follow-up', trigger: 'TREATMENT_PLAN_CREATED' as const, workflow: [{ type: 'CREATE_TASK', delayMinutes: 1440, config: { title: 'Discuss treatment plan', dueMinutes: 60 } }] },
   ];
@@ -618,79 +614,6 @@ async function main() {
   for (const rule of scoringRules) {
     await prisma.leadScoringRule.upsert({ where: { id: rule.id }, update: { ...rule, active: true }, create: { ...rule, active: true } });
   }
-
-  // Managed WhatsApp template drafts. They remain inactive until an administrator
-  // connects Meta Cloud API and synchronises the provider-approved versions.
-  const testWhatsAppAccount = await prisma.whatsAppAccount.upsert({
-    where: { businessAccountId: 'LOCAL_TEST_WABA' },
-    update: { name: 'Local testing account', status: 'DISCONNECTED' },
-    create: {
-      name: 'Local testing account',
-      businessAccountId: 'LOCAL_TEST_WABA',
-      accessTokenCiphertext: 'LOCAL-TEST-ONLY',
-      appSecretCiphertext: 'LOCAL-TEST-ONLY',
-      verifyTokenCiphertext: 'LOCAL-TEST-ONLY',
-      status: 'DISCONNECTED',
-    },
-  });
-  for (const [index, branch] of [sharanpurBranch, nashikRoadBranch].entries()) {
-    await prisma.whatsAppPhoneNumber.upsert({
-      where: { phoneNumberId: `LOCAL_TEST_PHONE_${index + 1}` },
-      update: { accountId: testWhatsAppAccount.id, branchId: branch.id, active: true, isDefault: true },
-      create: {
-        accountId: testWhatsAppAccount.id,
-        branchId: branch.id,
-        phoneNumberId: `LOCAL_TEST_PHONE_${index + 1}`,
-        displayPhoneNumber: `+91 00000 0000${index + 1}`,
-        normalizedPhone: `91000000000${index + 1}`,
-        verifiedName: `Revive ${branch.name} (Test)`,
-        active: true,
-        isDefault: true,
-      },
-    });
-  }
-
-  const whatsappTemplates = [
-    { id: 'wa_template_lead_received', name: 'lead_received', displayName: 'New lead acknowledgement', category: 'UTILITY' as const, group: 'NEW_LEAD' as const, body: 'Hello {{1}}, thank you for contacting {{2}} about {{3}}. {{4}} will assist you shortly.' },
-    { id: 'wa_template_lead_followup', name: 'lead_follow_up', displayName: 'Lead follow-up', category: 'UTILITY' as const, group: 'LEAD_FOLLOW_UP' as const, body: 'Hello {{1}}, would you like help booking a consultation at {{2}} for {{3}}?' },
-    { id: 'wa_template_appointment_booked', name: 'appointment_booked', displayName: 'Appointment booked', category: 'UTILITY' as const, group: 'APPOINTMENT' as const, body: 'Hello {{1}}, your appointment at {{2}} is booked for {{3}} with {{4}}.', buttons: [{ type: 'QUICK_REPLY', text: 'Confirm', id: 'APPOINTMENT_CONFIRM' }, { type: 'QUICK_REPLY', text: 'Reschedule', id: 'APPOINTMENT_RESCHEDULE' }, { type: 'QUICK_REPLY', text: 'Cancel', id: 'APPOINTMENT_CANCEL' }] },
-    { id: 'wa_template_appointment_tomorrow', name: 'appointment_tomorrow', displayName: '24-hour appointment reminder', category: 'UTILITY' as const, group: 'APPOINTMENT' as const, body: 'Reminder: {{1}}, your appointment at {{2}} is tomorrow at {{3}}. Address: {{5}}.', buttons: [{ type: 'QUICK_REPLY', text: 'Confirm', id: 'APPOINTMENT_CONFIRM' }, { type: 'QUICK_REPLY', text: 'Directions', id: 'DIRECTIONS' }] },
-    { id: 'wa_template_appointment_hour', name: 'appointment_in_one_hour', displayName: 'One-hour appointment reminder', category: 'UTILITY' as const, group: 'APPOINTMENT' as const, body: 'Hello {{1}}, your appointment at {{2}} starts in one hour ({{3}}).', buttons: [{ type: 'QUICK_REPLY', text: 'I have arrived', id: 'ARRIVED' }] },
-    { id: 'wa_template_appointment_rescheduled', name: 'appointment_rescheduled', displayName: 'Appointment rescheduled', category: 'UTILITY' as const, group: 'APPOINTMENT' as const, body: 'Hello {{1}}, your appointment at {{2}} has been rescheduled to {{3}}.' },
-    { id: 'wa_template_appointment_cancelled', name: 'appointment_cancelled', displayName: 'Appointment cancelled', category: 'UTILITY' as const, group: 'APPOINTMENT' as const, body: 'Hello {{1}}, your appointment at {{2}} for {{3}} has been cancelled. Reply here if you need help.' },
-    { id: 'wa_template_payment_reminder', name: 'payment_reminder', displayName: 'Payment reminder', category: 'UTILITY' as const, group: 'PAYMENT' as const, body: 'Hello {{1}}, this is a payment reminder from {{2}}. Please contact us if you need assistance.' },
-  ];
-  for (const template of whatsappTemplates) await prisma.whatsAppTemplate.upsert({ where: { id: template.id }, update: { ...template, status: 'DRAFT', active: false }, create: { ...template, language: 'en', status: 'DRAFT', active: false, createdById: admin.id } });
-  await prisma.whatsAppTemplate.upsert({
-    where: { id: 'wa_template_test_marketing' },
-    update: { accountId: testWhatsAppAccount.id, status: 'APPROVED', active: true },
-    create: {
-      id: 'wa_template_test_marketing',
-      accountId: testWhatsAppAccount.id,
-      providerTemplateId: 'LOCAL_TEST_MARKETING_TEMPLATE',
-      name: 'revive_test_offer',
-      displayName: 'Revive test marketing message',
-      language: 'en',
-      category: 'MARKETING',
-      group: 'GENERAL',
-      status: 'APPROVED',
-      body: 'Hello {{1}}, this is a test campaign from Revive Clinic. No message will be delivered until a real Meta account is connected.',
-      active: true,
-      createdById: admin.id,
-    },
-  });
-
-  const whatsappAutomations = [
-    { id: 'wa_auto_lead_received', name: 'Lead received acknowledgement', trigger: 'LEAD_RECEIVED' as const, templateId: 'wa_template_lead_received', delayMinutes: 0, sequenceStep: 1 },
-    { id: 'wa_auto_lead_followup_1', name: 'Lead follow-up — day 1', trigger: 'LEAD_FOLLOW_UP' as const, templateId: 'wa_template_lead_followup', delayMinutes: 1440, sequenceStep: 1 },
-    { id: 'wa_auto_lead_followup_2', name: 'Lead follow-up — day 3', trigger: 'LEAD_FOLLOW_UP' as const, templateId: 'wa_template_lead_followup', delayMinutes: 4320, sequenceStep: 2 },
-    { id: 'wa_auto_appointment_booked', name: 'Appointment booked confirmation', trigger: 'APPOINTMENT_BOOKED' as const, templateId: 'wa_template_appointment_booked', delayMinutes: 0, sequenceStep: 1 },
-    { id: 'wa_auto_appointment_tomorrow', name: 'Appointment reminder — 24 hours', trigger: 'APPOINTMENT_TOMORROW' as const, templateId: 'wa_template_appointment_tomorrow', delayMinutes: 0, sequenceStep: 1 },
-    { id: 'wa_auto_appointment_hour', name: 'Appointment reminder — 1 hour', trigger: 'APPOINTMENT_IN_ONE_HOUR' as const, templateId: 'wa_template_appointment_hour', delayMinutes: 0, sequenceStep: 1 },
-    { id: 'wa_auto_appointment_rescheduled', name: 'Appointment rescheduled notice', trigger: 'APPOINTMENT_RESCHEDULED' as const, templateId: 'wa_template_appointment_rescheduled', delayMinutes: 0, sequenceStep: 1 },
-    { id: 'wa_auto_appointment_cancelled', name: 'Appointment cancellation notice', trigger: 'APPOINTMENT_CANCELLED' as const, templateId: 'wa_template_appointment_cancelled', delayMinutes: 0, sequenceStep: 1 },
-  ];
-  for (const automation of whatsappAutomations) await prisma.whatsAppAutomation.upsert({ where: { id: automation.id }, update: { ...automation, active: false }, create: { ...automation, active: false, stopConditions: ['response_received', 'appointment_booked', 'converted', 'lost', 'disqualified', 'opt_out', 'invalid_number'] } });
 
   const existingSettings = await prisma.clinicSettings.findFirst();
   if (!existingSettings) {

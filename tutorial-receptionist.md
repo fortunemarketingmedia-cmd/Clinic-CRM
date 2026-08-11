@@ -4,9 +4,9 @@
 
 This guide is for the **Receptionist** account in Revive Clinic CRM.
 
-Your role is to keep the clinic’s day running smoothly: receive enquiries, manage leads and follow-ups, register patients, book appointments, update the queue, support communication, and keep records accurate.
+Your role is to keep the clinic’s day running smoothly: receive enquiries, manage leads and follow-ups, register patients, book appointments, update the queue, and keep records accurate.
 
-You have access to daily CRM, front-desk, patient, and communication tools. You do **not** have access to the **Reports** or **Administration** sections. If you need changes to clinic settings, templates, scoring rules, forms, or automations, request them from Dr. Revive.
+You have access to daily CRM, front-desk, and patient tools. You do **not** have access to the **Reports** or **Administration** sections. If you need changes to clinic settings, templates, scoring rules, forms, or automations, request them from Dr. Revive.
 
 > **Important:** Patient information is confidential. Always confirm the patient, mobile number, and selected branch before creating or changing any record.
 
@@ -22,7 +22,7 @@ You can choose between your assigned branches, for example **Nashik Road** and *
 
 ### Why the branch matters
 
-The branch selection controls the leads, appointments, queue, patients, tasks, and WhatsApp conversations you see. Before adding an appointment or patient, always make sure the correct branch is selected.
+The branch selection controls the leads, appointments, queue, patients, and tasks you see. Before adding an appointment or patient, always make sure the correct branch is selected.
 
 ---
 
@@ -36,7 +36,6 @@ The branch selection controls the leads, appointments, queue, patients, tasks, a
 4. Open **Calendar** and review the day’s appointments.
 5. Open **Follow-ups** and **Tasks** to identify urgent work.
 6. Open **Leads** and contact new or overdue enquiries.
-7. Check the **Shared Inbox** for unread WhatsApp conversations.
 
 ### During the day
 
@@ -270,7 +269,7 @@ You can update contact and registration details when the patient confirms them. 
 
 ---
 
-## 11. Patient record and Doctor Workspace
+## 11. Patient record
 
 Open a patient record to view the Patient 360 information and related history.
 
@@ -280,8 +279,6 @@ You can use this view to:
 - Review documented history and alerts before assisting the doctor.
 - View forms, consent records, and uploaded documents as permitted.
 - Support the doctor with operational preparation.
-
-Open **Doctor Workspace** to see the current clinical queue and help direct patients to the correct next step.
 
 ### Clinical record safety
 
@@ -326,38 +323,7 @@ For clinical photographs:
 
 ---
 
-## 13. Shared Inbox and WhatsApp
-
-Open **Shared Inbox** to work with official WhatsApp conversations.
-
-### Handle a conversation
-
-1. Select the branch.
-2. Use filters for unread, unassigned, mine, or failed conversations.
-3. Open a conversation.
-4. Confirm the linked patient or lead before replying.
-5. Reply with accurate, approved information.
-6. Update priority or status if needed.
-
-### Internal notes
-
-Use **Add note** for information that staff need to see but the patient must not receive.
-
-Examples:
-
-- “Patient requested a call after 6 PM.”
-- “Waiting for doctor confirmation before replying.”
-- “Patient sent an image; doctor review required.”
-
-### WhatsApp Templates and Broadcasts
-
-You can view and use the operational communication features available to your role. Do not create or send unapproved marketing content. Use approved templates and follow clinic policy for broadcasts.
-
-For Meta connection issues, provider approval, template setup, or automation configuration, contact Dr. Revive.
-
----
-
-## 14. Features not available to Receptionist
+## 13. Features not available to Receptionist
 
 The following areas are intentionally restricted to Dr. Revive:
 
@@ -372,7 +338,7 @@ If you need a report, template change, new automation, user change, or settings 
 
 ---
 
-## 15. Security and privacy
+## 14. Security and privacy
 
 Follow these rules every day:
 
@@ -386,7 +352,7 @@ Follow these rules every day:
 
 ---
 
-## 16. Troubleshooting
+## 15. Troubleshooting
 
 ### I cannot see a lead, patient, or appointment
 
@@ -427,8 +393,6 @@ The restriction is by design. Contact Dr. Revive with your request rather than t
 | Record a future appointment request | Waitlist |
 | Check staff, rooms, and resources | Schedules & Rooms |
 | Register or find a patient | Patient Directory |
-| Support the clinical team | Doctor Workspace / Patient record |
-| Handle patient messages | Shared Inbox |
-| Use approved communication tools | WhatsApp Templates / Broadcasts |
+| Support the clinical team | Patient record |
 
 When unsure, pause, verify the patient and branch, and ask Dr. Revive before taking action.

@@ -23,7 +23,9 @@ export const taskService = {
     await accessService.assertBranchAccess(input.createdById, input.role, input.branchId);
     const assignee = await taskRepository.findAssignableUser(input.assignedUserId, input.branchId);
     if (!assignee) throw new HttpError(400, 'Select an active team member from this branch');
-    const task = await taskRepository.create(input);
+    const { role: _authorizationRole, ...taskData } = input;
+    void _authorizationRole;
+    const task = await taskRepository.create(taskData);
     await auditService.record(
       { ...audit, branchId: input.branchId },
       { action: 'TASK_CREATED', entity: 'Task', entityId: task.id },

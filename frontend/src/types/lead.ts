@@ -30,7 +30,7 @@ export type Lead = {
   mobile: string;
   email?: string | null;
   address?: string | null;
-  source: 'WEBSITE' | 'WALK_IN' | 'PHONE_CALL' | 'WHATSAPP' | 'GOOGLE_ADS' | 'META_ADS';
+  source: 'WEBSITE' | 'WALK_IN' | 'PHONE_CALL' | 'WHATSAPP' | 'GOOGLE_ADS' | 'META_ADS' | 'OTHER';
   status: LeadStatus;
   priority: LeadPriority;
   nextFollowupAt?: string | null;
@@ -41,6 +41,7 @@ export type Lead = {
   appointmentType: 'CLINIC_VISIT' | 'VIDEO_CONSULTATION';
   appointmentAt?: string | null;
   createdAt: string;
+  updatedAt?: string;
   branch?: Branch;
   adLeads?: AdLead[];
   patient?: { id: string; patientNo: string; fullName: string } | null;

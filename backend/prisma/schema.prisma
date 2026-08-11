@@ -164,6 +164,7 @@ enum EnquirySource {
   WHATSAPP
   GOOGLE_ADS
   META_ADS
+  OTHER
 }
 
 enum AdPlatform {

@@ -58,7 +58,6 @@ Use this order at the beginning and end of each working day.
 2. Complete or reschedule pending follow-ups and tasks.
 3. Confirm important lead stages and next actions.
 4. Review **Analytics** for appointments, lead conversion, and branch performance.
-5. Check **Shared Inbox** for unanswered patient messages.
 
 ---
 
@@ -317,44 +316,7 @@ Do not upload irrelevant documents or files belonging to another patient.
 
 ---
 
-## 9. Communication centre and WhatsApp
-
-Open **Shared Inbox** to work with official WhatsApp Cloud API conversations.
-
-### Shared Inbox
-
-1. Select the branch.
-2. Use filters such as unread, unassigned, mine, or failed.
-3. Select a conversation.
-4. Review the linked patient or lead and message history.
-5. Send a reply within the allowed service window, or add an internal note for staff.
-6. Update the conversation status and priority when appropriate.
-
-Internal notes are not sent to the patient.
-
-### WhatsApp Templates
-
-Use **WhatsApp Templates** to manage approved-message drafts and performance.
-
-- Create clear, compliant templates using the required variable format.
-- Sync provider status when a Meta integration is connected.
-- Do not assume a draft is ready to send until it is approved by the provider.
-
-### Broadcasts
-
-Use **Broadcasts** for approved marketing communication only.
-
-1. Choose an approved marketing template and sending number.
-2. Build the audience.
-3. Review the campaign details.
-4. Request and complete the required approval steps.
-5. Send only when appropriate.
-
-The CRM applies consent filters, quiet-hour rules, and rate controls. Never attempt to bypass these safeguards.
-
----
-
-## 10. Reports and analytics
+## 9. Reports and analytics
 
 Dr. Revive has access to **Analytics** under Reports.
 
@@ -375,7 +337,7 @@ Reports are decision-support tools. Verify unusual results against actual record
 
 ---
 
-## 11. Administration
+## 10. Administration
 
 Only Dr. Revive has the following administrative sections.
 
@@ -431,7 +393,7 @@ Make configuration changes carefully. They can affect documents, messages, and d
 
 ---
 
-## 12. Access and security
+## 11. Access and security
 
 Dr. Revive has full access. Receptionist users can use operational features but do not have access to Reports or Administration.
 
@@ -447,7 +409,7 @@ Security rules:
 
 ---
 
-## 13. Troubleshooting
+## 12. Troubleshooting
 
 ### I changed something but another page still looks old
 
@@ -488,8 +450,5 @@ Confirm you are signed in as **Dr. Revive** and refresh the page. If access is s
 | Review rooms and schedules | Schedules & Rooms |
 | Open patient clinical record | Patient Directory |
 | Record consultation, procedure, or prescription | Patient 360 |
-| Reply to WhatsApp messages | Shared Inbox |
-| Create approved campaigns | WhatsApp Templates / Broadcasts |
 | View clinic performance | Analytics |
 | Configure forms, rules, and workflows | Administration |
-

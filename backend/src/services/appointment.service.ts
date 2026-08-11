@@ -13,9 +13,9 @@ import { addMinutes, validateAppointmentTransition } from './appointment-policy.
 import { auditService, type AuditContext } from './audit.service.js';
 import { leadScoringService } from './lead-scoring.service.js';
 import { accessService } from './access.service.js';
-import { whatsappService } from './whatsapp.service.js';
 import { automationService } from './automation.service.js';
 import { integrationService } from './integration.service.js';
+import { whatsappAppointmentService } from './whatsapp-appointment.service.js';
 
 const globalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.AUDITOR];
 
@@ -53,6 +53,23 @@ async function ensureLeadCanBeScheduled(leadId: string, branchId: string) {
   }
 
   return lead;
+}
+
+async function sendAppointmentConfirmation(appointment: {
+  id: string;
+  lead: { mobile: string };
+}) {
+  try {
+    await whatsappAppointmentService.sendAppointmentBookedConfirmation({
+      appointmentId: appointment.id,
+      mobile: appointment.lead.mobile,
+    });
+  } catch (error) {
+    console.error('WhatsApp appointment confirmation failed', {
+      appointmentId: appointment.id,
+      error: error instanceof Error ? error.message : 'Unknown Meta API error',
+    });
+  }
 }
 
 function ensureReceptionStatus(status?: AppointmentStatus) {
@@ -167,8 +184,8 @@ export const appointmentService = {
       await followUpRepository.closeOpenLeadFollowUps(appointment.leadId, 'Appointment booked');
       if (audit) await auditService.record({ ...audit, branchId: input.branchId }, { action: 'APPOINTMENT_CREATED', entity: 'Appointment', entityId: appointment.id });
       await leadScoringService.recalculate(appointment.leadId);
-      await whatsappService.rescheduleAppointmentAutomations(appointment.id, appointment.branchId, appointment.appointmentAt);
       await automationService.trigger('APPOINTMENT_BOOKED', { branchId: appointment.branchId, leadId: appointment.leadId, referenceType: 'Appointment', referenceId: appointment.id, payload: { appointment }, actorId: input.createdById });
+      await sendAppointmentConfirmation(appointment);
       await integrationService.trackFunnelEvent('APPOINTMENT_BOOKED', appointment.leadId, appointment.id);
       return appointment;
     }
@@ -205,8 +222,8 @@ export const appointmentService = {
     await followUpRepository.closeOpenLeadFollowUps(appointment.leadId, 'Appointment booked');
     if (audit) await auditService.record({ ...audit, branchId: input.branchId }, { action: 'APPOINTMENT_CREATED', entity: 'Appointment', entityId: appointment.id });
     await leadScoringService.recalculate(appointment.leadId);
-    await whatsappService.rescheduleAppointmentAutomations(appointment.id, appointment.branchId, appointment.appointmentAt);
     await automationService.trigger('APPOINTMENT_BOOKED', { branchId: appointment.branchId, leadId: appointment.leadId, referenceType: 'Appointment', referenceId: appointment.id, payload: { appointment }, actorId: input.createdById });
+    await sendAppointmentConfirmation(appointment);
     await integrationService.trackFunnelEvent('APPOINTMENT_BOOKED', appointment.leadId, appointment.id);
     return appointment;
   },
@@ -282,10 +299,6 @@ export const appointmentService = {
     }
 
     if (audit) await auditService.record({ ...audit, branchId: updated.branchId }, { action: input.status ? 'APPOINTMENT_STATUS_CHANGED' : 'APPOINTMENT_UPDATED', entity: 'Appointment', entityId: id, previousValue: { status: appointment.status }, newValue: { status: updated.status } });
-
-    if (input.status === AppointmentStatusEnum.CANCELLED) await whatsappService.rescheduleAppointmentAutomations(updated.id, updated.branchId, updated.appointmentAt, 'CANCELLED');
-    else if (input.status === AppointmentStatusEnum.NO_SHOW) await whatsappService.rescheduleAppointmentAutomations(updated.id, updated.branchId, updated.appointmentAt, 'MISSED');
-    else if (schedulingChanged || input.status === AppointmentStatusEnum.RESCHEDULED) await whatsappService.rescheduleAppointmentAutomations(updated.id, updated.branchId, updated.appointmentAt, 'RESCHEDULED');
 
     const automationTrigger = input.status === AppointmentStatusEnum.CONFIRMED ? 'APPOINTMENT_CONFIRMED' : input.status === AppointmentStatusEnum.NO_SHOW ? 'APPOINTMENT_MISSED' : input.status === AppointmentStatusEnum.COMPLETED ? 'APPOINTMENT_COMPLETED' : input.status === AppointmentStatusEnum.CHECKED_IN ? 'PATIENT_ARRIVED' : undefined;
     if (automationTrigger) await automationService.trigger(automationTrigger, { branchId: updated.branchId, leadId: updated.leadId, referenceType: 'Appointment', referenceId: updated.id, payload: { appointment: updated, previousStatus: appointment.status }, actorId: audit?.userId });

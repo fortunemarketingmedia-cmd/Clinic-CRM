@@ -1,7 +1,6 @@
 export const roles = {
   admin: 'ADMIN',
   receptionist: 'RECEPTIONIST',
-  developer: 'DEVELOPER',
   organisationOwner: 'ORGANISATION_OWNER',
   clinicAdmin: 'CLINIC_ADMIN',
   branchManager: 'BRANCH_MANAGER',

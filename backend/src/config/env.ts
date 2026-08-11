@@ -20,15 +20,16 @@ const envSchema = z.object({
   FILE_ACCESS_SECRET: z.string().min(16).optional(),
   PAYMENT_GATEWAY_SECRET: z.string().min(16).optional(),
   INTEGRATION_ENCRYPTION_KEY: z.string().min(32).optional(),
-  WHATSAPP_GRAPH_API_URL: z.string().url().default('https://graph.facebook.com'),
-  WHATSAPP_JOB_POLL_MS: z.coerce.number().int().min(1000).default(5000),
-  WHATSAPP_BROADCAST_APPROVAL_THRESHOLD: z.coerce.number().int().positive().default(100),
-  WHATSAPP_WORKER_ID: z.string().default('revive-whatsapp-worker'),
   META_GRAPH_API_URL: z.string().url().default('https://graph.facebook.com'),
   META_GRAPH_API_VERSION: z
     .string()
     .regex(/^v\d+\.\d+$/)
     .default('v23.0'),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1).optional(),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().min(1).optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().min(1).optional(),
+  WHATSAPP_APPOINTMENT_TEMPLATE_NAME: z.string().min(1).default('appointment_confirmation'),
+  WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE: z.string().min(2).default('en_US'),
   GOOGLE_ADS_API_URL: z.string().url().default('https://googleads.googleapis.com'),
   GOOGLE_ADS_API_VERSION: z
     .string()

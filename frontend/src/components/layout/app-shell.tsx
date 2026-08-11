@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 const AppShellContext = createContext(false);
 
@@ -15,13 +15,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { session } = useSessionStore();
   const pathname = usePathname();
   const role = session?.user.role ?? 'RECEPTIONIST';
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    setSidebarCollapsed(window.localStorage.getItem('revive_sidebar_collapsed') === 'true');
+  }, []);
+
+  function toggleSidebar() {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem('revive_sidebar_collapsed', String(next));
+      return next;
+    });
+  }
 
   if (alreadyInsideShell) return children;
 
   return (
     <AppShellContext.Provider value>
       <div className="flex min-h-screen">
-        <Sidebar role={role} />
+        <Sidebar role={role} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <main className="min-w-0 flex-1">
           <Header />
           <nav className="flex gap-2 overflow-x-auto border-b border-border bg-surface px-3 py-2 md:hidden">

@@ -45,7 +45,7 @@ export const authService = {
   async login(email: string, password: string, meta: RequestMeta, mfa?: { code?: string; recoveryCode?: string }) {
     const user = await userRepository.findByEmail(email);
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
+    if (!user || user.status !== UserStatus.ACTIVE || user.accessLevel === 'DEVELOPER') {
       await integrationRepository.createLoginEvent({ email, success: false, reason: 'INVALID_CREDENTIALS', ipAddress: meta.ipAddress, userAgent: meta.userAgent });
       throw new HttpError(401, 'Invalid email or password');
     }
@@ -94,7 +94,7 @@ export const authService = {
     const tokenHash = hashToken(refreshToken);
     const storedToken = await refreshTokenRepository.findActiveByHash(tokenHash);
 
-    if (!storedToken || storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE) {
+    if (!storedToken || storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE || storedToken.user.accessLevel === 'DEVELOPER') {
       throw new HttpError(401, 'Invalid refresh token');
     }
 
@@ -136,7 +136,7 @@ export const authService = {
   async getCurrentUser(userId: string) {
     const user = await userRepository.findById(userId);
 
-    if (!user || user.status !== UserStatus.ACTIVE) {
+    if (!user || user.status !== UserStatus.ACTIVE || user.accessLevel === 'DEVELOPER') {
       throw new HttpError(401, 'User is not active');
     }
 

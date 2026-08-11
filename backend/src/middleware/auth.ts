@@ -12,17 +12,10 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
 
   try {
     const payload = verifyAccessToken(token);
-    if (payload.role === 'DEVELOPER') {
-      const developerPaths = ['/api/auth', '/api/branches', '/api/integrations', '/api/whatsapp'];
-      const requestPath = req.originalUrl.split('?')[0];
-      if (!developerPaths.some((path) => requestPath.startsWith(path))) {
-        return next(new HttpError(403, 'Developer accounts cannot access clinic records'));
-      }
-    }
+    if (payload.role === 'DEVELOPER') return next(new HttpError(401, 'Account is not active'));
     req.user = { id: payload.sub, role: payload.role };
     return next();
   } catch {
     return next(new HttpError(401, 'Invalid or expired token'));
   }
 }
-

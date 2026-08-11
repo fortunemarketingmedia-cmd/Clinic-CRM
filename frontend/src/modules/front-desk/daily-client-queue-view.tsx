@@ -58,24 +58,23 @@ function startOfDay(value: Date) {
   return date;
 }
 
-function nextAction(status: AppointmentStatus): { label: string; status: AppointmentStatus } | null {
+function nextAction(status: AppointmentStatus, isDoctor: boolean): { label: string; status: AppointmentStatus } | null {
   if (status === 'REQUESTED' || status === 'SLOT_PROPOSED' || status === 'RESCHEDULED') return { label: 'Schedule', status: 'SCHEDULED' };
   if (['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED'].includes(status)) return { label: 'Check in', status: 'CHECKED_IN' };
   if (status === 'CHECKED_IN') return { label: 'Add to queue', status: 'WAITING' };
-  if (status === 'WAITING') return { label: 'Call client', status: 'IN_CONSULTATION' };
-  if (['IN_CONSULTATION', 'TREATMENT_IN_PROGRESS', 'BILLING_PENDING'].includes(status)) {
-    return { label: 'Mark complete', status: 'COMPLETED' };
-  }
+  if (status === 'WAITING' && !isDoctor) return { label: 'Send to consultation', status: 'IN_CONSULTATION' };
+  if (status === 'WAITING' && isDoctor) return { label: 'Start consultation', status: 'IN_CONSULTATION' };
+  if (['IN_CONSULTATION', 'TREATMENT_IN_PROGRESS'].includes(status) && isDoctor) return { label: 'Send to billing', status: 'BILLING_PENDING' };
+  if (status === 'BILLING_PENDING' && !isDoctor) return { label: 'Payment done & close', status: 'COMPLETED' };
   return null;
 }
 
-function featuredAction(status: AppointmentStatus) {
+function featuredAction(status: AppointmentStatus, isDoctor: boolean) {
   if (status === 'CHECKED_IN' || status === 'WAITING') {
-    return { label: 'Start consultation', status: 'IN_CONSULTATION' as AppointmentStatus };
+    return { label: isDoctor ? 'Start consultation' : 'Send to consultation', status: 'IN_CONSULTATION' as AppointmentStatus };
   }
-  if (['IN_CONSULTATION', 'TREATMENT_IN_PROGRESS', 'BILLING_PENDING'].includes(status)) {
-    return { label: 'Mark client complete', status: 'COMPLETED' as AppointmentStatus };
-  }
+  if (['IN_CONSULTATION', 'TREATMENT_IN_PROGRESS'].includes(status) && isDoctor) return { label: 'Checkout to billing', status: 'BILLING_PENDING' as AppointmentStatus };
+  if (status === 'BILLING_PENDING' && !isDoctor) return { label: 'Payment done & close', status: 'COMPLETED' as AppointmentStatus };
   return null;
 }
 
@@ -85,9 +84,11 @@ function clientHref(item: QueueAppointment) {
 
 export function DailyClientQueueView() {
   const queryClient = useQueryClient();
-  const { selectedBranchId } = useSessionStore();
+  const { selectedBranchId, session } = useSessionStore();
+  const isDoctor = session?.user.role === 'ADMIN';
   const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()));
   const [search, setSearch] = useState('');
+  const [checkInSearch, setCheckInSearch] = useState('');
   const [stage, setStage] = useState('');
   const [practitioner, setPractitioner] = useState('');
   const queueDateRange = useMemo(() => {
@@ -118,7 +119,6 @@ export function DailyClientQueueView() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['daily-client-queue'] }),
         queryClient.invalidateQueries({ queryKey: ['appointments'] }),
-        queryClient.invalidateQueries({ queryKey: ['doctor-workspace'] }),
       ]);
     },
   });
@@ -175,7 +175,7 @@ export function DailyClientQueueView() {
       </div>
 
       {!selectedBranchId ? (
-        <State text="Select a branch from the top navigation to view its daily client queue." />
+        <State text="Select a branch in Settings to view its daily client queue." />
       ) : queueQuery.isLoading ? (
         <FeaturedSkeleton />
       ) : queueQuery.isError ? (
@@ -183,6 +183,11 @@ export function DailyClientQueueView() {
       ) : (
         <FeaturedClient
           appointment={featuredClient}
+          expectedAppointments={selectedDayRecords.filter((item) => ['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED'].includes(item.status))}
+          checkInSearch={checkInSearch}
+          onCheckInSearch={setCheckInSearch}
+          onCheckIn={(id) => updateStatus.mutate({ id, status: 'CHECKED_IN' })}
+          isDoctor={isDoctor}
           waitingCount={waitingCount}
           saving={updateStatus.isPending}
           error={updateStatus.isError ? updateStatus.error.message : ''}
@@ -252,10 +257,12 @@ export function DailyClientQueueView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredRecords.map((item) => (
+                  {filteredRecords.map((item, index) => (
                     <QueueRow
                       key={item.id}
                       appointment={item}
+                      queueNumber={index + 1}
+                      isDoctor={isDoctor}
                       active={featuredClient?.id === item.id}
                       saving={updateStatus.isPending && updateStatus.variables?.id === item.id}
                       onUpdate={(status) => updateStatus.mutate({ id: item.id, status })}
@@ -265,10 +272,12 @@ export function DailyClientQueueView() {
               </table>
             </div>
             <div className="divide-y divide-border md:hidden">
-              {filteredRecords.map((item) => (
+              {filteredRecords.map((item, index) => (
                 <QueueMobileCard
                   key={item.id}
                   appointment={item}
+                  queueNumber={index + 1}
+                  isDoctor={isDoctor}
                   active={featuredClient?.id === item.id}
                   saving={updateStatus.isPending && updateStatus.variables?.id === item.id}
                   onUpdate={(status) => updateStatus.mutate({ id: item.id, status })}
@@ -294,28 +303,50 @@ function QueueMetricCard({ label, value, helper }: { label: string; value: numbe
 
 function FeaturedClient({
   appointment,
+  expectedAppointments,
+  checkInSearch,
+  onCheckInSearch,
+  onCheckIn,
+  isDoctor,
   waitingCount,
   saving,
   error,
   onUpdate,
 }: {
   appointment: QueueAppointment | null;
+  expectedAppointments: QueueAppointment[];
+  checkInSearch: string;
+  onCheckInSearch: (value: string) => void;
+  onCheckIn: (id: string) => void;
+  isDoctor: boolean;
   waitingCount: number;
   saving: boolean;
   error: string;
   onUpdate: (status: AppointmentStatus) => void;
 }) {
   if (!appointment) {
+    const term = checkInSearch.trim().toLowerCase();
+    const matches = term ? expectedAppointments.filter((item) => clientName(item).toLowerCase().includes(term) || item.lead?.mobile?.includes(term)).slice(0, 6) : [];
     return (
       <Card className="flex min-h-64 flex-col items-center justify-center text-center">
         <span className="grid size-14 place-items-center rounded-full bg-muted text-muted-foreground"><UsersRound className="size-7" /></span>
         <h2 className="mt-4 text-lg font-semibold text-foreground">No client is currently waiting</h2>
-        <p className="mt-1 max-w-md text-sm text-muted-foreground">Checked-in and waiting clients will automatically appear here.</p>
+        <p className="mt-1 max-w-md text-sm text-muted-foreground">Search today&apos;s booking, verify the client, and check them in to start their clinic visit.</p>
+        <div className="mt-5 w-full max-w-xl text-left">
+          <label className="relative block">
+            <span className="sr-only">Search today&apos;s booked client</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input className="pl-9" autoFocus value={checkInSearch} onChange={(event) => onCheckInSearch(event.target.value)} placeholder="Type patient name or mobile number" />
+          </label>
+          {term ? <div className="mt-2 overflow-hidden rounded-lg border border-border bg-surface">
+            {matches.length ? matches.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-b border-border p-3 last:border-b-0"><div><div className="font-medium">{clientName(item)}</div><div className="text-xs text-muted-foreground">{appointmentTime(item.appointmentAt)} · {item.lead?.mobile ?? 'No mobile'} · {serviceName(item)}</div></div><Button type="button" disabled={saving} onClick={() => onCheckIn(item.id)}>Check in</Button></div>) : <p className="p-4 text-center text-sm text-muted-foreground">No booked client matches this search.</p>}
+          </div> : expectedAppointments.length ? <p className="mt-2 text-center text-xs text-muted-foreground">{expectedAppointments.length} client{expectedAppointments.length === 1 ? '' : 's'} booked for today</p> : <p className="mt-2 text-center text-xs text-muted-foreground">No upcoming bookings remain today.</p>}
+        </div>
       </Card>
     );
   }
 
-  const action = featuredAction(appointment.status);
+  const action = featuredAction(appointment.status, isDoctor);
   const current = ['IN_CONSULTATION', 'TREATMENT_IN_PROGRESS', 'BILLING_PENDING'].includes(appointment.status);
 
   return (
@@ -345,12 +376,14 @@ function FeaturedClient({
             {waitingCount ? `${waitingCount} client${waitingCount === 1 ? '' : 's'} waiting` : 'No other clients are waiting'}
           </p>
           <div className="flex flex-wrap gap-2">
+            {isDoctor && current ? <Link href={clientHref(appointment)} className="inline-flex h-10 items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-4 text-sm font-medium text-primary hover:bg-primary/10">Treatment & prescription <Stethoscope className="size-4" /></Link> : null}
+            {!isDoctor && appointment.status === 'BILLING_PENDING' ? <Link href={clientHref(appointment)} className="inline-flex h-10 items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-4 text-sm font-medium text-primary hover:bg-primary/10">Billing & payment <ExternalLink className="size-4" /></Link> : null}
             <Link href={clientHref(appointment)} className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground hover:bg-muted">
               View profile <ExternalLink className="size-4" />
             </Link>
             {action && (
               <Button disabled={saving} onClick={() => onUpdate(action.status)}>
-                {saving ? 'Updating…' : action.label}
+                {saving ? 'Updating...' : action.label}
                 {action.status === 'COMPLETED' ? <CheckCircle2 className="size-4" /> : <ArrowRight className="size-4" />}
               </Button>
             )}
@@ -374,16 +407,18 @@ function FeaturedDetail({ icon: Icon, label, value }: { icon: typeof Clock3; lab
   );
 }
 
-function QueueRow({ appointment, active, saving, onUpdate }: {
+function QueueRow({ appointment, queueNumber, isDoctor, active, saving, onUpdate }: {
   appointment: QueueAppointment;
+  queueNumber: number;
+  isDoctor: boolean;
   active: boolean;
   saving: boolean;
   onUpdate: (status: AppointmentStatus) => void;
 }) {
-  const action = nextAction(appointment.status);
+  const action = nextAction(appointment.status, isDoctor);
   return (
     <tr className={cn('transition hover:bg-muted/30', active && 'bg-primary/5')}>
-      <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground">{appointmentTime(appointment.appointmentAt)}</td>
+      <td className="whitespace-nowrap px-4 py-3 font-medium text-foreground"><span className="mr-2 inline-grid size-7 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{queueNumber}</span>{appointmentTime(appointment.appointmentAt)}</td>
       <td className="px-4 py-3">
         <Link href={clientHref(appointment)} className="font-medium text-foreground hover:text-primary">{clientName(appointment)}</Link>
         <p className="text-xs text-muted-foreground">{appointment.lead?.mobile ?? 'No mobile'}</p>
@@ -394,34 +429,36 @@ function QueueRow({ appointment, active, saving, onUpdate }: {
       <td className="px-4 py-3 text-right">
         {action ? (
           <Button variant={action.status === 'COMPLETED' ? 'primary' : 'secondary'} className="h-8 px-3 text-xs" disabled={saving} onClick={() => onUpdate(action.status)}>
-            {saving ? 'Updating…' : action.label}
+            {saving ? 'Updating...' : action.label}
           </Button>
-        ) : <span className="text-xs text-muted-foreground">—</span>}
+        ) : <span className="text-xs text-muted-foreground">-</span>}
       </td>
     </tr>
   );
 }
 
-function QueueMobileCard({ appointment, active, saving, onUpdate }: {
+function QueueMobileCard({ appointment, queueNumber, isDoctor, active, saving, onUpdate }: {
   appointment: QueueAppointment;
+  queueNumber: number;
+  isDoctor: boolean;
   active: boolean;
   saving: boolean;
   onUpdate: (status: AppointmentStatus) => void;
 }) {
-  const action = nextAction(appointment.status);
+  const action = nextAction(appointment.status, isDoctor);
   return (
     <article className={cn('p-4', active && 'bg-primary/5')}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Link href={clientHref(appointment)} className="font-medium text-foreground">{clientName(appointment)}</Link>
-          <p className="mt-0.5 text-xs capitalize text-muted-foreground">{appointmentTime(appointment.appointmentAt)} · {serviceName(appointment)}</p>
+          <Link href={clientHref(appointment)} className="font-medium text-foreground"><span className="mr-2 inline-grid size-6 place-items-center rounded-full bg-primary/10 text-xs text-primary">{queueNumber}</span>{clientName(appointment)}</Link>
+          <p className="mt-0.5 text-xs capitalize text-muted-foreground">{appointmentTime(appointment.appointmentAt)} - {serviceName(appointment)}</p>
         </div>
         <StatusBadge stage={appointment.queueStage} />
       </div>
       <p className="mt-2 text-xs text-muted-foreground">{practitionerName(appointment)}</p>
       {action && (
         <Button variant={action.status === 'COMPLETED' ? 'primary' : 'secondary'} className="mt-3 h-8 w-full text-xs" disabled={saving} onClick={() => onUpdate(action.status)}>
-          {saving ? 'Updating…' : action.label}
+          {saving ? 'Updating...' : action.label}
         </Button>
       )}
     </article>

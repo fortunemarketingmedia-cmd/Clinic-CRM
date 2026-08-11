@@ -17,6 +17,10 @@ patientRoutes.post('/', (req, res, next) => {
   patientController.create(req, res).catch(next);
 });
 
+patientRoutes.post('/import', requireRole(Role.ADMIN), (req, res, next) => {
+  patientController.import(req, res).catch(next);
+});
+
 patientRoutes.post('/convert', (req, res, next) => {
   patientController.convertLead(req, res).catch(next);
 });

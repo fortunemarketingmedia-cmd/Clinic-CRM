@@ -23,8 +23,6 @@ export const settingsSchema = z.object({
   paymentInstructions: z.string().optional(),
   qrRegistrationEnabled: z.boolean().optional(),
   patientFormConfig: z.unknown().optional(),
-  whatsappPhoneId: z.string().optional(),
-  whatsappAccessToken: z.string().optional(),
   appointmentTemplate: z.string().optional(),
   reminderTemplate: z.string().optional(),
   invoiceTemplate: z.string().optional(),

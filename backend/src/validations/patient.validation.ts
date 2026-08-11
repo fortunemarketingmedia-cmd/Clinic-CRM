@@ -79,3 +79,20 @@ export const patientQuerySchema = z.object({
   branchId: z.string().optional(),
   search: z.string().optional(),
 });
+
+export const importPatientsSchema = z.object({
+  branchId: z.string().min(1),
+  rows: z.array(z.object({
+    fullName: z.string().trim().min(2),
+    mobile: z.string().trim().min(8),
+    email: z.string().trim().email().optional(),
+    age: z.coerce.number().int().positive().max(120).optional(),
+    sex: z.nativeEnum(Sex).optional(),
+    address: z.string().trim().optional(),
+    occupation: z.string().trim().optional(),
+    maritalStatus: z.string().trim().optional(),
+    referredBy: z.string().trim().optional(),
+    medicalHistory: z.string().trim().optional(),
+    notes: z.string().trim().optional(),
+  })).min(1).max(5000),
+});

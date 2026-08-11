@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { SegmentedTabs } from '@/components/ui/data-visuals';
@@ -33,6 +34,9 @@ function money(value?: string | number) {
 export function ClientsView() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [source, setSource] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [recordTab, setRecordTab] = useState<'PATIENTS' | 'LEADS'>('PATIENTS');
   const { selectedBranchId } = useSessionStore();
   const branchId = selectedBranchId ?? '';
@@ -59,8 +63,12 @@ export function ClientsView() {
     if (branchId) params.set('branchId', branchId);
     if (search.trim()) params.set('search', search.trim());
     if (status) params.set('status', status);
+    if (source) params.set('source', source);
+    if (dateFrom) params.set('createdFrom', new Date(`${dateFrom}T00:00:00`).toISOString());
+    if (dateTo) params.set('createdTo', new Date(`${dateTo}T23:59:59`).toISOString());
+    params.set('includeClosed', 'true');
     return params.toString();
-  }, [branchId, search, status]);
+  }, [branchId, dateFrom, dateTo, search, source, status]);
   const leadsQuery = useQuery({ queryKey: ['master-leads', leadsQueryString], queryFn: () => apiRequest<{ data: Lead[] }>(`/leads?${leadsQueryString}`) });
   const uniquePatients = useMemo(() => {
     const seen = new Set<string>();
@@ -71,6 +79,9 @@ export function ClientsView() {
       return true;
     });
   }, [patientsQuery.data]);
+  const visiblePatients = useMemo(() => uniquePatients.filter((patient) =>
+    (!status || patient.lead?.status === status) && (!source || patient.lead?.source === source),
+  ), [source, status, uniquePatients]);
 
   const totals = analyticsQuery.data?.data.totals;
 
@@ -96,19 +107,20 @@ export function ClientsView() {
 
       {recordTab === 'PATIENTS' ? (
       <Card>
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px]">
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px_200px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
             <Input className="pl-9" placeholder="Search patient, mobile, or patient no" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
           <Select value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="">All appointment statuses</option>
+            <option value="">All patient journeys</option>
             <option value="CONFIRMED">Confirmed</option>
             <option value="ARRIVED">Arrived</option>
             <option value="POSTPONED">Postponed</option>
             <option value="NOT_ARRIVED">Not arrived</option>
             <option value="CANCELLED">Cancelled</option>
           </Select>
+          <SourceFilter value={source} onChange={setSource} />
         </div>
 
         <div className="overflow-hidden rounded-md border border-border">
@@ -123,10 +135,10 @@ export function ClientsView() {
               </tr>
             </thead>
             <tbody>
-              {uniquePatients.map((patient) => (
+              {visiblePatients.map((patient) => (
                 <tr key={patient.id} className="border-t border-border">
                   <td className="px-4 py-3">
-                    <div className="font-medium">{patient.fullName}</div>
+                    <Link href={`/patients/${patient.id}`} className="font-medium text-primary hover:underline">{patient.fullName}</Link>
                     <div className="text-xs text-muted-foreground">{patient.patientNo}</div>
                   </td>
                   <td className="px-4 py-3">{patient.mobile}</td>
@@ -135,7 +147,7 @@ export function ClientsView() {
                   <td className="px-4 py-3">{patient.lead?.status?.replace('_', ' ')}</td>
                 </tr>
               ))}
-              {!patientsQuery.isLoading && patientsQuery.data?.data.length === 0 ? (
+              {!patientsQuery.isLoading && visiblePatients.length === 0 ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
                     No clients found.
@@ -150,7 +162,7 @@ export function ClientsView() {
 
       {recordTab === 'LEADS' ? (
       <Card>
-        <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_220px]"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search client or mobile" value={search} onChange={(event) => setSearch(event.target.value)} /></div><Select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option><option value="CONFIRMED">Confirmed</option><option value="ARRIVED">Arrived</option><option value="POSTPONED">Postponed</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select></div>
+        <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(260px,1fr)_190px_180px_150px_150px]"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search name, mobile, or email" value={search} onChange={(event) => setSearch(event.target.value)} /></div><Select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Every lead status</option>{['NEW','UNASSIGNED','ASSIGNED','ATTEMPTING_CONTACT','CONNECTED','QUALIFIED','APPOINTMENT_PROPOSED','APPOINTMENT_BOOKED','NURTURING','BOOKED','CONFIRMED','ARRIVED','CONVERTED','POSTPONED','NOT_ARRIVED','CANCELLED','LOST','DISQUALIFIED'].map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}</Select><SourceFilter value={source} onChange={setSource} /><Input aria-label="Created from" title="Created from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /><Input aria-label="Created to" title="Created to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></div>
         <h2 className="text-base font-semibold">Complete Lead History</h2>
         <p className="mt-1 text-sm text-muted-foreground">Every enquiry is retained, including repeat leads from an existing or former patient.</p>
         <div className="mt-4 overflow-hidden rounded-md border border-border">
@@ -169,7 +181,7 @@ export function ClientsView() {
               {leadsQuery.data?.data.map((lead) => (
                 <tr key={lead.id} className="border-t border-border">
                   <td className="px-4 py-3">
-                    <div className="font-medium">{lead.name}</div>
+                    <Link href={`/leads/${lead.id}`} className="font-medium text-primary hover:underline">{lead.name}</Link>
                     <div className="text-xs text-muted-foreground">{lead.interestedTreatment ?? 'General enquiry'}</div>
                   </td>
                   <td className="px-4 py-3">{lead.mobile}</td>
@@ -193,6 +205,10 @@ export function ClientsView() {
       ) : null}
     </section>
   );
+}
+
+function SourceFilter({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return <Select aria-label="Lead source" value={value} onChange={(event) => onChange(event.target.value)}><option value="">All sources</option>{['WEBSITE','WALK_IN','PHONE_CALL','WHATSAPP','GOOGLE_ADS','META_ADS','OTHER'].map((source) => <option key={source} value={source}>{source.replaceAll('_', ' ')}</option>)}</Select>;
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {

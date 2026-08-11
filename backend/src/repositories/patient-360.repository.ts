@@ -111,17 +111,4 @@ export const patient360Repository = {
     return prisma.clinicalTemplate.findMany({ where: { active: true, OR: branchId ? [{ branchId: null }, { branchId }] : [{ branchId: null }] }, orderBy: { name: 'asc' } });
   },
 
-  async doctorWorkspace(userId: string, branchId: string | undefined, start: Date, end: Date) {
-    const appointmentWhere = { doctorId: userId, branchId, appointmentAt: { gte: start, lt: end } };
-    const [appointments, incompleteNotes, plansForReview, alerts, followUpsDue, prescriptionActions, adverseEvents] = await Promise.all([
-      prisma.appointment.findMany({ where: appointmentWhere, include: { lead: { include: { patient: { include: { medicalProfile: true } } } }, branch: true, service: true }, orderBy: { appointmentAt: 'asc' } }),
-      prisma.clinicalEncounter.findMany({ where: { doctorId: userId, status: { in: ['DRAFT', 'COMPLETED'] } }, include: { patient: true }, orderBy: { visitDate: 'desc' }, take: 25 }),
-      prisma.treatmentPlan.findMany({ where: { assignedDoctorId: userId, status: { in: ['PROPOSED', 'ACCEPTED'] }, reviewDate: { lte: end } }, include: { patient: true, items: true }, orderBy: { reviewDate: 'asc' }, take: 25 }),
-      prisma.patient.findMany({ where: { assignedDoctorId: userId, medicalProfile: { criticalAlert: true } }, include: { medicalProfile: true }, take: 25 }),
-      prisma.followUp.findMany({ where: { assignedUserId: userId, status: { in: ['OPEN', 'IN_PROGRESS', 'OVERDUE'] }, dueAt: { lt: end } }, include: { patient: true, person: true }, orderBy: { dueAt: 'asc' }, take: 25 }),
-      prisma.prescription.findMany({ where: { doctorId: userId, status: 'DRAFT' }, include: { patient: true, items: true }, orderBy: { prescribedAt: 'desc' }, take: 25 }),
-      prisma.procedureSession.findMany({ where: { practitionerId: userId, adverseEventFlag: true }, include: { patient: true }, orderBy: { createdAt: 'desc' }, take: 25 }),
-    ]);
-    return { appointments, incompleteNotes, plansForReview, alerts, followUpsDue, prescriptionActions, adverseEvents };
-  },
 };

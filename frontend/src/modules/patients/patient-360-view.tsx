@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, FileLock2, Plus } from 'lucide-react';
@@ -20,10 +20,10 @@ const tabs = ['Overview', 'Appointments', 'Treatments', 'Billing', 'Prescription
 type Tab = typeof tabs[number];
 type MedicineOption = { id: string; name: string; genericName?: string | null; strength?: string | null; form?: string | null };
 type PackageMasterOption = { id: string; branchId?: string | null; name: string; totalSessions: number; validityDays: number; price: string; taxPercent: string; active: boolean };
-const serviceLabel = (service: ClinicService) => `${service.category ? `${label(service.category)} · ` : ''}${service.name}`;
+const serviceLabel = (service: ClinicService) => `${service.category ? `${label(service.category)} - ` : ''}${service.name}`;
 const clinicalRoles = ['ADMIN', 'RECEPTIONIST'];
 const prescriberRoles = ['ADMIN', 'RECEPTIONIST'];
-const format = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'â€”';
+const format = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
 const nowLocal = () => { const date = new Date(); date.setMinutes(date.getMinutes() - date.getTimezoneOffset()); return date.toISOString().slice(0, 16); };
 const addMinutes = (value: Date, minutes: number) => new Date(value.getTime() + minutes * 60_000);
@@ -55,7 +55,7 @@ export function Patient360View({ patientId }: { patientId: string }) {
   const allergy = patient.medicalProfile?.allergyToDrugs || patient.medicalProfile?.productAllergies || patient.medicalProfile?.foodAllergies;
   return <section className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><Link href="/patients" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Client directory</Link><h1 className="text-2xl font-semibold">{patient.fullName}</h1><p className="text-sm text-muted-foreground">{patient.patientNo} Â· {patient.mobile} Â· {patient.branch?.name}</p></div>
+      <div><Link href="/patients" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Client directory</Link><h1 className="text-2xl font-semibold">{patient.fullName}</h1><p className="text-sm text-muted-foreground">{patient.patientNo} - {patient.mobile} - {patient.branch?.name}</p></div>
     </div>
 
     {patient.medicalProfile?.criticalAlert ? <Card className="border-red-300 bg-red-50 text-red-900"><div className="flex gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0" /><div><div className="font-semibold">Critical medical alert</div><div className="text-sm">{patient.medicalProfile.clinicalAlerts || allergy || 'Review the medical profile before treatment.'}</div></div></div></Card> : null}
@@ -96,11 +96,11 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
           <div key={appointment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
             <div>
               <div className="font-medium">
-                {label(appointment.status)} · {appointment.service?.name ?? label(appointment.appointmentType)}
-                {appointment.resourceType === 'TREATMENT_ROOM' ? ` · Room ${appointment.roomNumber ?? '-'}` : ''}
+                {label(appointment.status)} - {appointment.service?.name ?? label(appointment.appointmentType)}
+                {appointment.resourceType === 'TREATMENT_ROOM' ? ` - Room ${appointment.roomNumber ?? '-'}` : ''}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                {format(appointment.appointmentAt)} · {appointment.doctor?.name ?? 'Practitioner not assigned'}
+                {format(appointment.appointmentAt)} - {appointment.doctor?.name ?? 'Practitioner not assigned'}
               </div>
             </div>
             {canEdit && appointment.resourceType === 'TREATMENT_ROOM' ? (
@@ -163,7 +163,7 @@ function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appoint
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Change appointment room</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{format(appointment.appointmentAt)} · Current room {appointment.roomNumber ?? '-'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{format(appointment.appointmentAt)} - Current room {appointment.roomNumber ?? '-'}</p>
         </div>
         <Button type="button" variant="ghost" onClick={onClose}>Close</Button>
       </div>
@@ -179,7 +179,7 @@ function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appoint
       <div className="mt-5 flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
         <Button type="button" disabled={!roomNumber || mutation.isPending || Number(roomNumber) === appointment.roomNumber} onClick={() => mutation.mutate()}>
-          {mutation.isPending ? 'Saving…' : 'Save room'}
+          {mutation.isPending ? 'Saving...' : 'Save room'}
         </Button>
       </div>
     </Card>
@@ -268,9 +268,9 @@ function Treatments({ patient, canClinical, onRecord, onPlan }: { patient: Patie
   const plans = patient.treatmentPlans ?? [];
   const procedures = patient.procedureSessions ?? [];
   const items = [
-    ...sessions.map((session) => <Record key={`session-${session.id}`} title={`${session.treatmentTaken || session.treatmentSuggested || label(session.treatmentType)} Â· ${label(session.treatmentType)}`} subtitle={`${format(session.visitDate)} Â· ${session.doctorConsulted || 'Provider not recorded'}${session.prescription?.length ? ` Â· ${session.prescription.length} medicines` : ''}`} />),
-    ...procedures.map((procedure) => <Record key={`procedure-${procedure.id}`} title={`${procedure.procedureName} Â· ${label(procedure.status)}`} subtitle={`${format(procedure.performedAt ?? procedure.createdAt)} Â· ${procedure.practitioner.name}${procedure.adverseEventFlag ? ' Â· Alert' : ''}`} warning={procedure.adverseEventFlag} />),
-    ...plans.map((plan) => <Record key={`plan-${plan.id}`} title={`${plan.concern} Â· ${label(plan.status)}`} subtitle={`${plan.assignedDoctor.name} Â· ${plan.items.map((item) => `${item.name} ${item.completedSessions}/${item.plannedSessions}`).join(', ') || 'Plan created'}`} />),
+    ...sessions.map((session) => <Record key={`session-${session.id}`} title={`${session.treatmentTaken || session.treatmentSuggested || label(session.treatmentType)} - ${label(session.treatmentType)}`} subtitle={`${format(session.visitDate)} - ${session.doctorConsulted || 'Provider not recorded'}${session.prescription?.length ? ` - ${session.prescription.length} medicines` : ''}`} />),
+    ...procedures.map((procedure) => <Record key={`procedure-${procedure.id}`} title={`${procedure.procedureName} - ${label(procedure.status)}`} subtitle={`${format(procedure.performedAt ?? procedure.createdAt)} - ${procedure.practitioner.name}${procedure.adverseEventFlag ? ' - Alert' : ''}`} warning={procedure.adverseEventFlag} />),
+    ...plans.map((plan) => <Record key={`plan-${plan.id}`} title={`${plan.concern} - ${label(plan.status)}`} subtitle={`${plan.assignedDoctor.name} - ${plan.items.map((item) => `${item.name} ${item.completedSessions}/${item.plannedSessions}`).join(', ') || 'Plan created'}`} />),
   ];
   return <ListState empty="No treatments recorded." action={canClinical ? <div className="flex flex-wrap gap-2"><Button onClick={onRecord}><Plus className="size-4" />Record treatment</Button><Button variant="secondary" onClick={onPlan}>Create plan</Button></div> : undefined} items={items} />;
 }
@@ -284,15 +284,15 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
     <div className="grid gap-4 lg:grid-cols-3">
       <Card>
         <div className="text-sm text-muted-foreground">Total billed</div>
-        <div className="mt-1 text-2xl font-semibold">?{invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount ?? 0), 0).toLocaleString('en-IN')}</div>
+        <div className="mt-1 text-2xl font-semibold">Rs {invoices.reduce((sum, invoice) => sum + Number(invoice.totalAmount ?? 0), 0).toLocaleString('en-IN')}</div>
       </Card>
       <Card>
         <div className="text-sm text-muted-foreground">Collected</div>
-        <div className="mt-1 text-2xl font-semibold">?{invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount ?? invoice.payments.reduce((paid, payment) => paid + Number(payment.amount), 0)), 0).toLocaleString('en-IN')}</div>
+        <div className="mt-1 text-2xl font-semibold">Rs {invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount ?? invoice.payments.reduce((paid, payment) => paid + Number(payment.amount), 0)), 0).toLocaleString('en-IN')}</div>
       </Card>
       <Card>
         <div className="text-sm text-muted-foreground">Outstanding</div>
-        <div className="mt-1 text-2xl font-semibold">?{patient.summary.outstandingAmount.toLocaleString('en-IN')}</div>
+        <div className="mt-1 text-2xl font-semibold">Rs {patient.summary.outstandingAmount.toLocaleString('en-IN')}</div>
       </Card>
     </div>
 
@@ -310,7 +310,7 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
                 <div className="font-medium">{item.name}</div>
                 <div className="text-xs text-muted-foreground">{remaining}/{item.totalSessions} sessions remaining</div>
               </div>
-              <div className="text-sm font-semibold">?{Number(item.amount).toLocaleString('en-IN')}</div>
+              <div className="text-sm font-semibold">Rs {Number(item.amount).toLocaleString('en-IN')}</div>
             </div>
           </div>;
         }) : <p className="py-6 text-center text-sm text-muted-foreground">No treatment package purchased yet.</p>}
@@ -326,13 +326,13 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
           return <div key={invoice.id} className="rounded-md border p-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="font-medium">{invoice.invoiceNo} · {label(invoice.status)}</div>
+                <div className="font-medium">{invoice.invoiceNo} - {label(invoice.status)}</div>
                 <div className="text-xs text-muted-foreground">{format(invoice.invoiceDate)}</div>
-                {invoice.items?.length ? <div className="mt-2 space-y-1 text-sm">{invoice.items.map((item) => <div key={item.id}>{item.description} · ?{Number(item.totalAmount).toLocaleString('en-IN')}</div>)}</div> : null}
+                {invoice.items?.length ? <div className="mt-2 space-y-1 text-sm">{invoice.items.map((item) => <div key={item.id}>{item.description} - Rs {Number(item.totalAmount).toLocaleString('en-IN')}</div>)}</div> : null}
               </div>
               <div className="text-left sm:text-right">
-                <div className="text-sm font-semibold">?{Number(invoice.totalAmount).toLocaleString('en-IN')}</div>
-                <div className={outstanding > 0 ? 'text-xs text-red-700' : 'text-xs text-emerald-700'}>{outstanding > 0 ? `Outstanding ?${outstanding.toLocaleString('en-IN')}` : 'Paid'}</div>
+                <div className="text-sm font-semibold">Rs {Number(invoice.totalAmount).toLocaleString('en-IN')}</div>
+                <div className={outstanding > 0 ? 'text-xs text-red-700' : 'text-xs text-emerald-700'}>{outstanding > 0 ? `Outstanding Rs ${outstanding.toLocaleString('en-IN')}` : 'Paid'}</div>
                 {canBill && outstanding > 0 && ['ISSUED', 'PARTIAL', 'OVERDUE'].includes(invoice.status) ? <Button className="mt-2" variant="secondary" onClick={() => setPayingInvoice(invoice)}>Record payment</Button> : null}
               </div>
             </div>
@@ -371,21 +371,21 @@ function PackageInvoiceModal({ patient, onClose, onSaved }: { patient: Patient36
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <Card className="w-full max-w-lg"> 
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold">Create package invoice</h2><p className="mt-1 text-sm text-muted-foreground">{patient.fullName} · package, invoice and payment in one flow</p></div>
+        <div><h2 className="text-lg font-semibold">Create package invoice</h2><p className="mt-1 text-sm text-muted-foreground">{patient.fullName} - package, invoice and payment in one flow</p></div>
         <Button variant="ghost" onClick={onClose}>Close</Button>
       </div>
       <div className="mt-5 grid gap-3">
-        <Field label="Package"><Select value={packageMasterId} onChange={(event) => setPackageMasterId(event.target.value)} disabled={packagesQuery.isLoading}><option value="">{packagesQuery.isLoading ? 'Loading packages...' : availablePackageMasters.length ? 'Select package' : 'No packages found'}</option>{availablePackageMasters.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.totalSessions} sessions · ?{Number(item.price).toLocaleString('en-IN')}</option>)}</Select></Field>
+        <Field label="Package"><Select value={packageMasterId} onChange={(event) => setPackageMasterId(event.target.value)} disabled={packagesQuery.isLoading}><option value="">{packagesQuery.isLoading ? 'Loading packages...' : availablePackageMasters.length ? 'Select package' : 'No packages found'}</option>{availablePackageMasters.map((item) => <option key={item.id} value={item.id}>{item.name} - {item.totalSessions} sessions - Rs {Number(item.price).toLocaleString('en-IN')}</option>)}</Select></Field>
         <div className="rounded-xl border border-border bg-muted/20 p-4">
-          <div className="flex items-center justify-between text-sm"><span>Package rate</span><span>?{base.toLocaleString('en-IN')}</span></div>
-          <div className="mt-1 flex items-center justify-between text-sm"><span>Tax</span><span>?{tax.toLocaleString('en-IN')}</span></div>
-          <div className="mt-3 flex items-center justify-between border-t pt-3 font-semibold"><span>Total</span><span>?{total.toLocaleString('en-IN')}</span></div>
+          <div className="flex items-center justify-between text-sm"><span>Package rate</span><span>Rs {base.toLocaleString('en-IN')}</span></div>
+          <div className="mt-1 flex items-center justify-between text-sm"><span>Tax</span><span>Rs {tax.toLocaleString('en-IN')}</span></div>
+          <div className="mt-3 flex items-center justify-between border-t pt-3 font-semibold"><span>Total</span><span>Rs {total.toLocaleString('en-IN')}</span></div>
         </div>
         <Field label="Payment status"><Select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as 'NOT_PAID' | 'PAID')}><option value="NOT_PAID">Not paid</option><option value="PAID">Paid now</option></Select></Field>
         {paymentStatus === 'PAID' ? <Field label="Payment mode"><Select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value)}><option value="UPI">UPI</option><option value="CASH">Cash</option><option value="CARD">Card</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option></Select></Field> : null}
         {mutation.isError ? <p className="text-sm text-red-700">{mutation.error.message}</p> : null}
       </div>
-      <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={!packageMaster || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving…' : 'Create invoice'}</Button></div>
+      <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={!packageMaster || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving...' : 'Create invoice'}</Button></div>
     </Card>
   </div>;
 }
@@ -401,7 +401,7 @@ function PaymentModal({ patient, invoice, onClose, onSaved }: { patient: Patient
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
     <Card className="w-full max-w-md">
       <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold">Record payment</h2><p className="mt-1 text-sm text-muted-foreground">{invoice.invoiceNo} · Outstanding ?{outstanding.toLocaleString('en-IN')}</p></div>
+        <div><h2 className="text-lg font-semibold">Record payment</h2><p className="mt-1 text-sm text-muted-foreground">{invoice.invoiceNo} - Outstanding Rs {outstanding.toLocaleString('en-IN')}</p></div>
         <Button variant="ghost" onClick={onClose}>Close</Button>
       </div>
       <div className="mt-5 grid gap-3">
@@ -409,7 +409,7 @@ function PaymentModal({ patient, invoice, onClose, onSaved }: { patient: Patient
         <Field label="Payment mode"><Select value={mode} onChange={(event) => setMode(event.target.value)}><option value="UPI">UPI</option><option value="CASH">Cash</option><option value="CARD">Card</option><option value="BANK_TRANSFER">Bank transfer</option><option value="OTHER">Other</option></Select></Field>
         {mutation.isError ? <p className="text-sm text-red-700">{mutation.error.message}</p> : null}
       </div>
-      <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending || Number(amount) <= 0 || Number(amount) > outstanding} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving…' : 'Mark paid'}</Button></div>
+      <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending || Number(amount) <= 0 || Number(amount) > outstanding} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving...' : 'Mark paid'}</Button></div>
     </Card>
   </div>;
 }
@@ -420,7 +420,7 @@ function MedicalProfile({ patient, canEdit, invalidate }: { patient: Patient360;
   const mutation = useMutation({ mutationFn: () => apiRequest(`/patients/${patient.id}/medical-profile`, { method: 'PUT', body: JSON.stringify(values) }), onSuccess: () => { setEditing(false); invalidate(); } });
   if (!profile) return <Card className="text-sm text-muted-foreground">Medical profile is unavailable for your role or has not been recorded.</Card>;
   const fields = [['Skin concern', profile.skinConcern], ['Hair concern', profile.hairConcern], ['Medical history', profile.medicalHistory], ['Surgical history', profile.surgicalHistory], ['Current medicines', profile.currentMedications], ['Drug allergies', profile.allergyToDrugs], ['Product allergies', profile.productAllergies], ['Food allergies', profile.foodAllergies], ['Family history', profile.familyHistory], ['Smoking', profile.smokingStatus], ['Alcohol', profile.alcoholHistory], ['Clinical alerts', profile.clinicalAlerts]];
-  return <div className="grid gap-4 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="mb-4 flex justify-between"><h2 className="font-semibold">Current medical profile</h2>{canEdit ? <Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel edit' : 'Update profile'}</Button> : null}</div>{editing ? <div className="grid gap-3 sm:grid-cols-2"><Area label="Medical history" name="medicalHistory" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Current medications" name="currentMedications" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Drug allergies" name="allergyToDrugs" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Clinical alerts" name="clinicalAlerts" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><TextField label="Reason for change" name="reasonForChange" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.criticalAlert} onChange={(event) => setValues((current) => ({ ...current, criticalAlert: event.target.checked }))} />Critical alert</label>{mutation.isError ? <p className="text-sm text-red-700 sm:col-span-2">{mutation.error.message}</p> : null}<Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Save versioned update</Button></div> : <div className="grid gap-4 sm:grid-cols-2">{fields.map(([title, value]) => <Detail key={title} title={title ?? ''} value={value as string | null} />)}</div>}</Card><Card><h2 className="font-semibold">Version history</h2><div className="mt-3 space-y-2">{profile.versions?.length ? profile.versions.map((version) => <Record key={version.id} title={version.reason || 'Medical profile updated'} subtitle={`${format(version.createdAt)} Â· ${version.updatedBy?.name ?? 'System'}`} />) : <p className="text-sm text-muted-foreground">No previous versions.</p>}</div></Card></div>;
+  return <div className="grid gap-4 lg:grid-cols-3"><Card className="lg:col-span-2"><div className="mb-4 flex justify-between"><h2 className="font-semibold">Current medical profile</h2>{canEdit ? <Button variant="secondary" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel edit' : 'Update profile'}</Button> : null}</div>{editing ? <div className="grid gap-3 sm:grid-cols-2"><Area label="Medical history" name="medicalHistory" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Current medications" name="currentMedications" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Drug allergies" name="allergyToDrugs" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><Area label="Clinical alerts" name="clinicalAlerts" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><TextField label="Reason for change" name="reasonForChange" values={values} set={(name, value) => setValues((current) => ({ ...current, [name]: value }))} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.criticalAlert} onChange={(event) => setValues((current) => ({ ...current, criticalAlert: event.target.checked }))} />Critical alert</label>{mutation.isError ? <p className="text-sm text-red-700 sm:col-span-2">{mutation.error.message}</p> : null}<Button className="sm:col-span-2" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Save versioned update</Button></div> : <div className="grid gap-4 sm:grid-cols-2">{fields.map(([title, value]) => <Detail key={title} title={title ?? ''} value={value as string | null} />)}</div>}</Card><Card><h2 className="font-semibold">Version history</h2><div className="mt-3 space-y-2">{profile.versions?.length ? profile.versions.map((version) => <Record key={version.id} title={version.reason || 'Medical profile updated'} subtitle={`${format(version.createdAt)} - ${version.updatedBy?.name ?? 'System'}`} />) : <p className="text-sm text-muted-foreground">No previous versions.</p>}</div></Card></div>;
 }
 
 function Prescriptions({ patient, canSign, onCreate, invalidate }: { patient: Patient360; canSign: boolean; onCreate: () => void; invalidate: () => void }) {
@@ -429,8 +429,8 @@ function Prescriptions({ patient, canSign, onCreate, invalidate }: { patient: Pa
   const prescriptions = patient.prescriptions ?? [];
   const sessionPrescriptions = (patient.sessions ?? []).filter((session) => session.prescription?.length);
   const items = [
-    ...prescriptions.map((prescription) => <Card key={prescription.id} className="p-4"><div className="flex flex-wrap justify-between gap-3"><div><div className="font-semibold">{prescription.prescriptionNo} · {label(prescription.status)}</div><div className="text-xs text-muted-foreground">{format(prescription.prescribedAt)} · Dr. {prescription.doctor.name}</div></div><div className="flex gap-2">{canSign && prescription.status === 'DRAFT' ? <Button disabled={sign.isPending} onClick={() => sign.mutate(prescription.id)}><FileLock2 className="size-4" />Sign</Button> : null}<Button variant="secondary" disabled={pdf.isPending} onClick={() => pdf.mutate(prescription.id)}>PDF</Button></div></div><div className="mt-3 space-y-2">{prescription.items.map((item) => <div key={item.id} className="rounded bg-muted p-3 text-sm"><strong>{item.medicineName} {item.strength}</strong><div>{item.dosage} · {item.frequency} · {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>),
-    ...sessionPrescriptions.map((session) => <Card key={`session-rx-${session.id}`} className="p-4"><div className="font-semibold">Prescription from {label(session.treatmentType)}</div><div className="text-xs text-muted-foreground">{format(session.visitDate)} · {session.doctorConsulted || 'Provider not recorded'}</div><div className="mt-3 space-y-2">{session.prescription?.map((item, index) => <div key={`${session.id}-${index}`} className="rounded bg-muted p-3 text-sm"><strong>{item.medicine}</strong><div>{item.dosage} · {item.frequency} · {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>),
+    ...prescriptions.map((prescription) => <Card key={prescription.id} className="p-4"><div className="flex flex-wrap justify-between gap-3"><div><div className="font-semibold">{prescription.prescriptionNo} - {label(prescription.status)}</div><div className="text-xs text-muted-foreground">{format(prescription.prescribedAt)} - Dr. {prescription.doctor.name}</div></div><div className="flex gap-2">{canSign && prescription.status === 'DRAFT' ? <Button disabled={sign.isPending} onClick={() => sign.mutate(prescription.id)}><FileLock2 className="size-4" />Sign</Button> : null}<Button variant="secondary" disabled={pdf.isPending} onClick={() => pdf.mutate(prescription.id)}>PDF</Button></div></div><div className="mt-3 space-y-2">{prescription.items.map((item) => <div key={item.id} className="rounded bg-muted p-3 text-sm"><strong>{item.medicineName} {item.strength}</strong><div>{item.dosage} - {item.frequency} - {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>),
+    ...sessionPrescriptions.map((session) => <Card key={`session-rx-${session.id}`} className="p-4"><div className="font-semibold">Prescription from {label(session.treatmentType)}</div><div className="text-xs text-muted-foreground">{format(session.visitDate)} - {session.doctorConsulted || 'Provider not recorded'}</div><div className="mt-3 space-y-2">{session.prescription?.map((item, index) => <div key={`${session.id}-${index}`} className="rounded bg-muted p-3 text-sm"><strong>{item.medicine}</strong><div>{item.dosage} - {item.frequency} - {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>),
   ];
   return <ListState empty="No prescriptions issued." action={canSign ? <Button onClick={onCreate}><Plus className="size-4" />New prescription</Button> : undefined} items={items} />;
 }
@@ -458,12 +458,12 @@ function ClinicalComposer({ kind, patient, staff, resources, defaultDoctorId, on
     return apiRequest(`/clinical/patients/${patient.id}/prescriptions`, { method: 'POST', body: JSON.stringify({ doctorId: values.doctorId, prescribedAt: values.prescribedAt, diagnosisSummary: values.diagnosis, instructions: values.instructions, precautions: values.precautions, items: [{ medicineName: values.medicineName, strength: values.strength, dosage: values.dosage, frequency: values.frequency, duration: values.duration, route: values.route, timing: values.timing, instructions: values.medicineInstructions }] }) });
   }, onSuccess: onSaved });
   const rooms = resources.filter((item) => item.type === 'ROOM'); const devices = resources.filter((item) => item.type === 'EQUIPMENT');
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto"><div className="flex justify-between"><div><h2 className="text-lg font-semibold">New {kind.replaceAll('_', ' ')}</h2><p className="text-sm text-muted-foreground">{patient.fullName} Â· {patient.patientNo}</p></div><Button variant="ghost" onClick={onClose}>Close</Button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto"><div className="flex justify-between"><div><h2 className="text-lg font-semibold">New {kind.replaceAll('_', ' ')}</h2><p className="text-sm text-muted-foreground">{patient.fullName} - {patient.patientNo}</p></div><Button variant="ghost" onClick={onClose}>Close</Button></div><div className="mt-5 grid gap-3 sm:grid-cols-2">
     {kind === 'encounter' ? <><Field label="Encounter type"><Select value={String(values.type)} onChange={(event) => set('type', event.target.value)}>{['CONSULTATION', 'VIDEO_CONSULTATION', 'FOLLOW_UP_CONSULTATION', 'PROCEDURE', 'TREATMENT_SESSION', 'REVIEW', 'EMERGENCY_REVIEW', 'OTHER'].map((item) => <option key={item}>{label(item)}</option>)}</Select></Field><Field label="Visit date"><Input type="datetime-local" value={String(values.visitDate)} onChange={(event) => set('visitDate', event.target.value)} /></Field><TextField label="Chief complaint" name="chiefComplaint" values={values} set={set} /><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><TextField label="Assessment" name="assessment" values={values} set={set} /><TextField label="Treatment advised" name="treatmentAdvised" values={values} set={set} /><Area label="Clinical notes" name="clinicalNotes" values={values} set={set} /></> : null}
     {kind === 'plan' ? <><TextField label="Concern" name="concern" values={values} set={set} /><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><TextField label="Goals" name="goals" values={values} set={set} /><TextField label="Estimated cost" name="estimatedCost" values={values} set={set} type="number" /><TextField label="Plan item / service" name="itemName" values={values} set={set} /><TextField label="Planned sessions" name="plannedSessions" values={values} set={set} type="number" /><TextField label="Frequency" name="frequency" values={values} set={set} /><TextField label="Item amount" name="itemAmount" values={values} set={set} type="number" /></> : null}
     {kind === 'procedure' ? <><Field label="Procedure"><Select value={String(values.serviceId ?? '')} onChange={(event) => onProcedureChange(event.target.value)} disabled={servicesQuery.isLoading}><option value="">{servicesQuery.isLoading ? 'Loading treatments...' : 'Select treatment name'}</option>{procedureServices.map((service) => <option key={service.id} value={service.id}>{serviceLabel(service)}</option>)}</Select></Field><TextField label="Treatment area" name="treatmentArea" values={values} set={set} /><Field label="Room"><Select value={String(values.roomId ?? '')} onChange={(event) => set('roomId', event.target.value)}><option value="">Not selected</option>{rooms.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Device"><Select value={String(values.deviceId ?? '')} onChange={(event) => set('deviceId', event.target.value)}><option value="">Not selected</option>{devices.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field><Field label="Status"><Select value={String(values.status)} onChange={(event) => set('status', event.target.value)}>{['PLANNED', 'READY', 'IN_PROGRESS', 'COMPLETED'].map((item) => <option key={item}>{label(item)}</option>)}</Select></Field><Area label="Procedure notes" name="procedureNotes" values={values} set={set} /><Area label="Post-care instructions" name="postCareInstructions" values={values} set={set} /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(values.consentVerified)} onChange={(event) => set('consentVerified', event.target.checked)} />Consent verified</label></> : null}
-    {kind === 'prescription' ? <><Field label="Prescription date"><Input type="datetime-local" value={String(values.prescribedAt)} onChange={(event) => set('prescribedAt', event.target.value)} /></Field><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><Field label="Medicine"><Select value={String(values.medicineId ?? '')} onChange={(event) => { const selected = medicines.find((medicine) => medicine.id === event.target.value); setValues((current) => ({ ...current, medicineId: event.target.value, medicineName: selected?.name ?? '', strength: selected?.strength ?? current.strength ?? '' })); }} disabled={medicineQuery.isLoading}><option value="">{medicineQuery.isLoading ? 'Loading medicines...' : 'Select medicine'}</option>{medicines.map((medicine) => <option key={medicine.id} value={medicine.id}>{medicine.name}{medicine.strength ? ` · ${medicine.strength}` : ''}{medicine.form ? ` · ${medicine.form}` : ''}</option>)}</Select></Field><TextField label="Strength" name="strength" values={values} set={set} /><TextField label="Dosage" name="dosage" values={values} set={set} /><TextField label="Frequency" name="frequency" values={values} set={set} /><TextField label="Duration" name="duration" values={values} set={set} /><TextField label="Route" name="route" values={values} set={set} /><TextField label="Timing" name="timing" values={values} set={set} /><Area label="Medicine instructions" name="medicineInstructions" values={values} set={set} /><Area label="General instructions" name="instructions" values={values} set={set} /><Area label="Precautions" name="precautions" values={values} set={set} /></> : null}
-  </div>{mutation.isError ? <p className="mt-3 text-sm text-red-700">{mutation.error.message}</p> : null}<div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Savingâ€¦' : 'Save'}</Button></div></Card></div>;
+    {kind === 'prescription' ? <><Field label="Prescription date"><Input type="datetime-local" value={String(values.prescribedAt)} onChange={(event) => set('prescribedAt', event.target.value)} /></Field><TextField label="Diagnosis" name="diagnosis" values={values} set={set} /><Field label="Medicine"><Select value={String(values.medicineId ?? '')} onChange={(event) => { const selected = medicines.find((medicine) => medicine.id === event.target.value); setValues((current) => ({ ...current, medicineId: event.target.value, medicineName: selected?.name ?? '', strength: selected?.strength ?? current.strength ?? '' })); }} disabled={medicineQuery.isLoading}><option value="">{medicineQuery.isLoading ? 'Loading medicines...' : 'Select medicine'}</option>{medicines.map((medicine) => <option key={medicine.id} value={medicine.id}>{medicine.name}{medicine.strength ? ` - ${medicine.strength}` : ''}{medicine.form ? ` - ${medicine.form}` : ''}</option>)}</Select></Field><TextField label="Strength" name="strength" values={values} set={set} /><TextField label="Dosage" name="dosage" values={values} set={set} /><TextField label="Frequency" name="frequency" values={values} set={set} /><TextField label="Duration" name="duration" values={values} set={set} /><TextField label="Route" name="route" values={values} set={set} /><TextField label="Timing" name="timing" values={values} set={set} /><Area label="Medicine instructions" name="medicineInstructions" values={values} set={set} /><Area label="General instructions" name="instructions" values={values} set={set} /><Area label="Precautions" name="precautions" values={values} set={set} /></> : null}
+  </div>{mutation.isError ? <p className="mt-3 text-sm text-red-700">{mutation.error.message}</p> : null}<div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving...' : 'Save'}</Button></div></Card></div>;
 }
 function Field({ label: title, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-sm"><span className="font-medium">{title}</span>{children}</label>; }
 function TextField({ label: title, name, values, set, type = 'text' }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void; type?: string }) { return <Field label={title}><Input type={type} value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></Field>; }

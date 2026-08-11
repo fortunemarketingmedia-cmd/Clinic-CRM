@@ -2,10 +2,9 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart3, CalendarPlus, Edit3, Link2, Megaphone, Plus, Search, TrendingUp, X } from 'lucide-react';
+import { Edit3, Link2, Megaphone, Plus, Search, TrendingUp, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import Link from 'next/link';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -22,8 +21,7 @@ const leadStatuses: Array<{ label: string; value: LeadStatus }> = [
   { label: 'New enquiry', value: 'ASSIGNED' },
   { label: 'Contacted', value: 'CONNECTED' },
   { label: 'Follow-up required', value: 'NURTURING' },
-  { label: 'Appointment proposed', value: 'APPOINTMENT_PROPOSED' },
-  { label: 'Not interested', value: 'LOST' },
+  { label: 'Appointment booked', value: 'APPOINTMENT_BOOKED' },
 ];
 
 const leadSchema = z.object({
@@ -31,7 +29,7 @@ const leadSchema = z.object({
   mobile: z.string().min(8, 'Mobile number is required'),
   email: z.string().email().optional().or(z.literal('')),
   address: z.string().optional(),
-  source: z.enum(['WEBSITE', 'WALK_IN', 'PHONE_CALL', 'WHATSAPP', 'GOOGLE_ADS', 'META_ADS']),
+  source: z.enum(['WEBSITE', 'WALK_IN', 'PHONE_CALL', 'WHATSAPP', 'GOOGLE_ADS', 'META_ADS', 'OTHER']),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   nextFollowupAt: z.string().optional(),
   lastContactedAt: z.string().optional(),
@@ -40,19 +38,9 @@ const leadSchema = z.object({
   branchId: z.string().min(1, 'Branch is required'),
 });
 
-const appointmentBookingSchema = z.object({
-  branchId: z.string().min(1, 'Branch is required'),
-  appointmentType: z.enum(['CLINIC_VISIT', 'VIDEO_CONSULTATION']),
-  resourceType: z.enum(['CONSULTATION', 'TREATMENT_ROOM']),
-  roomNumber: z.coerce.number().int().min(1).max(4).optional(),
-  appointmentAt: z.string().min(1, 'Appointment time is required'),
-  notes: z.string().optional(),
-}).refine((value) => value.resourceType !== 'TREATMENT_ROOM' || Boolean(value.roomNumber), { message: 'Select a treatment room', path: ['roomNumber'] });
-
 type LeadFormValues = z.infer<typeof leadSchema>;
-type AppointmentBookingValues = z.infer<typeof appointmentBookingSchema>;
 type LeadSource = Lead['source'];
-type LeadTab = 'ALL' | 'MANUAL' | 'GOOGLE_ADS' | 'META_ADS' | 'CAMPAIGN_ANALYTICS';
+type LeadTab = 'ALL' | 'MANUAL' | 'GOOGLE_ADS' | 'META_ADS' | 'CAMPAIGN_ANALYTICS' | 'ARCHIVED';
 
 type AdLeadResponse = {
   leads: AdLead[];
@@ -68,6 +56,7 @@ function tabsLabel(tab: LeadTab) {
   if (tab === 'GOOGLE_ADS') return 'Google Ads';
   if (tab === 'META_ADS') return 'Meta Ads';
   if (tab === 'CAMPAIGN_ANALYTICS') return 'Campaigns';
+  if (tab === 'ARCHIVED') return 'Closed / archived';
   return 'All leads';
 }
 
@@ -107,9 +96,12 @@ export function LeadsView() {
   const [createdTo, setCreatedTo] = useState('');
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [bookingLead, setBookingLead] = useState<Lead | null>(null);
   const [activeTab, setActiveTab] = useState<LeadTab>('ALL');
   const [showLeadForm, setShowLeadForm] = useState(false);
+  const [archiveOutcome, setArchiveOutcome] = useState('');
+  const [archiveOwner, setArchiveOwner] = useState('');
+  const [archiveTreatment, setArchiveTreatment] = useState('');
+  const [archiveLostReason, setArchiveLostReason] = useState('');
 
   const isAdmin = session?.user.role === 'ADMIN';
 
@@ -165,14 +157,15 @@ export function LeadsView() {
       params.set('search', search.trim());
     }
 
-    if (createdFrom) {
+    if (createdFrom && activeTab !== 'ARCHIVED') {
       params.set('createdFrom', new Date(createdFrom).toISOString());
     }
 
-    if (createdTo) {
+    if (createdTo && activeTab !== 'ARCHIVED') {
       params.set('createdTo', new Date(createdTo).toISOString());
     }
 
+    params.set('includeClosed', 'true');
     return params.toString();
   }, [activeBranchId, activeTab, createdFrom, createdTo, isAdmin, search, source, status]);
 
@@ -199,26 +192,11 @@ export function LeadsView() {
     },
   });
 
-  const bookingForm = useForm<AppointmentBookingValues>({
-    resolver: zodResolver(appointmentBookingSchema),
-    defaultValues: {
-      branchId: formBranchId,
-      appointmentType: 'CLINIC_VISIT',
-      resourceType: 'CONSULTATION',
-      roomNumber: undefined,
-      appointmentAt: '',
-      notes: '',
-    },
-  });
-
   useEffect(() => {
     if (!editingLead && formBranchId) {
       form.setValue('branchId', formBranchId);
     }
-    if (!bookingLead && formBranchId) {
-      bookingForm.setValue('branchId', formBranchId);
-    }
-  }, [bookingForm, bookingLead, editingLead, form, formBranchId]);
+  }, [editingLead, form, formBranchId]);
 
   const adLeadsQuery = useQuery({
     queryKey: ['ad-leads-summary', activeBranchId],
@@ -330,37 +308,8 @@ export function LeadsView() {
     },
   });
 
-  const bookAppointment = useMutation({
-    mutationFn: ({ lead, values }: { lead: Lead; values: AppointmentBookingValues }) =>
-      apiRequest('/appointments', {
-        method: 'POST',
-        body: JSON.stringify({
-          leadId: lead.id,
-          branchId: values.branchId,
-          appointmentAt: values.appointmentAt,
-          appointmentType: values.appointmentType,
-          resourceType: values.resourceType,
-          roomNumber: values.resourceType === 'TREATMENT_ROOM' ? values.roomNumber : undefined,
-          notes: values.notes || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      setBookingLead(null);
-      bookingForm.reset({
-        branchId: formBranchId,
-        appointmentType: 'CLINIC_VISIT',
-        resourceType: 'CONSULTATION',
-        roomNumber: undefined,
-        appointmentAt: '',
-        notes: '',
-      });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
-    },
-  });
-
   function startEdit(lead: Lead) {
+    setSelectedLead(null);
     setEditingLead(lead);
     setShowLeadForm(true);
 
@@ -376,18 +325,6 @@ export function LeadsView() {
       followupNotes: lead.followupNotes ?? '',
       interestedTreatment: lead.interestedTreatment ?? '',
       branchId: lead.branchId,
-    });
-  }
-
-  function startBooking(lead: Lead) {
-    setBookingLead(lead);
-    bookingForm.reset({
-      branchId: lead.branchId,
-      appointmentType: lead.appointmentType ?? 'CLINIC_VISIT',
-      resourceType: 'CONSULTATION',
-      roomNumber: undefined,
-      appointmentAt: '',
-      notes: '',
     });
   }
 
@@ -430,25 +367,21 @@ export function LeadsView() {
   const publicBase = typeof window !== 'undefined' ? `${window.location.origin.replace(/:\d+$/, ':4000')}/api/public` : '/api/public';
   const leads = useMemo(() => {
     const rows = leadsQuery.data?.data ?? [];
-    return activeTab === 'MANUAL' ? rows.filter((lead) => lead.source !== 'GOOGLE_ADS' && lead.source !== 'META_ADS') : rows;
-  }, [activeTab, leadsQuery.data]);
+    const isArchived = (lead: Lead) => ['CONVERTED', 'LOST', 'DISQUALIFIED'].includes(lead.status);
+    if (activeTab === 'ARCHIVED') return rows.filter(isArchived).filter((lead) => {
+      const closedAt = new Date(lead.updatedAt ?? lead.createdAt).getTime();
+      return (!archiveOutcome || (archiveOutcome === 'WON' ? lead.status === 'CONVERTED' : ['LOST', 'DISQUALIFIED'].includes(lead.status))) &&
+        (!archiveOwner || lead.ownerId === archiveOwner) &&
+        (!archiveTreatment || lead.interestedTreatment?.toLowerCase().includes(archiveTreatment.toLowerCase())) &&
+        (!archiveLostReason || lead.lostReason?.toLowerCase().includes(archiveLostReason.toLowerCase())) &&
+        (!createdFrom || closedAt >= new Date(createdFrom).getTime()) &&
+        (!createdTo || closedAt <= new Date(createdTo).getTime());
+    });
+    const activeRows = rows.filter((lead) => !isArchived(lead));
+    return activeTab === 'MANUAL' ? activeRows.filter((lead) => lead.source !== 'GOOGLE_ADS' && lead.source !== 'META_ADS') : activeRows;
+  }, [activeTab, archiveLostReason, archiveOutcome, archiveOwner, archiveTreatment, createdFrom, createdTo, leadsQuery.data]);
   const adLeads = adLeadsQuery.data?.data.leads ?? [];
   const leadAnalytics = useMemo(() => {
-    const sourceCounts = new Map<LeadSource, number>();
-    const statusCounts = new Map<LeadStatus, number>();
-
-    for (const lead of leads) {
-      sourceCounts.set(lead.source, (sourceCounts.get(lead.source) ?? 0) + 1);
-      statusCounts.set(lead.status, (statusCounts.get(lead.status) ?? 0) + 1);
-    }
-
-    const sourceRows = Array.from(sourceCounts.entries())
-      .map(([label, value]) => ({ label: sourceLabel(label), value }))
-      .sort((a, b) => b.value - a.value);
-    const statusRows = Array.from(statusCounts.entries())
-      .filter(([label]) => !['POSTPONED', 'ARRIVED', 'NOT_ARRIVED'].includes(label))
-      .map(([label, value]) => ({ label: label.replaceAll('_', ' '), value }))
-      .sort((a, b) => b.value - a.value);
     const campaignCounts = new Map<string, { label: string; platform: AdPlatform; value: number }>();
 
     for (const adLead of adLeads) {
@@ -461,8 +394,6 @@ export function LeadsView() {
 
     return {
       total: leads.length,
-      sourceRows,
-      statusRows,
       campaignRows: Array.from(campaignCounts.values()).sort((a, b) => b.value - a.value).slice(0, 5),
       qualified: leads.filter((lead) => lead.status === 'QUALIFIED').length,
       open: leads.filter((lead) => !['CONVERTED', 'LOST', 'DISQUALIFIED', 'CANCELLED'].includes(lead.status)).length,
@@ -477,6 +408,10 @@ export function LeadsView() {
     setCreatedFrom('');
     setCreatedTo('');
     setActiveTab('ALL');
+    setArchiveOutcome('');
+    setArchiveOwner('');
+    setArchiveTreatment('');
+    setArchiveLostReason('');
   };
   const activeFilterLabels = [
     activeTab !== 'ALL' ? tabsLabel(activeTab) : undefined,
@@ -492,6 +427,7 @@ export function LeadsView() {
     { label: 'Google Ads', value: 'GOOGLE_ADS' },
     { label: 'Meta Ads', value: 'META_ADS' },
     { label: 'Campaigns', value: 'CAMPAIGN_ANALYTICS' },
+    { label: 'Closed / Archived', value: 'ARCHIVED' },
   ];
 
   return (
@@ -528,16 +464,6 @@ export function LeadsView() {
           <Metric label="Ad attributed" value={leadAnalytics.adAttributed} />
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          <div>
-            <h3 className="text-sm font-semibold">Sources</h3>
-            <AnalyticsBars data={leadAnalytics.sourceRows} total={leadAnalytics.total} />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold">Statuses</h3>
-            <AnalyticsBars data={leadAnalytics.statusRows} total={leadAnalytics.total} />
-          </div>
-        </div>
       </Card>
 
       <div className="flex flex-wrap gap-2">
@@ -594,23 +520,6 @@ export function LeadsView() {
             </div>
           </Card>
 
-          <Card>
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Source and status split</h2>
-              <BarChart3 className="size-5 text-primary" />
-            </div>
-            <div className="grid gap-5 lg:grid-cols-2">
-              <div>
-                <h3 className="text-sm font-semibold">Sources</h3>
-                <AnalyticsBars data={leadAnalytics.sourceRows} total={leadAnalytics.total} />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold">Statuses</h3>
-                <AnalyticsBars data={leadAnalytics.statusRows} total={leadAnalytics.total} />
-              </div>
-            </div>
-          </Card>
-
           {isAdmin ? (
             <Card className="xl:col-span-2">
               <div className="flex items-center gap-3">
@@ -632,9 +541,9 @@ export function LeadsView() {
       ) : null}
 
       {showLeadForm || editingLead ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lead-form-title" onMouseDown={(event) => { if (event.target === event.currentTarget) { setShowLeadForm(false); resetCreateForm(); } }}>
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lead-form-title" onMouseDown={(event) => { if (event.target === event.currentTarget) { setShowLeadForm(false); resetCreateForm(); } }}>
         <Card className="mx-auto max-w-5xl shadow-2xl">
-          <div className="flex items-start justify-between gap-4 border-b border-border pb-4"><div><h2 id="lead-form-title" className="text-xl font-semibold">{editingLead ? 'Edit Lead' : 'Add New Lead'}</h2><p className="mt-1 text-sm text-muted-foreground">{editingLead ? 'Update contact, interest and follow-up information.' : 'Capture a new enquiry and assign the next action.'}</p></div><Button type="button" variant="secondary" className="w-10 shrink-0 px-0" aria-label="Close lead form" onClick={() => { setShowLeadForm(false); resetCreateForm(); }}><X className="size-4" /></Button></div>
+          <div className="flex items-start justify-between gap-4 border-b border-border pb-4"><div><h2 id="lead-form-title" className="text-xl font-semibold">{editingLead ? 'Edit Lead' : 'Add New Lead'}</h2><p className="mt-1 text-sm text-muted-foreground">{editingLead ? 'Update the lead contact and treatment interest.' : 'Capture the essential details for a new enquiry.'}</p></div><Button type="button" variant="secondary" className="w-10 shrink-0 px-0" aria-label="Close lead form" onClick={() => { setShowLeadForm(false); resetCreateForm(); }}><X className="size-4" /></Button></div>
 
           <form className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-3">
@@ -666,12 +575,12 @@ export function LeadsView() {
                 <div className="mt-2 space-y-1">
                   {duplicateMatches.patients.map((patient) => (
                     <div key={patient.id}>
-                      Patient: {patient.fullName} · {patient.mobile} · {patient.patientNo}
+                      Patient: {patient.fullName} - {patient.mobile} - {patient.patientNo}
                     </div>
                   ))}
                   {duplicateMatches.leads.map((lead) => (
                     <button key={lead.id} type="button" className="block text-left underline" onClick={() => setSelectedLead(lead)}>
-                      View existing lead: {lead.name} · {lead.mobile} · {lead.status.replace('_', ' ')}
+                      View existing lead: {lead.name} - {lead.mobile} - {lead.status.replace('_', ' ')}
                     </button>
                   ))}
                 </div>
@@ -683,21 +592,8 @@ export function LeadsView() {
               <Input {...form.register('address')} />
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-2">
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Branch</span>
-                <Select {...form.register('branchId')}>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </Select>
-                {form.formState.errors.branchId ? (
-                  <span className="text-xs text-red-600">{form.formState.errors.branchId.message}</span>
-                ) : null}
-              </label>
-
+            <input type="hidden" {...form.register('branchId')} />
+            <div className="grid gap-3 md:col-span-2 xl:col-span-2">
               <label className="block space-y-2">
                 <span className="text-sm font-medium">Source</span>
                 <Select {...form.register('source')}>
@@ -707,40 +603,14 @@ export function LeadsView() {
                   <option value="WHATSAPP">WhatsApp</option>
                   <option value="GOOGLE_ADS">Google Ads</option>
                   <option value="META_ADS">Meta Ads</option>
+                  <option value="OTHER">Other</option>
                 </Select>
               </label>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-3">
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Priority</span>
-                <Select {...form.register('priority')}>
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="URGENT">Urgent</option>
-                </Select>
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Interested treatment</span>
-                <Input {...form.register('interestedTreatment')} />
-              </label>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-2">
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Next follow-up</span>
-                <Input type="datetime-local" {...form.register('nextFollowupAt')} />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Last contacted</span>
-                <Input type="datetime-local" {...form.register('lastContactedAt')} />
-              </label>
-            </div>
-
-            <label className="block space-y-2 md:col-span-2 xl:col-span-1">
-              <span className="text-sm font-medium">Follow-up notes</span>
-              <Input {...form.register('followupNotes')} />
+            <label className="block space-y-2 md:col-span-2 xl:col-span-3">
+              <span className="text-sm font-medium">Interested treatment</span>
+              <Input {...form.register('interestedTreatment')} placeholder="Treatment or service the client asked about" />
             </label>
 
             {createLead.error || updateLead.error ? (
@@ -812,6 +682,7 @@ export function LeadsView() {
               <option value="PHONE_CALL">Phone call</option>
               <option value="WHATSAPP">WhatsApp</option>
               <option value="WALK_IN">Walk-in</option>
+              <option value="OTHER">Other</option>
             </Select>
 
             <Input
@@ -833,6 +704,8 @@ export function LeadsView() {
             </Button>
           </div>
 
+          {activeTab === 'ARCHIVED' ? <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Select aria-label="Closed outcome" value={archiveOutcome} onChange={(event) => setArchiveOutcome(event.target.value)}><option value="">Closed won & lost</option><option value="WON">Closed won</option><option value="LOST">Closed lost</option></Select><Select aria-label="Assigned staff" value={archiveOwner} onChange={(event) => setArchiveOwner(event.target.value)}><option value="">All assigned staff</option>{Array.from(new Map((leadsQuery.data?.data ?? []).filter((lead) => lead.owner).map((lead) => [lead.owner!.id, lead.owner!])).values()).map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}</Select><Input aria-label="Treatment or service" placeholder="Treatment or service" value={archiveTreatment} onChange={(event) => setArchiveTreatment(event.target.value)} /><Input aria-label="Lost reason" placeholder="Lost reason" value={archiveLostReason} onChange={(event) => setArchiveLostReason(event.target.value)} /></div> : null}
+
           <div className="overflow-x-auto rounded-md border border-border">
             <table className="min-w-[760px] w-full border-collapse text-left text-sm">
               <thead className="bg-muted text-muted-foreground">
@@ -849,17 +722,9 @@ export function LeadsView() {
                 {leads.map((lead) => (
                   <tr key={lead.id} className="cursor-pointer border-t border-border hover:bg-muted/50" onClick={() => setSelectedLead(lead)}>
                     <td className="px-4 py-3 font-medium">
-                      <Link
-                        className="text-left hover:text-primary"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                        }}
-                        href={`/leads/${lead.id}`}
-                      >
-                        {lead.name}
-                      </Link>
+                      <button type="button" className="text-left hover:text-primary" onClick={() => setSelectedLead(lead)}>{lead.name}</button>
                       <div className="text-xs text-muted-foreground">
-                        {lead.priority ?? 'MEDIUM'} · {lead.interestedTreatment ?? 'No treatment set'}
+                        {lead.priority ?? 'MEDIUM'} - {lead.interestedTreatment ?? 'No treatment set'}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -901,23 +766,19 @@ export function LeadsView() {
       </div>
 
       {selectedLead ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="lead-detail-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedLead(null); }}>
           <Card className="mx-auto max-w-4xl">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">{selectedLead.name}</h2>
+                <h2 id="lead-detail-title" className="text-xl font-semibold">{selectedLead.name}</h2>
                 <p className="text-sm text-muted-foreground">
-                  {selectedLead.mobile} · {sourceLabel(selectedLead.source)} · {selectedLead.branch?.name ?? 'Branch'}
+                  {selectedLead.mobile} - {sourceLabel(selectedLead.source)} - {selectedLead.branch?.name ?? 'Branch'}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button type="button" variant="secondary" onClick={() => startEdit(selectedLead)}>
                   <Edit3 className="size-4" />
                   Edit
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => startBooking(selectedLead)}>
-                  <CalendarPlus className="size-4" />
-                  Book
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => setSelectedLead(null)}>
                   Close
@@ -931,7 +792,7 @@ export function LeadsView() {
               <Detail label="Interested treatment" value={selectedLead.interestedTreatment ?? '-'} />
               <Detail label="Next follow-up" value={formatDateTime(selectedLead.nextFollowupAt)} />
               <Detail label="Last contacted" value={formatDateTime(selectedLead.lastContactedAt)} />
-              <Detail label="Email" value={selectedLead.email ?? '-'} />
+              <Detail label="Email" value={selectedLead.email ?? '-'} breakWords />
               <Detail label="Campaign" value={selectedLead.adLeads?.[0]?.campaignName ?? '-'} />
               <Detail label="Follow-up notes" value={selectedLead.followupNotes ?? '-'} />
             </div>
@@ -959,70 +820,6 @@ export function LeadsView() {
         </div>
       ) : null}
 
-      {bookingLead ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 p-4">
-          <Card className="mx-auto max-w-3xl">
-            <div>
-              <h2 className="text-base font-semibold">Book Appointment</h2>
-              <p className="text-sm text-muted-foreground">
-                {bookingLead.name} · {bookingLead.mobile}
-              </p>
-            </div>
-            <form
-              className="mt-5 grid gap-4 md:grid-cols-2"
-              onSubmit={bookingForm.handleSubmit((values) => bookAppointment.mutate({ lead: bookingLead, values }))}
-            >
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Branch</span>
-                <Select {...bookingForm.register('branchId')}>
-                  {branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </Select>
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Appointment type</span>
-                <Select {...bookingForm.register('appointmentType')}>
-                  <option value="CLINIC_VISIT">Clinic visit</option>
-                  <option value="VIDEO_CONSULTATION">Video consultation</option>
-                </Select>
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Date and time</span>
-                <Input type="datetime-local" {...bookingForm.register('appointmentAt')} />
-                {bookingForm.formState.errors.appointmentAt ? (
-                  <span className="text-xs text-red-600">{bookingForm.formState.errors.appointmentAt.message}</span>
-                ) : null}
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Visit purpose</span>
-                <Select {...bookingForm.register('resourceType')}><option value="CONSULTATION">Consultation</option><option value="TREATMENT_ROOM">Treatment room</option></Select>
-              </label>
-              {bookingForm.watch('resourceType') === 'TREATMENT_ROOM' ? <label className="block space-y-2"><span className="text-sm font-medium">Treatment room number</span><Select {...bookingForm.register('roomNumber')}><option value="">Select room</option>{[1,2,3,4].map((room) => <option key={room} value={room}>Room {room}</option>)}</Select>{bookingForm.formState.errors.roomNumber ? <span className="text-xs text-red-600">{bookingForm.formState.errors.roomNumber.message}</span> : null}</label> : null}
-              <label className="block space-y-2">
-                <span className="text-sm font-medium">Notes</span>
-                <Input {...bookingForm.register('notes')} />
-              </label>
-              {bookAppointment.error ? (
-                <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2">
-                  {bookAppointment.error.message}
-                </div>
-              ) : null}
-              <div className="flex gap-3 md:col-span-2">
-                <Button type="submit" disabled={bookAppointment.isPending}>
-                  <CalendarPlus className="size-4" />
-                  Book Appointment
-                </Button>
-                <Button type="button" variant="secondary" onClick={() => setBookingLead(null)}>
-                  Close
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
-      ) : null}
     </section>
   );
 }
@@ -1048,33 +845,11 @@ function Metric({ label, value, suffix = '' }: { label: string; value: number; s
   );
 }
 
-function AnalyticsBars({ data, total }: { data: Array<{ label: string; value: number }>; total: number }) {
-  return (
-    <div className="mt-4 space-y-4">
-      {data.length ? (
-        data.map((item) => (
-          <div key={item.label}>
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{item.label}</span>
-              <span className="font-semibold">{item.value}</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(percent(item.value, total), item.value ? 6 : 0)}%` }} />
-            </div>
-          </div>
-        ))
-      ) : (
-        <div className="py-8 text-center text-sm text-muted-foreground">No leads found for these filters.</div>
-      )}
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string | number }) {
+function Detail({ label, value, breakWords = false }: { label: string; value: string | number; breakWords?: boolean }) {
   return (
     <div className="rounded-md border border-border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm font-medium">{value}</div>
+      <div className={`mt-1 text-sm font-medium ${breakWords ? 'break-all' : ''}`}>{value}</div>
     </div>
   );
 }

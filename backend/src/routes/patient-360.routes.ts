@@ -10,7 +10,6 @@ const prescribingRoles = [Role.ADMIN, Role.RECEPTIONIST] as const;
 export const patient360Routes = Router();
 patient360Routes.use(requireAuth);
 
-patient360Routes.get('/doctor-workspace', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.doctorWorkspace(req, res).catch(next); });
 patient360Routes.get('/medicines', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.listMedicines(req, res).catch(next); });
 patient360Routes.get('/templates', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.listTemplates(req, res).catch(next); });
 patient360Routes.get('/patients/:patientId/360', (req, res, next) => { patient360Controller.getPatient360(req, res).catch(next); });

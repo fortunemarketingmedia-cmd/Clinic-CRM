@@ -179,6 +179,34 @@ export const patientService = {
     return patient;
   },
 
+  async importPatients(input: {
+    branchId: string;
+    rows: Array<{
+      fullName: string; mobile: string; email?: string; age?: number; sex?: Sex;
+      address?: string; occupation?: string; maritalStatus?: string; referredBy?: string;
+      medicalHistory?: string; notes?: string;
+    }>;
+  }) {
+    await ensureBranchExists(input.branchId);
+    const errors: Array<{ row: number; name: string; message: string }> = [];
+    let imported = 0;
+    let skipped = 0;
+    for (const [index, row] of input.rows.entries()) {
+      try {
+        await this.createPatient({ ...row, branchId: input.branchId });
+        imported += 1;
+      } catch (error) {
+        if (error instanceof HttpError && error.statusCode === 409) {
+          skipped += 1;
+          errors.push({ row: index + 2, name: row.fullName, message: 'Duplicate mobile or email; existing patient retained' });
+          continue;
+        }
+        errors.push({ row: index + 2, name: row.fullName, message: error instanceof Error ? error.message : 'Import failed' });
+      }
+    }
+    return { received: input.rows.length, imported, skipped, failed: input.rows.length - imported - skipped, errors };
+  },
+
   async updatePatient(
     id: string,
     input: Partial<{

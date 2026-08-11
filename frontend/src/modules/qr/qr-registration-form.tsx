@@ -105,7 +105,7 @@ export function QrRegistrationForm({ token }: { token: string }) {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">Revive Clinic Registration</h1>
         <p className="text-sm text-muted-foreground">
-          {registrationQuery.data?.data.patientNo} · {registrationQuery.data?.data.branch?.name ?? 'Select branch'}
+          {registrationQuery.data?.data.patientNo} - {registrationQuery.data?.data.branch?.name ?? 'Select branch'}
         </p>
       </div>
       <form className="grid gap-4 md:grid-cols-2" onSubmit={form.handleSubmit((values) => submitRegistration.mutate(values))}>

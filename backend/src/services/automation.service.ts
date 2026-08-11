@@ -327,21 +327,15 @@ export const automationService = {
         { id: execution.automation.createdById, role: 'ADMIN' },
         { userId: execution.automation.createdById, correlationId: `automation:${execution.id}` },
       );
-    else if (['ADD_TAG', 'REMOVE_TAG', 'SEND_WHATSAPP'].includes(action.type) && lead)
+    else if (['ADD_TAG', 'REMOVE_TAG'].includes(action.type) && lead)
       await prisma.timelineEvent.create({
         data: {
           leadId: lead.id,
           personId: lead.personId,
           createdById: execution.automation.createdById,
           type: action.type,
-          title:
-            action.type === 'SEND_WHATSAPP'
-              ? 'WhatsApp action requested'
-              : `Tag ${action.type === 'ADD_TAG' ? 'added' : 'removed'}`,
-          description:
-            action.type === 'SEND_WHATSAPP'
-              ? 'Queued for the clinic WhatsApp workflow after consent checks'
-              : String(config.tag ?? ''),
+          title: `Tag ${action.type === 'ADD_TAG' ? 'added' : 'removed'}`,
+          description: String(config.tag ?? ''),
           metadata: config as Prisma.InputJsonObject,
         },
       });

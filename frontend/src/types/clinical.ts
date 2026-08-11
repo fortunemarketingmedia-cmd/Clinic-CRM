@@ -32,5 +32,3 @@ export type Patient360 = Patient & {
   timelineEvents: Array<{ id: string; type: string; title: string; description?: string | null; createdAt: string }>;
   summary: { outstandingAmount: number; sessionsRemaining: number; activeTreatmentPlan?: TreatmentPlan | null; lastVisit?: Appointment | null; nextAppointment?: Appointment | null };
 };
-
-export type DoctorWorkspace = { consultations: Appointment[]; waitingPatients: Appointment[]; incompleteNotes: Array<ClinicalEncounter & { patient: Patient }>; plansForReview: Array<TreatmentPlan & { patient: Patient }>; alerts: Patient[]; followUpsDue: Array<{ id: string; dueAt: string; activityType: string; patient?: Patient | null }>; prescriptionActions: Array<ClinicalPrescription & { patient: Patient }>; adverseEvents: Array<ProcedureSession & { patient: Patient }> };

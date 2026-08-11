@@ -30,7 +30,9 @@ export const followUpService = {
     await accessService.assertBranchAccess(input.createdById, input.role, input.branchId);
     const assignee = await followUpRepository.findAssignableUser(input.assignedUserId, input.branchId);
     if (!assignee) throw new HttpError(400, 'Select an active team member from this branch');
-    const followUp = await followUpRepository.create(input);
+    const { role: _authorizationRole, ...followUpData } = input;
+    void _authorizationRole;
+    const followUp = await followUpRepository.create(followUpData);
     if (input.leadId) {
       await followUpRepository.updateLeadNextAction(input.leadId, input.activityType, input.dueAt);
     }

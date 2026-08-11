@@ -6,6 +6,7 @@ import {
   createPatientSchema,
   medicalProfileSchema,
   patientQuerySchema,
+  importPatientsSchema,
   updatePatientSchema,
 } from '../validations/patient.validation.js';
 import { qrRegistrationSchema } from '../validations/qr.validation.js';
@@ -46,6 +47,18 @@ export const patientController = {
     const input = createPatientSchema.parse(req.body);
     const patient = await patientService.createPatient(input);
     return res.status(201).json({ data: patient });
+  },
+
+  async import(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    const input = importPatientsSchema.parse(req.body);
+    await accessService.assertBranchAccess(req.user.id, req.user.role, input.branchId);
+    const result = await patientService.importPatients(input);
+    await auditService.record(
+      { userId: req.user.id, branchId: input.branchId, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId },
+      { action: 'PATIENT_DATA_IMPORTED', entity: 'Patient', newValue: { received: input.rows.length, imported: result.imported, skipped: result.skipped } },
+    );
+    return res.status(201).json({ data: result });
   },
 
   async update(req: Request, res: Response) {

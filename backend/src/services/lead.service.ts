@@ -10,7 +10,6 @@ import { auditService, type AuditContext } from './audit.service.js';
 import { validateLeadTransition } from './lead-stage-policy.js';
 import { leadScoringService } from './lead-scoring.service.js';
 import { accessService } from './access.service.js';
-import { whatsappService } from './whatsapp.service.js';
 import { automationService } from './automation.service.js';
 import { integrationService } from './integration.service.js';
 import { followUpRepository } from '../repositories/follow-up.repository.js';
@@ -214,18 +213,6 @@ export const leadService = {
     if (input.nextFollowupAt) {
       await createLeadFollowUp(lead, input.nextFollowupAt, input.createdById, input.followupNotes);
     }
-    await whatsappService.scheduleReferenceAutomations(
-      'LEAD_RECEIVED',
-      'Lead',
-      lead.id,
-      lead.branchId,
-    );
-    await whatsappService.scheduleReferenceAutomations(
-      'LEAD_FOLLOW_UP',
-      'Lead',
-      lead.id,
-      lead.branchId,
-    );
     await automationService.trigger('LEAD_CREATED', {
       branchId: lead.branchId,
       leadId: lead.id,

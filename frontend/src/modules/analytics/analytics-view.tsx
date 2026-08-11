@@ -180,7 +180,7 @@ export function AnalyticsView() {
           </p>
         </div>
         <div className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-muted-foreground">
-          {analyticsQuery.isFetching ? 'Refreshing data…' : 'Live from clinic records'}
+          {analyticsQuery.isFetching ? 'Refreshing data...' : 'Live from clinic records'}
         </div>
       </div>
 
@@ -247,7 +247,7 @@ export function AnalyticsView() {
 
       {!isAdmin && !branchId ? (
         <Card className="text-center text-sm text-muted-foreground">
-          Select your branch from the header to view analytics.
+          Select your active branch in Settings to view analytics.
         </Card>
       ) : analyticsQuery.isLoading ? (
         <PageSkeleton />
@@ -601,7 +601,7 @@ function BranchesTab({ overview }: { overview?: AnalyticsOverview }) {
             }))}
           />
           <p className="mt-3 text-xs text-muted-foreground">
-            Solid bars: appointments · Light bars: leads
+            Solid bars: appointments - Light bars: leads
           </p>
         </ChartCard>
         <ChartCard
@@ -616,7 +616,7 @@ function BranchesTab({ overview }: { overview?: AnalyticsOverview }) {
             }))}
           />
           <p className="mt-3 text-xs text-muted-foreground">
-            Solid bars: patients · Light bars: active leads
+            Solid bars: patients - Light bars: active leads
           </p>
         </ChartCard>
       </div>

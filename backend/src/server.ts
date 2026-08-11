@@ -1,6 +1,5 @@
 import { env } from './config/env.js';
 import { app } from './app.js';
-import { whatsappJobService } from './services/whatsapp-job.service.js';
 import { integrationJobService } from './services/integration-job.service.js';
 import { prisma } from './config/db.js';
 
@@ -17,7 +16,6 @@ server.on('error', (error: NodeJS.ErrnoException) => {
   throw error;
 });
 
-const whatsappTimer = whatsappJobService.start();
 const integrationTimer = integrationJobService.start();
 let shuttingDown = false;
 
@@ -25,7 +23,6 @@ async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(JSON.stringify({ level: 'info', message: 'Graceful shutdown started', signal }));
-  whatsappJobService.stop(whatsappTimer);
   integrationJobService.stop(integrationTimer);
 
   const forceTimer = setTimeout(() => {
@@ -40,7 +37,7 @@ async function shutdown(signal: string) {
     try {
       const deadline = Date.now() + Math.max(0, env.SHUTDOWN_TIMEOUT_MS - 500);
       while (
-        (whatsappJobService.isProcessing() || integrationJobService.isProcessing()) &&
+        integrationJobService.isProcessing() &&
         Date.now() < deadline
       ) {
         await new Promise((resolve) => setTimeout(resolve, 50));

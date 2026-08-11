@@ -12,8 +12,9 @@ import {
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
 import {
   ColumnChart,
   DonutChart,
@@ -107,11 +108,29 @@ export function DashboardView() {
   const isAdmin = session?.user.role === 'ADMIN';
   const branchId = selectedBranchId ?? '';
   const [dashboardTab, setDashboardTab] = useState<'PERFORMANCE' | 'OPERATIONS'>('PERFORMANCE');
+  const [period, setPeriod] = useState<'TODAY' | '7_DAYS' | '30_DAYS' | 'THIS_MONTH' | 'ALL'>('30_DAYS');
+
+  const analyticsQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (branchId) params.set('branchId', branchId);
+    if (period !== 'ALL') {
+      const end = new Date();
+      const start = new Date(end);
+      if (period === 'TODAY') start.setHours(0, 0, 0, 0);
+      if (period === '7_DAYS') start.setDate(start.getDate() - 6);
+      if (period === '30_DAYS') start.setDate(start.getDate() - 29);
+      if (period === 'THIS_MONTH') start.setDate(1);
+      if (period === 'THIS_MONTH') start.setHours(0, 0, 0, 0);
+      params.set('dateFrom', start.toISOString());
+      params.set('dateTo', end.toISOString());
+    }
+    return params.toString();
+  }, [branchId, period]);
 
   const dashboardQuery = useQuery({
-    queryKey: ['dashboard-overview', branchId],
+    queryKey: ['dashboard-overview', analyticsQuery],
     queryFn: () =>
-      apiRequest<{ data: DashboardOverview }>(`/analytics${branchId ? `?branchId=${branchId}` : ''}`),
+      apiRequest<{ data: DashboardOverview }>(`/analytics${analyticsQuery ? `?${analyticsQuery}` : ''}`),
   });
 
   const totals = dashboardQuery.data?.data.totals;
@@ -142,15 +161,16 @@ export function DashboardView() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div><h1 className="text-2xl font-semibold">
           {isAdmin ? 'Owner Dashboard' : 'Reception Dashboard'}
         </h1>
         <p className="text-sm text-muted-foreground">
           {isAdmin
             ? 'Main clinic performance, appointments, patients, and lead conversion.'
             : 'Today and upcoming work for front desk operations.'}
-        </p>
+        </p></div>
+        <label className="block w-full space-y-1 sm:w-52"><span className="text-xs font-medium text-muted-foreground">Dashboard period</span><Select value={period} onChange={(event) => setPeriod(event.target.value as typeof period)}><option value="TODAY">Today</option><option value="7_DAYS">Last 7 days</option><option value="30_DAYS">Last 30 days</option><option value="THIS_MONTH">This month</option><option value="ALL">All time</option></Select></label>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -172,7 +192,7 @@ export function DashboardView() {
           tabs={[
             { label: 'Performance', value: 'PERFORMANCE' },
             {
-              label: 'Today’s operations',
+              label: 'Todays operations',
               value: 'OPERATIONS',
               count:
                 (dailyWork?.todaysFollowups.length ?? 0) +
@@ -264,23 +284,30 @@ export function DashboardView() {
                 title="Postponed appointments"
                 rows={
                   dailyWork?.postponedAppointments.map(
-                    (appointment) =>
-                      `${appointment.lead.name} · ${formatDateTime(appointment.appointmentAt)}`,
+                    (appointment) => ({
+                      id: appointment.id,
+                      label: `${appointment.lead.name} - ${formatDateTime(appointment.appointmentAt)}`,
+                    }),
                   ) ?? []
                 }
               />
               <WorkQueue
                 title="Campaign follow-ups today"
                 rows={
-                  dailyWork?.todaysFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []
+                  dailyWork?.todaysFollowups.map((lead) => ({
+                    id: lead.id,
+                    label: `${lead.name} - ${lead.mobile}`,
+                  })) ?? []
                 }
               />
               <WorkQueue
                 title="Not arrived patients"
                 rows={
                   dailyWork?.notArrivedPatients.map(
-                    (appointment) =>
-                      `${appointment.lead.name} · ${formatDateTime(appointment.appointmentAt)}`,
+                    (appointment) => ({
+                      id: appointment.id,
+                      label: `${appointment.lead.name} - ${formatDateTime(appointment.appointmentAt)}`,
+                    }),
                   ) ?? []
                 }
               />
@@ -290,20 +317,28 @@ export function DashboardView() {
               <WorkQueue
                 title="Today's follow-ups"
                 rows={
-                  dailyWork?.todaysFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []
+                  dailyWork?.todaysFollowups.map((lead) => ({
+                    id: lead.id,
+                    label: `${lead.name} - ${lead.mobile}`,
+                  })) ?? []
                 }
               />
               <WorkQueue
                 title="Missed follow-ups"
                 rows={
-                  dailyWork?.missedFollowups.map((lead) => `${lead.name} · ${lead.mobile}`) ?? []
+                  dailyWork?.missedFollowups.map((lead) => ({
+                    id: lead.id,
+                    label: `${lead.name} - ${lead.mobile}`,
+                  })) ?? []
                 }
               />
               <WorkQueue
                 title="New leads not contacted"
                 rows={
-                  dailyWork?.newLeadsNotContacted.map((lead) => `${lead.name} · ${lead.mobile}`) ??
-                  []
+                  dailyWork?.newLeadsNotContacted.map((lead) => ({
+                    id: lead.id,
+                    label: `${lead.name} - ${lead.mobile}`,
+                  })) ?? []
                 }
               />
             </>
@@ -340,7 +375,7 @@ export function DashboardView() {
                     <td className="px-4 py-3">
                       <div className="font-medium">{appointment.lead.name}</div>
                       <div className="text-xs text-muted-foreground">
-                        {appointment.lead.mobile} · {appointment.lead.source.replace('_', ' ')}
+                        {appointment.lead.mobile} - {appointment.lead.source.replace('_', ' ')}
                       </div>
                     </td>
                     <td className="px-4 py-3">{appointment.branch.name}</td>
@@ -377,7 +412,7 @@ export function DashboardView() {
                 <div key={branch.id} className="rounded-md border border-border px-3 py-2 text-sm">
                   <div className="font-medium">{branch.name}</div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {branch.activeLeads} active leads · {branch._count.patients} patients ·{' '}
+                    {branch.activeLeads} active leads - {branch._count.patients} patients -{' '}
                     {branch._count.appointments} appointments
                   </div>
                 </div>
@@ -433,7 +468,7 @@ function SnapshotRow({ label, value }: { label: string; value: number | string }
   );
 }
 
-function WorkQueue({ title, rows }: { title: string; rows: string[] }) {
+function WorkQueue({ title, rows }: { title: string; rows: Array<{ id: string; label: string }> }) {
   return (
     <Card>
       <h2 className="text-base font-semibold">{title}</h2>
@@ -441,10 +476,10 @@ function WorkQueue({ title, rows }: { title: string; rows: string[] }) {
         {rows.length ? (
           rows.slice(0, 5).map((row) => (
             <div
-              key={row}
+              key={row.id}
               className="rounded-md border border-border px-3 py-2 text-sm text-muted-foreground"
             >
-              {row}
+              {row.label}
             </div>
           ))
         ) : (

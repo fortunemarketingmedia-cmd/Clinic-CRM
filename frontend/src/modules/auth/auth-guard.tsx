@@ -51,7 +51,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (session && pathname === '/login') {
-      router.replace(session.user.role === 'DEVELOPER' ? '/settings/integrations' : '/dashboard');
+      router.replace('/dashboard');
     }
   }, [hasHydrated, session, publicRoute, pathname, router]);
 

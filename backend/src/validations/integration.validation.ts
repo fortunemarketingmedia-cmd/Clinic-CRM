@@ -94,7 +94,6 @@ const automationAction = z.object({
   type: z.enum([
     'ASSIGN_OWNER',
     'CREATE_TASK',
-    'SEND_WHATSAPP',
     'UPDATE_FIELD',
     'CHANGE_STAGE',
     'NOTIFY_ADMIN',

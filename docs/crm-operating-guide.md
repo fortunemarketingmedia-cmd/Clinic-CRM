@@ -21,8 +21,7 @@ The Security, Audit Logs, and Ad Integrations management pages are intentionally
 4. Open **Today’s Queue** to manage expected, arrived, waiting, consultation, and treatment patients.
 5. Use **Calendar** for new bookings, rescheduling, room allocation, and appointment status.
 6. Use **Tasks** for internal work assigned to you.
-7. Use **Shared Inbox** for WhatsApp conversations.
-8. Admin reviews **Analytics** for performance and **Lead Scoring** for lead quality.
+7. Admin reviews **Analytics** for performance and **Lead Scoring** for lead quality.
 
 ## Tasks versus follow-ups
 
@@ -99,7 +98,7 @@ Use it to:
 - move a lead through its lifecycle;
 - detect duplicate mobile numbers or emails.
 
-A lead appears after manual entry, QR registration, WhatsApp/backend capture, or another enabled backend source.
+A lead appears after manual entry, QR registration, or another enabled backend source.
 
 ### Lead profile
 
@@ -183,37 +182,9 @@ A patient appears after a lead is converted/registered into a patient record. Re
 
 The complete longitudinal patient record.
 
-It contains demographics, medical profile, encounters, treatment plans, prescriptions, procedures, forms, consents, files, communications, tasks, and follow-ups.
+It contains demographics, medical profile, encounters, treatment plans, prescriptions, procedures, forms, consents, files, tasks, and follow-ups.
 
 Clinical information appears only after clinic staff record it. Empty sections mean that workflow has not yet been performed.
-
-### Doctor Workspace
-
-The clinical working area for consultations and treatment documentation.
-
-Use it for encounters, diagnosis, treatment plans, procedures, prescriptions, clinical files, and signed/locked records.
-
-Data appears after a patient and relevant appointment/encounter exist. Signed records become locked; later corrections use addendums.
-
-### Shared Inbox
-
-The clinic’s WhatsApp conversation workspace.
-
-Use it to read conversations, reply, review message status, and work across branch-linked phone numbers.
-
-Data appears after Meta/WhatsApp backend credentials, phone numbers, webhooks, and patient opt-in are configured and messages are received.
-
-### WhatsApp Templates
-
-Admin manages approved reusable message templates for confirmations, reminders, and follow-ups.
-
-Templates appear after they are seeded or synchronized/configured through backend Meta setup. Provider approval may be required before sending.
-
-### Broadcasts
-
-Admin sends approved bulk WhatsApp communication.
-
-Only opted-in recipients should be included. Large broadcasts may require approval. Delivery and failure status appears after worker processing and provider callbacks.
 
 ### Analytics
 
@@ -273,7 +244,7 @@ Data appears after templates are published and a patient submission or consent i
 
 Admin manages clinic profile, branch configuration, operational preferences, services, resources, and other master settings.
 
-Configuration changes determine what becomes available in appointment, schedule, room, patient, and communication workflows.
+Configuration changes determine what becomes available in appointment, schedule, room, and patient workflows.
 
 ### Users / Staff access
 
@@ -303,7 +274,6 @@ An empty card or zero chart is normally a data-state signal:
 - no tasks — nothing assigned to the current user;
 - no staff schedules — practitioner availability not configured;
 - no room bookings — appointments have not been assigned to resources;
-- no WhatsApp data — provider credentials/webhooks/messages not configured;
 - zero financial values — backend billing has not written invoices/payments;
 - no chart data — branch/date filters exclude existing records.
 

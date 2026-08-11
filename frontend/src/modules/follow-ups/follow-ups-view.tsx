@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -6,17 +6,14 @@ import {
   CalendarCheck,
   CalendarPlus,
   CheckCircle2,
-  ChevronRight,
-  ExternalLink,
   Flame,
   GripVertical,
-  MessageCircle,
   Phone,
   Search,
   Target,
   X,
+  MessageSquareText,
 } from 'lucide-react';
-import Link from 'next/link';
 import { useMemo, useState, type DragEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -44,6 +41,8 @@ type MovePayload = {
   ownerId?: string;
   nextAction?: string;
   nextActionDueAt?: string;
+  nextFollowupAt?: string;
+  followupNotes?: string;
   qualificationNotes?: string;
   leadScore?: number;
   lostReason?: string;
@@ -78,22 +77,17 @@ const stages: PipelineStage[] = [
     marker: 'bg-violet-500',
   },
   {
-    id: 'proposed',
-    label: 'Appointment Proposed',
-    description: 'Slot offered',
-    target: 'APPOINTMENT_PROPOSED',
-    statuses: ['APPOINTMENT_PROPOSED'],
+    id: 'booked',
+    label: 'Appointment booked',
+    description: 'Confirmed appointment',
+    target: 'APPOINTMENT_BOOKED',
+    statuses: ['APPOINTMENT_PROPOSED', 'APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED'],
     marker: 'bg-indigo-500',
   },
-  {
-    id: 'closed',
-    label: 'Not interested',
-    description: 'Closed as not interested',
-    target: 'LOST',
-    statuses: ['LOST', 'DISQUALIFIED'],
-    marker: 'bg-green-600',
-  },
 ];
+
+const wonStage: PipelineStage = { id: 'won', label: 'Closed won', description: 'Successfully converted', target: 'CONVERTED', statuses: ['CONVERTED'], marker: 'bg-emerald-600' };
+const lostStage: PipelineStage = { id: 'lost', label: 'Closed lost', description: 'Lead did not convert', target: 'LOST', statuses: ['LOST', 'DISQUALIFIED'], marker: 'bg-red-500' };
 
 const closedStatuses = new Set<LeadStatus>(['CONVERTED', 'LOST', 'DISQUALIFIED']);
 
@@ -143,6 +137,7 @@ export function FollowUpsView() {
   const [dropStageId, setDropStageId] = useState<string | null>(null);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
   const [moveError, setMoveError] = useState('');
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ includeClosed: 'true' });
@@ -212,8 +207,8 @@ export function FollowUpsView() {
         Boolean(lead.nextActionDueAt) &&
         new Date(lead.nextActionDueAt!).getTime() < now,
     ).length;
-    const proposed = leads.filter((lead) => lead.status === 'APPOINTMENT_PROPOSED').length;
-    return { active, hot, overdue, proposed };
+    const booked = leads.filter((lead) => ['APPOINTMENT_PROPOSED', 'APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED'].includes(lead.status)).length;
+    return { active, hot, overdue, booked };
   }, [leads]);
 
   const moveLead = useMutation({
@@ -283,7 +278,7 @@ export function FollowUpsView() {
       stage.target === 'LOST' ||
       stage.target === 'DISQUALIFIED' ||
       stage.target === 'APPOINTMENT_BOOKED' ||
-      stage.id === 'closed';
+      stage.id === 'lost';
 
     if (needsDetails) {
       setMoveRequest({ lead, stage });
@@ -323,19 +318,19 @@ export function FollowUpsView() {
             Drag leads between stages and keep the next sales action clear.
           </p>
         </div>
-        <Link
+        <a
           href="/leads"
           className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground transition hover:bg-muted"
         >
-          Manage leads <ExternalLink className="size-4" />
-        </Link>
+          Manage leads
+        </a>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <PipelineMetric label="Active leads" value={metrics.active} icon={Target} />
         <PipelineMetric label="Hot leads" value={metrics.hot} icon={Flame} />
         <PipelineMetric label="Overdue actions" value={metrics.overdue} icon={AlertCircle} />
-        <PipelineMetric label="Slots proposed" value={metrics.proposed} icon={CheckCircle2} />
+        <PipelineMetric label="Appointments booked" value={metrics.booked} icon={CheckCircle2} />
       </div>
 
       <Card className="p-4">
@@ -362,6 +357,7 @@ export function FollowUpsView() {
             <option value="WHATSAPP">WhatsApp</option>
             <option value="GOOGLE_ADS">Google Ads</option>
             <option value="META_ADS">Meta Ads</option>
+            <option value="OTHER">Other</option>
           </Select>
           <Select aria-label="Filter by priority" value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
             <option value="">All priorities</option>
@@ -428,9 +424,12 @@ export function FollowUpsView() {
                       }}
                       onDragEnd={() => { setDraggingId(null); setDropStageId(null); }}
                       onMove={(target) => {
-                        const destination = stages.find((item) => item.target === target);
+                        const destination = [...stages, wonStage, lostStage].find((item) => item.target === target);
                         if (destination) requestMove(lead, destination);
                       }}
+                      onOpen={() => setSelectedLead(lead)}
+                      onCloseWon={() => requestMove(lead, wonStage)}
+                      onCloseLost={() => requestMove(lead, lostStage)}
                     />
                   ))}
                   {!stageLeads.length && (
@@ -469,6 +468,7 @@ export function FollowUpsView() {
           onConfirm={(payload) => moveLead.mutate({ lead: moveRequest.lead, payload })}
         />
       )}
+      {selectedLead ? <LeadDetailsDialog lead={selectedLead} staff={staff} onClose={() => setSelectedLead(null)} onWon={() => { setSelectedLead(null); requestMove(selectedLead, wonStage); }} onLost={() => { setSelectedLead(null); requestMove(selectedLead, lostStage); }} /> : null}
     </section>
   );
 }
@@ -499,19 +499,23 @@ function LeadCard({
   onDragStart,
   onDragEnd,
   onMove,
+  onOpen,
+  onCloseWon,
+  onCloseLost,
 }: {
   lead: Lead;
   moving: boolean;
   onDragStart: (event: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
   onMove: (status: LeadStatus) => void;
+  onOpen: () => void;
+  onCloseWon: () => void;
+  onCloseLost: () => void;
 }) {
   const overdue =
     Boolean(lead.nextActionDueAt) &&
     !closedStatuses.has(lead.status) &&
     new Date(lead.nextActionDueAt!).getTime() < Date.now();
-  const whatsappNumber = lead.mobile.replace(/\D/g, '');
-
   return (
     <div
       draggable={!moving}
@@ -521,6 +525,7 @@ function LeadCard({
         'rounded-md border border-border bg-surface p-2 shadow-sm shadow-red-950/5 transition hover:border-primary/35 hover:shadow-md',
         moving && 'pointer-events-none opacity-60',
       )}
+      onClick={onOpen}
     >
       <div className="flex items-start gap-1.5">
         <GripVertical className="mt-0.5 size-3.5 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
@@ -529,7 +534,7 @@ function LeadCard({
             <div className="min-w-0">
               <h3 className="truncate text-xs font-semibold text-foreground">{lead.name}</h3>
               <p className="truncate text-[10px] text-muted-foreground">
-                {lead.owner?.name || 'Unassigned'} Â· {lead.mobile}
+                {lead.owner?.name || 'Unassigned'} - {lead.mobile}
               </p>
             </div>
             {(lead.scoreCategory === 'HOT' || lead.priority === 'URGENT') && (
@@ -555,35 +560,37 @@ function LeadCard({
           <div className="mt-1.5 border-t border-border pt-1.5">
             <p className={cn('flex min-w-0 items-center gap-1 text-[10px]', overdue ? 'font-medium text-primary' : 'text-muted-foreground')}>
               <CalendarCheck className="size-3 shrink-0" />
-              <span className="truncate" title={`${lead.nextAction || 'No next action'} Â· ${formatDueDate(lead.nextActionDueAt)}`}>
+              <span className="truncate" title={`${lead.nextAction || 'No next action'} - ${formatDueDate(lead.nextActionDueAt)}`}>
                 {lead.nextAction || formatDueDate(lead.nextActionDueAt)}
               </span>
             </p>
           </div>
 
+          {lead.followupNotes ? <p className="mt-1.5 line-clamp-2 rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-900"><MessageSquareText className="mr-1 inline size-3" />{lead.followupNotes}</p> : null}
+
           <div className="mt-1.5 flex items-center gap-1">
-            <a aria-label={`Call ${lead.name}`} href={`tel:${lead.mobile}`} className="grid size-6 place-items-center rounded border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground">
+            <a onClick={(event) => event.stopPropagation()} aria-label={`Call ${lead.name}`} href={`tel:${lead.mobile}`} className="grid size-6 place-items-center rounded border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground">
               <Phone className="size-3" />
             </a>
-            <a aria-label={`WhatsApp ${lead.name}`} href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noreferrer" className="grid size-6 place-items-center rounded border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground">
-              <MessageCircle className="size-3" />
-            </a>
-            <Link href={`/leads/${lead.id}`} className="ml-auto inline-flex h-6 items-center gap-0.5 rounded px-1 text-[10px] font-medium text-primary transition hover:bg-primary/5">
-              Open <ChevronRight className="size-3" />
-            </Link>
+            <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(); }} className="inline-flex h-6 items-center gap-1 rounded border border-border px-1.5 text-[9px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground"><MessageSquareText className="size-3" />Note / follow-up</button>
           </div>
 
           <Select
             aria-label={`Move ${lead.name} to another pipeline stage`}
             className="mt-1.5 h-7 w-full px-1.5 text-[10px]"
             value=""
+            onClick={(event) => event.stopPropagation()}
             onChange={(event) => { if (event.target.value) onMove(event.target.value as LeadStatus); }}
           >
-            <option value="">Move to stageâ€¦</option>
+            <option value="">Move to stage</option>
             {stages.filter((stage) => stage.id !== stageForStatus(lead.status).id).map((stage) => (
               <option key={stage.id} value={stage.target}>{stage.label}</option>
             ))}
           </Select>
+          <div className="mt-1.5 grid grid-cols-2 gap-1" onClick={(event) => event.stopPropagation()}>
+            <button type="button" onClick={onCloseWon} className="rounded border border-emerald-200 bg-emerald-50 px-1 py-1 text-[9px] font-medium text-emerald-700 hover:bg-emerald-100">Close as won</button>
+            <button type="button" onClick={onCloseLost} className="rounded border border-red-200 bg-red-50 px-1 py-1 text-[9px] font-medium text-red-700 hover:bg-red-100">Close as lost</button>
+          </div>
         </div>
       </div>
     </div>
@@ -617,14 +624,14 @@ function MoveLeadDialog({
   const [qualificationNotes, setQualificationNotes] = useState(lead.qualificationNotes ?? '');
   const [leadScore, setLeadScore] = useState(lead.leadScore?.toString() ?? '');
   const [reason, setReason] = useState(lead.lostReason ?? '');
-  const [targetStatus, setTargetStatus] = useState<LeadStatus>(stage.target);
+  const [targetStatus] = useState<LeadStatus>(stage.target);
   const [appointmentAt, setAppointmentAt] = useState(toDateTimeLocal(lead.appointmentAt) || defaultAppointmentDateTime());
   const [appointmentType, setAppointmentType] = useState<'CLINIC_VISIT' | 'VIDEO_CONSULTATION'>(lead.appointmentType ?? 'CLINIC_VISIT');
   const [serviceId, setServiceId] = useState('');
   const [resourceType, setResourceType] = useState<'CONSULTATION' | 'TREATMENT_ROOM'>('CONSULTATION');
   const [roomNumber, setRoomNumber] = useState('');
   const [resourceId, setResourceId] = useState('');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(lead.followupNotes ?? '');
   const [validationError, setValidationError] = useState('');
   const needsActiveFields = !closedStatuses.has(targetStatus);
   const appointmentExists = Boolean(lead.appointmentAt || lead.appointments?.length);
@@ -689,6 +696,8 @@ function MoveLeadDialog({
       payload.ownerId = ownerId;
       payload.nextAction = nextAction.trim();
       payload.nextActionDueAt = new Date(nextActionDueAt).toISOString();
+      payload.nextFollowupAt = new Date(nextActionDueAt).toISOString();
+      payload.followupNotes = notes.trim() || undefined;
     }
     if (targetStatus === 'QUALIFIED') {
       payload.qualificationNotes = qualificationNotes.trim();
@@ -802,22 +811,6 @@ function MoveLeadDialog({
             </div>
           ) : (
             <>
-              {stage.id === 'closed' && (
-                <Field label="Closing outcome">
-                  <Select
-                    className="w-full"
-                    value={targetStatus}
-                    onChange={(event) => {
-                      setTargetStatus(event.target.value as LeadStatus);
-                      setValidationError('');
-                    }}
-                  >
-                    <option value="LOST">Not interested</option>
-                    <option value="DISQUALIFIED">Disqualified</option>
-                  </Select>
-                </Field>
-              )}
-
               {needsActiveFields && (
                 <>
 
@@ -826,6 +819,9 @@ function MoveLeadDialog({
                   </Field>
                   <Field label="Next action due">
                     <Input type="datetime-local" value={nextActionDueAt} onChange={(event) => setNextActionDueAt(event.target.value)} />
+                  </Field>
+                  <Field label="Lead note">
+                    <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Add context for the receptionist taking this follow-up" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" />
                   </Field>
                 </>
               )}
@@ -841,14 +837,14 @@ function MoveLeadDialog({
                       className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
                     />
                   </Field>
-                  <Field label="Lead score (0â€“100)">
+                  <Field label="Lead score (0-100)">
                     <Input type="number" min={0} max={100} value={leadScore} onChange={(event) => setLeadScore(event.target.value)} />
                   </Field>
                 </>
               )}
 
-              {(targetStatus === 'LOST' || targetStatus === 'DISQUALIFIED') && (
-                <Field label={targetStatus === 'LOST' ? 'Lost reason' : 'Disqualification reason'}>
+              {targetStatus === 'LOST' && (
+                <Field label="Lost reason">
                   <textarea
                     value={reason}
                     onChange={(event) => setReason(event.target.value)}
@@ -882,6 +878,45 @@ function MoveLeadDialog({
       </Card>
     </div>
   );
+}
+
+function LeadDetailsDialog({ lead, staff, onClose, onWon, onLost }: { lead: Lead; staff: StaffMember[]; onClose: () => void; onWon: () => void; onLost: () => void }) {
+  const client = useQueryClient();
+  const [note, setNote] = useState(lead.followupNotes ?? '');
+  const [followUpAt, setFollowUpAt] = useState(toDateTimeLocal(lead.nextActionDueAt));
+  const [assignedUserId, setAssignedUserId] = useState(lead.ownerId ?? staff[0]?.id ?? '');
+  const [formError, setFormError] = useState('');
+  const saveNote = useMutation({
+    mutationFn: () => apiRequest(`/leads/${lead.id}`, { method: 'PATCH', body: JSON.stringify({ followupNotes: note.trim() }) }),
+    onSuccess: () => { client.invalidateQueries({ queryKey: ['sales-pipeline'] }); client.invalidateQueries({ queryKey: ['leads'] }); onClose(); },
+    onError: (error) => setFormError(getErrorMessage(error)),
+  });
+  const schedule = useMutation({
+    mutationFn: () => apiRequest('/follow-ups', { method: 'POST', body: JSON.stringify({
+      personId: lead.personId, leadId: lead.id, patientId: lead.patient?.id,
+      assignedUserId, branchId: lead.branchId, activityType: 'Lead follow-up',
+      channel: 'CALL', direction: 'OUTBOUND', dueAt: new Date(followUpAt).toISOString(),
+      reminderAt: new Date(followUpAt).toISOString(), notes: note.trim() || undefined,
+      priority: lead.priority, source: 'SALES_PIPELINE',
+    }) }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['sales-pipeline'] }); client.invalidateQueries({ queryKey: ['notification-follow-ups'] }); client.invalidateQueries({ queryKey: ['header-reminders'] }); client.invalidateQueries({ queryKey: ['dashboard-overview'] }); onClose();
+    },
+    onError: (error) => setFormError(getErrorMessage(error)),
+  });
+  function scheduleReminder() {
+    setFormError('');
+    if (!lead.personId) return setFormError('This lead is missing its linked contact record. Open the lead profile and save the contact details first.');
+    if (!followUpAt || !assignedUserId) return setFormError('Select the follow-up date, time, and team member.');
+    if (new Date(followUpAt).getTime() <= Date.now()) return setFormError('Follow-up date and time must be in the future.');
+    schedule.mutate();
+  }
+  const saving = saveNote.isPending || schedule.isPending;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><Card className="max-h-[92vh] w-full max-w-2xl overflow-y-auto"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{lead.name}</h2><p className="mt-1 text-sm text-muted-foreground">{lead.mobile} · {sourceLabel(lead.source)}</p></div><button type="button" onClick={onClose} aria-label="Close details" className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-5" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><Detail label="Pipeline stage" value={stageForStatus(lead.status).label} /><Detail label="Assigned to" value={lead.owner?.name ?? 'Unassigned'} /><Detail label="Treatment / service" value={lead.interestedTreatment ?? '-'} /><Detail label="Priority" value={lead.priority} /><Detail label="Next action" value={lead.nextAction ?? '-'} /><Detail label="Due" value={formatDueDate(lead.nextActionDueAt)} /><Detail label="Email" value={lead.email ?? '-'} breakWords /></div><div className="mt-5 space-y-4 rounded-lg border border-border bg-muted/20 p-4"><div><h3 className="font-semibold">Lead note & reminder</h3><p className="text-sm text-muted-foreground">The note remains visible whenever this lead is opened. Scheduling also creates a receptionist reminder.</p></div><Field label="Lead note"><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write call context, preference, or follow-up instructions" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></Field><div className="grid gap-3 sm:grid-cols-2"><Field label="Follow-up date & time"><Input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></Field><Field label="Reminder assigned to"><Select className="w-full" value={assignedUserId} onChange={(event) => setAssignedUserId(event.target.value)}><option value="">Select team member</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></Field></div>{formError ? <p role="alert" className="text-sm text-red-600">{formError}</p> : null}<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={!note.trim() || saving} onClick={() => saveNote.mutate()}>Save note</Button><Button type="button" disabled={saving} onClick={scheduleReminder}><CalendarPlus className="size-4" />{schedule.isPending ? 'Scheduling...' : 'Schedule reminder'}</Button></div></div><div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border pt-4"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button type="button" variant="secondary" className="border-red-200 text-red-700" onClick={onLost}>Close as lost</Button><Button type="button" onClick={onWon}>Close as won</Button></div></Card></div>;
+}
+
+function Detail({ label, value, breakWords = false }: { label: string; value: string; breakWords?: boolean }) {
+  return <div className="rounded-md border border-border p-3"><div className="text-xs text-muted-foreground">{label}</div><div className={cn('mt-1 text-sm font-medium', breakWords && 'break-all')}>{value}</div></div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
