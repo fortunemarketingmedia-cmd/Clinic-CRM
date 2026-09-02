@@ -9,7 +9,7 @@ const audit = (req: Request, branchId?: string) => ({ userId: req.user?.id, bran
 
 async function guard(req: Request, branchId?: string) {
   if (!req.user) throw new HttpError(401, 'Authentication required');
-  const global = ['ADMIN', 'ORGANISATION_OWNER', 'CLINIC_ADMIN', 'AUDITOR'].includes(req.user.role);
+  const global = req.user.role === 'ADMIN';
   if (!branchId && !global) throw new HttpError(400, 'Branch is required');
   await accessService.assertBranchAccess(req.user.id, req.user.role, branchId);
 }

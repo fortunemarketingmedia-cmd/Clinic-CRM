@@ -1,0 +1,3514 @@
+[
+  {
+    "name": "A TO Z TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ABZORB POWDER",
+    "form": "Powder"
+  },
+  {
+    "name": "ACIVIR CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "ACMED FACE WASH 200",
+    "form": "Face wash"
+  },
+  {
+    "name": "ACMED FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "ACMED PLUS FOAMING FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "ACMIST CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "ACNE UV GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "ACNEPAD 50",
+    "form": "Other"
+  },
+  {
+    "name": "ACNESCAR GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "ACTREAT GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "ACUTRET 10 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "ACUTRET 20 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "ACUTRET 5 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "ADCIN GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "ADVIBE SACHET",
+    "form": "Sachet"
+  },
+  {
+    "name": "AF 150 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "AF 400",
+    "form": "Other"
+  },
+  {
+    "name": "AF 50 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "AGEBLOCK TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "AHAGLOW FACEPAD",
+    "form": "Other"
+  },
+  {
+    "name": "AHAGLOW FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "AHAGLOW S",
+    "form": "Other"
+  },
+  {
+    "name": "AI-5 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "AKLIEF CREAM 30GM",
+    "form": "Cream"
+  },
+  {
+    "name": "AKMASQ- 75GM",
+    "form": "Other"
+  },
+  {
+    "name": "AKVA LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "ALCROS 200",
+    "form": "Other"
+  },
+  {
+    "name": "ALDRY LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "ALLIUM GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "AMROLSTAR NAIL LACQUER",
+    "form": "Nail lacquer"
+  },
+  {
+    "name": "ANACORE HAIR SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "ANATRIX HAIR SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "ANDROCHEK EVA TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ANDROCHK TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ANTOLXID HC",
+    "form": "Other"
+  },
+  {
+    "name": "APIGAT 2.5",
+    "form": "Other"
+  },
+  {
+    "name": "APISCALP HAIR LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "APXENTA 10MG",
+    "form": "Other"
+  },
+  {
+    "name": "APXENTA 30MG",
+    "form": "Other"
+  },
+  {
+    "name": "AQUADERM LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "AQUASOFT-FC",
+    "form": "Other"
+  },
+  {
+    "name": "AQUAsSOFT",
+    "form": "Other"
+  },
+  {
+    "name": "AQUREA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "ARKASHILD GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "ATARAX 10",
+    "form": "Other"
+  },
+  {
+    "name": "ATARAX 25MG",
+    "form": "Other"
+  },
+  {
+    "name": "ATOGLA LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "AVERTA UNDER EYE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "AVNEXT TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "AZIDERM 15%",
+    "form": "Other"
+  },
+  {
+    "name": "AZIDERM PLUS CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "AZORAN 50",
+    "form": "Other"
+  },
+  {
+    "name": "AZTOLET 10",
+    "form": "Other"
+  },
+  {
+    "name": "BANDY PLUS SUSP",
+    "form": "Suspension"
+  },
+  {
+    "name": "B-BACT OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "BECOCNX 60K",
+    "form": "Other"
+  },
+  {
+    "name": "BECOCNX D3 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "BECOCNX SL TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "BECOCNX-PM",
+    "form": "Other"
+  },
+  {
+    "name": "BECOZINC CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "BENERIA GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "BENZONEXT 2.5% GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "BETADINE GARGLE",
+    "form": "Other"
+  },
+  {
+    "name": "BETNESOL FORTE TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "B-GLOW CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "B-GLOW PLUS CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "BIFILAC CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "BIFODERM CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "BILACARE 20",
+    "form": "Other"
+  },
+  {
+    "name": "BILANIX 20",
+    "form": "Other"
+  },
+  {
+    "name": "BINTREAT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "BIO UV SPF 50+",
+    "form": "Other"
+  },
+  {
+    "name": "BIOUV SPF 32++",
+    "form": "Other"
+  },
+  {
+    "name": "B-LONG F TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "B-PROTEIN C.F",
+    "form": "Other"
+  },
+  {
+    "name": "B-PROTEIN CHOC.200GM",
+    "form": "Other"
+  },
+  {
+    "name": "BRILANTE INTENSE BRIGHTNING SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "BRILANTE MAX SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "BRILLIANCE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "BRILLIANCE LIPO TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "BRILLIANCE NIA SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "BRINTOP F 5%",
+    "form": "Other"
+  },
+  {
+    "name": "BRINTOP-F 10% SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "BRIODOX",
+    "form": "Other"
+  },
+  {
+    "name": "BRISTAA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "BRISTAA INTENSE",
+    "form": "Other"
+  },
+  {
+    "name": "CABELO GT TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CALOSOFT AF LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CANDID LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CANDID V6",
+    "form": "Other"
+  },
+  {
+    "name": "CANDIDERMA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "CANDIDOX SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "CANDITRAL SB 130",
+    "form": "Other"
+  },
+  {
+    "name": "CANDITRAL SB 65 MG",
+    "form": "Other"
+  },
+  {
+    "name": "canthex cap",
+    "form": "Capsule"
+  },
+  {
+    "name": "CAPIDAN SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "CAPIFINE SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "CAPILAST 2.5 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CAPILAST SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "CAPISTRONG 5",
+    "form": "Other"
+  },
+  {
+    "name": "CAPISTRONG F 10",
+    "form": "Other"
+  },
+  {
+    "name": "CAPISTRONG F5 SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "CAPISTRONG TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "CEFTUM 500 MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CENAM 200",
+    "form": "Other"
+  },
+  {
+    "name": "CETAGEN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CETAPHIL BABY MILD BAR",
+    "form": "Soap"
+  },
+  {
+    "name": "CETAPHIL BHR BRIGHTNES",
+    "form": "Other"
+  },
+  {
+    "name": "CETAPHIL DAM 100GM",
+    "form": "Other"
+  },
+  {
+    "name": "CETAPHIL MOIST LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CETAPHIL OS",
+    "form": "Other"
+  },
+  {
+    "name": "CETASCREEN FACE SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "CETASCREEN SUNSCREEN L",
+    "form": "Other"
+  },
+  {
+    "name": "CETGEL 10MG",
+    "form": "Other"
+  },
+  {
+    "name": "CETIL CV 500",
+    "form": "Other"
+  },
+  {
+    "name": "C-GLOW TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CHAPTEX LIPCARE",
+    "form": "Other"
+  },
+  {
+    "name": "CHOLECAL TOTAL",
+    "form": "Other"
+  },
+  {
+    "name": "CHYMORAL FORTE",
+    "form": "Other"
+  },
+  {
+    "name": "CICATRIX 15ML",
+    "form": "Other"
+  },
+  {
+    "name": "CINTODAC CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "CLEARGEL NICO GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "CLEARZ MAX CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "CLEARZ NEW CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "CLENIA FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "CLINDAC A FOAM FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "CLINDAC A GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "CLINDAC A SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "CLINDAC TRIO GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "CLONATE F CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "CLONATE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CLOP LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CLOREGA-S LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "C-MUS SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "C-MUS-CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "CNCAL TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CNN-50 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CNPRAZ-40 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CNPX 100",
+    "form": "Other"
+  },
+  {
+    "name": "CNX CAL",
+    "form": "Other"
+  },
+  {
+    "name": "CNX CLAV 625 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CNX DOX TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "cnx min-2.5TAB",
+    "form": "Other"
+  },
+  {
+    "name": "COBADEX CZS TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "COMBIFLAM",
+    "form": "Other"
+  },
+  {
+    "name": "CORTAZ FOAM",
+    "form": "Foam"
+  },
+  {
+    "name": "COSMELA PLUS TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "COSMELITE NEXT ROOL ON",
+    "form": "Other"
+  },
+  {
+    "name": "COSVATE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "COSVATE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "COSVATE S OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "COSZINC TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CURLMOIST LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CURLZPEP GEL 5%",
+    "form": "Gel"
+  },
+  {
+    "name": "CUTICANS CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "CUTICANS CREAM 100GM",
+    "form": "Cream"
+  },
+  {
+    "name": "CUTICAPIL STEAM ADVANCE",
+    "form": "Other"
+  },
+  {
+    "name": "CUTICAPIL STEM",
+    "form": "Other"
+  },
+  {
+    "name": "CUTICOLOR BLACK",
+    "form": "Other"
+  },
+  {
+    "name": "CUTICOLOR BROWN",
+    "form": "Other"
+  },
+  {
+    "name": "CUTIMEG SF 500",
+    "form": "Other"
+  },
+  {
+    "name": "CUTIMEGA TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CUTISHINE TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "CUTISOFT LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CUTIYT G12 LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "CUTIYT G2 CREAM 15GM",
+    "form": "Cream"
+  },
+  {
+    "name": "CUTIYT G2 CREAM 30GM",
+    "form": "Cream"
+  },
+  {
+    "name": "CUTIYT G6 CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "CWASH LIQUID SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "CWIN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "CWIN SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "CYBLEX 40",
+    "form": "Other"
+  },
+  {
+    "name": "CYBLEX 80",
+    "form": "Other"
+  },
+  {
+    "name": "CYSTEO CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "DAPANORM M10",
+    "form": "Other"
+  },
+  {
+    "name": "DAPSONE 100MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "DAZIT 5",
+    "form": "Other"
+  },
+  {
+    "name": "DAZIT M",
+    "form": "Other"
+  },
+  {
+    "name": "DEFZA 6 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "DEMELAN FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "DEMELAN LSA 4GM CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "DEMELAN+ CREAM 20GM",
+    "form": "Cream"
+  },
+  {
+    "name": "DENSITA EVERYDAY 1",
+    "form": "Other"
+  },
+  {
+    "name": "DENSITA MF",
+    "form": "Other"
+  },
+  {
+    "name": "DENSITA OM-1.25",
+    "form": "Other"
+  },
+  {
+    "name": "DENSITA SHAMPOO & CONDITIONER",
+    "form": "Shampoo"
+  },
+  {
+    "name": "DENSITA TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "DENSITA-OM 2.5",
+    "form": "Other"
+  },
+  {
+    "name": "depiglow facewash",
+    "form": "Face wash"
+  },
+  {
+    "name": "DEPIGLOW TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "DEPIWHITE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "DEPURA 60K I.U.SUSP",
+    "form": "Suspension"
+  },
+  {
+    "name": "DERMADEW ACNE SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "DERMADEW ALOE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "DERMADEW BABY SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "DERMADEW BACT SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "DERMADEW FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "DERMADEW LITE SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "DERMADEW SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "DERMADEW SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "DERMOCALM LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "DESCET 5",
+    "form": "Other"
+  },
+  {
+    "name": "DESPRU 5",
+    "form": "Other"
+  },
+  {
+    "name": "DESTOP M TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "DEVIRY 10",
+    "form": "Other"
+  },
+  {
+    "name": "DEWSOFT PREMIA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "DEWSOFT PREMIA LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "DEWYDERM LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "DEXPERT DAY CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "DEXPERTS ANTI AGEING C",
+    "form": "Other"
+  },
+  {
+    "name": "DEXPERTS HYAL.ACID SERUM 2%",
+    "form": "Serum"
+  },
+  {
+    "name": "DEXPERTS NIGHT REPAIR CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "DEXPERTS UNDER EYE GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "DEXPERTS VITAMIN C SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "DIANNE 35",
+    "form": "Other"
+  },
+  {
+    "name": "DIPROBATE PLUS LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "diprobete rd cream",
+    "form": "Cream"
+  },
+  {
+    "name": "DK GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "DOMINA 24",
+    "form": "Other"
+  },
+  {
+    "name": "DOSETIL LOTIOM",
+    "form": "Other"
+  },
+  {
+    "name": "DOUX 24",
+    "form": "Other"
+  },
+  {
+    "name": "DOUX CLEANSER",
+    "form": "Cleanser"
+  },
+  {
+    "name": "DOXY1 L-DR FORTE",
+    "form": "Other"
+  },
+  {
+    "name": "d-protein",
+    "form": "Other"
+  },
+  {
+    "name": "D-RISE 60K",
+    "form": "Other"
+  },
+  {
+    "name": "DUTAMAX TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "DUTAWIN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "DYUITH C SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "DYUTIGLOW FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "ECEGLOW TX TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ECLIDAP GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "ECOSPRIN AV 75",
+    "form": "Other"
+  },
+  {
+    "name": "EFATOP PE CREAM 20GM",
+    "form": "Cream"
+  },
+  {
+    "name": "EFATOP PE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "EGA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "EGA GLOW TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ELECTRAL POWDAR",
+    "form": "Other"
+  },
+  {
+    "name": "ELOVERA BODY WASH",
+    "form": "Other"
+  },
+  {
+    "name": "ELYN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "emanzen forte",
+    "form": "Other"
+  },
+  {
+    "name": "EMPIBACT OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "EMROFIN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "EMUFIZ TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ENSURE DIABETIC",
+    "form": "Other"
+  },
+  {
+    "name": "ENSURE DIABETIC 400 GM",
+    "form": "Other"
+  },
+  {
+    "name": "ENTEROGERMINA SUSP",
+    "form": "Suspension"
+  },
+  {
+    "name": "ENZOFLAM TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "EPI 1000",
+    "form": "Other"
+  },
+  {
+    "name": "EPICLIN LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "EPIDURE FC GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "EPIDURE MAX 200ML",
+    "form": "Other"
+  },
+  {
+    "name": "EPISHINE FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "EPISHINE PLUS SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "EPISOFT AC",
+    "form": "Other"
+  },
+  {
+    "name": "EPISOFT LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "ETHIDOX-LB CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "ETHIGLO 200 ML",
+    "form": "Other"
+  },
+  {
+    "name": "ETHIGLO ET 1TAB",
+    "form": "Other"
+  },
+  {
+    "name": "ETHIGLO Fw",
+    "form": "Other"
+  },
+  {
+    "name": "ETHIGLO PLUS FOAMING FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "ETHIGLO PLUS TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ETHIGLO SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "ETHIGLO TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "ETHISUN SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "EUKROMA KJ CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "EUMOSONE M",
+    "form": "Other"
+  },
+  {
+    "name": "EUMOSONE SKIN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "EVALON CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "EXCELA RICH FECIAL LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "EXCYD Salicylic Acid 2% serum",
+    "form": "Serum"
+  },
+  {
+    "name": "EYECIRQUE ADVANCE",
+    "form": "Other"
+  },
+  {
+    "name": "EZANIC CREAM 20%",
+    "form": "Cream"
+  },
+  {
+    "name": "EZYZONE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "EZYZONE M CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FACE CARE",
+    "form": "Other"
+  },
+  {
+    "name": "FACECLIN AT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FACECLIN FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "FACEGAURD SPF 30",
+    "form": "Other"
+  },
+  {
+    "name": "FACEGAURD SPF50",
+    "form": "Other"
+  },
+  {
+    "name": "FASH FOAM.100ML",
+    "form": "Foam"
+  },
+  {
+    "name": "FCL COPPER PEPTIDE SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "FEBUTAZ 40",
+    "form": "Other"
+  },
+  {
+    "name": "FIBATOR LS",
+    "form": "Other"
+  },
+  {
+    "name": "FINALO TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FINAST TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FINAX 1MG",
+    "form": "Other"
+  },
+  {
+    "name": "FINGAIN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FIZCEE TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FLOIRICH NOVA",
+    "form": "Other"
+  },
+  {
+    "name": "FLONIDA -5% CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FLUTIBACT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FLUTIBACT OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "FLUTIVATE E CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FLUTIVATE OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "FLUTIVATE SKIN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "F-NEXT POWDER",
+    "form": "Powder"
+  },
+  {
+    "name": "FOLICA TONIC",
+    "form": "Other"
+  },
+  {
+    "name": "FOLIFAST SOL",
+    "form": "Solution"
+  },
+  {
+    "name": "FOLIGAIN 100ML",
+    "form": "Other"
+  },
+  {
+    "name": "FOLIGAIN SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "FOLININE",
+    "form": "Other"
+  },
+  {
+    "name": "FOLIRICH NOVA",
+    "form": "Other"
+  },
+  {
+    "name": "FOLLIDAN STAY ON LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "FOLLIHAIR A",
+    "form": "Other"
+  },
+  {
+    "name": "FOLLIHAIR AMPM TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FOLLIHAIR MOM 30 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FOLLIHAIR NEW",
+    "form": "Other"
+  },
+  {
+    "name": "FOLLIHAR A 30S TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FORACORT 200 INH",
+    "form": "Other"
+  },
+  {
+    "name": "FUCIBET CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FUCIDIN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FUNGICROS CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "FUNGICROS NAIL LICQUER",
+    "form": "Other"
+  },
+  {
+    "name": "FURIT TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "FUSIROSE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "F-XOLE 400",
+    "form": "Other"
+  },
+  {
+    "name": "FYNALIE CLEANSING LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "FYNKOJI-NU",
+    "form": "Other"
+  },
+  {
+    "name": "GAINEHAIR 2%",
+    "form": "Other"
+  },
+  {
+    "name": "GALDOPIN 10 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "GALDOPIN 25",
+    "form": "Other"
+  },
+  {
+    "name": "GB-12 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "GC MAX EFF.",
+    "form": "Other"
+  },
+  {
+    "name": "GEMER P1",
+    "form": "Other"
+  },
+  {
+    "name": "GLAMBAK ULTRA GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "GLIMISAVE M2X",
+    "form": "Other"
+  },
+  {
+    "name": "GLOGEOUS FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "GLOPETRA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "GLOPETRA SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "GLOTAC LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "GLOTAMIN LOTION 200ML",
+    "form": "Lotion"
+  },
+  {
+    "name": "GLUCOBAY 25MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "GLUCOBAY M 50",
+    "form": "Other"
+  },
+  {
+    "name": "GLUCOMETER ACCU.ACTIVE KIT",
+    "form": "Other"
+  },
+  {
+    "name": "GLUCOSTRIP 50 ACTIVE 50",
+    "form": "Other"
+  },
+  {
+    "name": "GLUTABLAST SHEET MASK",
+    "form": "Other"
+  },
+  {
+    "name": "GLUTAFACT 250 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "GLUTAFACT 250AB",
+    "form": "Other"
+  },
+  {
+    "name": "GLUTAFINE FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "GLUTAFINE SOAP-75GM",
+    "form": "Soap"
+  },
+  {
+    "name": "GLUXIT S 10/100",
+    "form": "Other"
+  },
+  {
+    "name": "GLUXIT TRIO5/50/500 T",
+    "form": "Other"
+  },
+  {
+    "name": "glyco 6",
+    "form": "Other"
+  },
+  {
+    "name": "GLYCO-12",
+    "form": "Other"
+  },
+  {
+    "name": "GLYCOMET 500MG",
+    "form": "Other"
+  },
+  {
+    "name": "glycomet gp3/850",
+    "form": "Other"
+  },
+  {
+    "name": "GLYCOMET SR 500",
+    "form": "Other"
+  },
+  {
+    "name": "GLYMAX LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "GLYSIJA PLUS",
+    "form": "Other"
+  },
+  {
+    "name": "GRAZIA UP",
+    "form": "Other"
+  },
+  {
+    "name": "GREVIVE HUE HAIR BLACK",
+    "form": "Other"
+  },
+  {
+    "name": "GREVIVE HUE HAIR CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "GREYEX SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "GRO-HINT SHE HAIR KIT",
+    "form": "Other"
+  },
+  {
+    "name": "HAIRBLENDZ HAIR KIT",
+    "form": "Other"
+  },
+  {
+    "name": "HAIRFIX TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "HAIRMULTI PLUS TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "HAIRSURE TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "HAIRVITA PLUS",
+    "form": "Other"
+  },
+  {
+    "name": "HALOBET CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HALOBET ES",
+    "form": "Other"
+  },
+  {
+    "name": "HALOBET F CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HALOBET S OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "HALONOVA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HALONOVA S OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "HB GOLD SP TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "HEXILAK ACNE SCAR SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "HHAMCLAV 625",
+    "form": "Other"
+  },
+  {
+    "name": "HHAZI 500MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "HHCALTROL CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "HHFUDIC CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HHFUDIC CREAM 10GM",
+    "form": "Cream"
+  },
+  {
+    "name": "HHLEVO TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "HHLITE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HHOMEGA TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "HHSALIC 6% OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "HHSALIC LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "HHSALIC OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "HHSONE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HHSONE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "HHZOLE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HUMATANT",
+    "form": "Other"
+  },
+  {
+    "name": "HYDRASUN SUNCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "HYDROFIL LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "HYDROHEAL NOVO",
+    "form": "Other"
+  },
+  {
+    "name": "HYDROMAX CT-100GMS",
+    "form": "Other"
+  },
+  {
+    "name": "HYDROMAX-100GMS",
+    "form": "Other"
+  },
+  {
+    "name": "HYDRONIC CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "HYDRONIC LIP SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "HYDRONIC LIPBALM",
+    "form": "Other"
+  },
+  {
+    "name": "HYDRONIC XP MOIST LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "HYDRONIC XP MOISTURIZER",
+    "form": "Other"
+  },
+  {
+    "name": "HYMOS LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "HYNIDASE INJECTION",
+    "form": "Other"
+  },
+  {
+    "name": "IROSHINE TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ISO ARET 20 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ISODERMA 10",
+    "form": "Other"
+  },
+  {
+    "name": "ISODERMA 20",
+    "form": "Other"
+  },
+  {
+    "name": "ISOLIPS SERUM -4ML",
+    "form": "Serum"
+  },
+  {
+    "name": "ISTAMET 50/500MG",
+    "form": "Other"
+  },
+  {
+    "name": "ISTAMET D IR 500",
+    "form": "Other"
+  },
+  {
+    "name": "ISTAMET D XR 1000MG",
+    "form": "Other"
+  },
+  {
+    "name": "ISTAMET D XR500",
+    "form": "Other"
+  },
+  {
+    "name": "ISTAVEL 50",
+    "form": "Other"
+  },
+  {
+    "name": "ISTAVEL D 10/100",
+    "form": "Other"
+  },
+  {
+    "name": "ISTHMUS 2.5MG",
+    "form": "Other"
+  },
+  {
+    "name": "ITASPOR SB",
+    "form": "Other"
+  },
+  {
+    "name": "ITASPOR TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ITRATUF ORAL SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "I-TYZA 100",
+    "form": "Other"
+  },
+  {
+    "name": "I-TYZA 200",
+    "form": "Other"
+  },
+  {
+    "name": "IVREA 1% CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "IVREA LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "IVREA SHAMPOO 12%",
+    "form": "Shampoo"
+  },
+  {
+    "name": "IVSCAB 12",
+    "form": "Other"
+  },
+  {
+    "name": "IWIN 100",
+    "form": "Other"
+  },
+  {
+    "name": "IWIN SB 50MG",
+    "form": "Other"
+  },
+  {
+    "name": "JAKAUTO GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "JALRA DP10+100",
+    "form": "Other"
+  },
+  {
+    "name": "JARDIANCE 25",
+    "form": "Other"
+  },
+  {
+    "name": "JIKONA SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "JOINTACE DN",
+    "form": "Other"
+  },
+  {
+    "name": "KENACORT 10 INJ",
+    "form": "Other"
+  },
+  {
+    "name": "KENACORT 40MG",
+    "form": "Other"
+  },
+  {
+    "name": "KERA XL M",
+    "form": "Other"
+  },
+  {
+    "name": "KERABLACK TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "KERAGLLO AD LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "KERAGLO EVA",
+    "form": "Other"
+  },
+  {
+    "name": "KERAGLO EVA NEW 10S",
+    "form": "Other"
+  },
+  {
+    "name": "KERAGLO MEN",
+    "form": "Other"
+  },
+  {
+    "name": "KERAGLO-AD BODYWASH",
+    "form": "Other"
+  },
+  {
+    "name": "KERAMOTE CONDITIONER",
+    "form": "Other"
+  },
+  {
+    "name": "KERAMOTE SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "KETAMIDE AD HAIRACTIV",
+    "form": "Other"
+  },
+  {
+    "name": "ketoclass soap",
+    "form": "Soap"
+  },
+  {
+    "name": "KETOMASTER SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "KETONEXT AF LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "KEVON LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "KLINMYSCALP SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "KLOSH F TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "KOJIGLEAM ULTRA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "KOJIGLO GOLD LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "KOJIVIT GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "KOJIVIT PLUS",
+    "form": "Other"
+  },
+  {
+    "name": "KOJIVIT ULTRA",
+    "form": "Other"
+  },
+  {
+    "name": "KOVITE ACTIVE GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "KOVITE ULTRA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "KOZILITE H",
+    "form": "Other"
+  },
+  {
+    "name": "KOZILITE H SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "KOZILTE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "KOZISOL GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "KOZISOL SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "KZ CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "KZ DUSTING POWDER",
+    "form": "Powder"
+  },
+  {
+    "name": "KZ LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "KZ PLUS LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "KZ SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "LA FEEl BODY WASH",
+    "form": "Other"
+  },
+  {
+    "name": "LA FEEL SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "LA PEAU VIT C SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "LAFEEL CONDITIONER",
+    "form": "Other"
+  },
+  {
+    "name": "LAMIFEN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "LIFTAGE SHOT",
+    "form": "Other"
+  },
+  {
+    "name": "LILITUF CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "LIMCEE 500",
+    "form": "Other"
+  },
+  {
+    "name": "LIMCEE CHEWABLE TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "LIPIDZ MOISTRURIZING LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "LIPZ 9GM",
+    "form": "Other"
+  },
+  {
+    "name": "LIPZLITE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "LISANI-5",
+    "form": "Other"
+  },
+  {
+    "name": "LOBATE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "LONITAB 2.5",
+    "form": "Other"
+  },
+  {
+    "name": "L-SYS LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "LULIBET LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "LULINEXT LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "LULINEXT PLUS LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "LULY CREAM 100GM",
+    "form": "Cream"
+  },
+  {
+    "name": "LULY CREAM 50gm",
+    "form": "Cream"
+  },
+  {
+    "name": "LULY LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "LUMIQUE FACE MASK",
+    "form": "Other"
+  },
+  {
+    "name": "LUMIVOID ULTRA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "LUPIMEG 500 MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "LUPIVON 10",
+    "form": "Other"
+  },
+  {
+    "name": "LUTIDERM CREAM 30GM",
+    "form": "Cream"
+  },
+  {
+    "name": "LUTIDERM E CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "LYRASOL FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "LZHH LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "MACEGLOW CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MARVELTONE NIGHT REPAIR CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MAXRICH P LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "MDELIC FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "ME ONION HAIR 150M",
+    "form": "Other"
+  },
+  {
+    "name": "MELAGLOW NEW",
+    "form": "Other"
+  },
+  {
+    "name": "MELAGLOW RITCH CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MELALITE FORTE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MELALUMIN LIP LIGHTNER",
+    "form": "Other"
+  },
+  {
+    "name": "MELALUMIN ULTRA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MELALUMIN UNDER EYE SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "MELANCE OD TABS",
+    "form": "Other"
+  },
+  {
+    "name": "MELAPIK EVER NEW CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MELASTOP CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "melbild 2",
+    "form": "Other"
+  },
+  {
+    "name": "MELBILD 5ML",
+    "form": "Other"
+  },
+  {
+    "name": "MELGAIN",
+    "form": "Other"
+  },
+  {
+    "name": "METPURE TEL 20MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "METPURE XL 25",
+    "form": "Other"
+  },
+  {
+    "name": "metrogyl 400",
+    "form": "Other"
+  },
+  {
+    "name": "MFSONE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MFSUDIF CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MICROBENZ 3.5 GELAQUEOUS",
+    "form": "Other"
+  },
+  {
+    "name": "MILDY SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "MINICHECK SOLUTION F5%",
+    "form": "Solution"
+  },
+  {
+    "name": "MINICHEK 2% SOL",
+    "form": "Solution"
+  },
+  {
+    "name": "MINICHEK 60 ML",
+    "form": "Other"
+  },
+  {
+    "name": "MINICHEK SOLUTION 5 %",
+    "form": "Solution"
+  },
+  {
+    "name": "MINOLOX 100",
+    "form": "Other"
+  },
+  {
+    "name": "MINONIL ER 45",
+    "form": "Other"
+  },
+  {
+    "name": "MINONIL ER 65",
+    "form": "Other"
+  },
+  {
+    "name": "MINOTAS ER 45",
+    "form": "Other"
+  },
+  {
+    "name": "MINOTAS ER 65",
+    "form": "Other"
+  },
+  {
+    "name": "MINOZ 100",
+    "form": "Other"
+  },
+  {
+    "name": "MINOZ ER 65",
+    "form": "Other"
+  },
+  {
+    "name": "MINTOP GAIN 5% SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "MINTOP TAB 2.5",
+    "form": "Tablet"
+  },
+  {
+    "name": "MINYM GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "MOISTUREX BODY WASH",
+    "form": "Other"
+  },
+  {
+    "name": "MOISTUREX CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MOISTUREX SOFT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MOISTUREX-HYDRA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MOMATE XL",
+    "form": "Other"
+  },
+  {
+    "name": "MONTEK LC",
+    "form": "Other"
+  },
+  {
+    "name": "MORR F 10% SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "MORR F 5",
+    "form": "Other"
+  },
+  {
+    "name": "MORR RICH",
+    "form": "Other"
+  },
+  {
+    "name": "MORR-F AQUA+60ML",
+    "form": "Other"
+  },
+  {
+    "name": "MUCOPAIN-15GM GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "MUPI OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "MUPINEXT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "MX 10%",
+    "form": "Other"
+  },
+  {
+    "name": "MX 2%",
+    "form": "Other"
+  },
+  {
+    "name": "MX 5%",
+    "form": "Other"
+  },
+  {
+    "name": "MX-10 TOPICAL SOLU.60M",
+    "form": "Other"
+  },
+  {
+    "name": "MYN-IQ F-5",
+    "form": "Other"
+  },
+  {
+    "name": "MYOCLIN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "NADOXIN GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "NASOCOBAL NASAL SPRAY",
+    "form": "Spray"
+  },
+  {
+    "name": "NAX GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "NEBICARD T",
+    "form": "Other"
+  },
+  {
+    "name": "neurokem m",
+    "form": "Other"
+  },
+  {
+    "name": "NEW DEWSOFT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "NEW KERAGLO EVA 15",
+    "form": "Other"
+  },
+  {
+    "name": "NEW KERAGLO EVA 30 S",
+    "form": "Other"
+  },
+  {
+    "name": "NICOGLOW TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "NIGRILITE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "NIOSALIC 6% OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "NIOSALIC LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "NIOSALIC OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "NIOSOL F CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "NOVANIB T OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "NOVORAPID PENFILL",
+    "form": "Other"
+  },
+  {
+    "name": "NU P++ LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "NULOERA UNDER EYE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "NUROKIND OD",
+    "form": "Other"
+  },
+  {
+    "name": "NUSAUDE PROTEIN POWDER",
+    "form": "Powder"
+  },
+  {
+    "name": "OBRIL FIRST CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "OBRIL GOLD SKIN SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "OCTISOL LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "OFLOX 200",
+    "form": "Other"
+  },
+  {
+    "name": "OILATUM LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "OILTUM EMOLLIENT",
+    "form": "Other"
+  },
+  {
+    "name": "OLEBEST BABY SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "OLESBEST BODY WASH",
+    "form": "Other"
+  },
+  {
+    "name": "OLESOFT LITE MOIST SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "OMEGAFUL PLUS",
+    "form": "Other"
+  },
+  {
+    "name": "OMEZ 20",
+    "form": "Other"
+  },
+  {
+    "name": "OMNACORTIL 10MG",
+    "form": "Other"
+  },
+  {
+    "name": "OMNACORTIL 20",
+    "form": "Other"
+  },
+  {
+    "name": "OMNACORTIL 30",
+    "form": "Other"
+  },
+  {
+    "name": "OMNACORTIL 40MG",
+    "form": "Other"
+  },
+  {
+    "name": "omnacortil 5mg",
+    "form": "Other"
+  },
+  {
+    "name": "OMNACORTIL SUSP",
+    "form": "Suspension"
+  },
+  {
+    "name": "ONABET SD LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "ONAK SR",
+    "form": "Other"
+  },
+  {
+    "name": "ONCOTREX 5",
+    "form": "Other"
+  },
+  {
+    "name": "ONCOTREX 7.5",
+    "form": "Other"
+  },
+  {
+    "name": "ONDEM MD 4",
+    "form": "Other"
+  },
+  {
+    "name": "OPTIGLOW FORTE TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "OSPIS-100GMS",
+    "form": "Other"
+  },
+  {
+    "name": "OSSOPAN D",
+    "form": "Other"
+  },
+  {
+    "name": "OSTOCALCIUM TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "OXRAMET XR 10MG/1GM",
+    "form": "Other"
+  },
+  {
+    "name": "OXTRAMET XR 10/500MG",
+    "form": "Other"
+  },
+  {
+    "name": "PANDERM CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PANTOCID 80TAB",
+    "form": "Other"
+  },
+  {
+    "name": "PANTOP 40",
+    "form": "Other"
+  },
+  {
+    "name": "PECEFINO DAY CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PERIVITE UNDER EYE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PERLICE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PERMITE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PERMITECH LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "PEROCLIN 2.5%",
+    "form": "Other"
+  },
+  {
+    "name": "PHOTOBAN 30 AQUA GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "PHOTOBAN 50 AQUAGEL",
+    "form": "Other"
+  },
+  {
+    "name": "PHOTOBLOC CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PHOTOFIRST CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PHOTOSTABLE",
+    "form": "Other"
+  },
+  {
+    "name": "PHOTOSTABLE ACNE SPF55",
+    "form": "Other"
+  },
+  {
+    "name": "PHOTOSTABLE GOLD",
+    "form": "Other"
+  },
+  {
+    "name": "PHOTOSTABLE INSTA",
+    "form": "Other"
+  },
+  {
+    "name": "PHOTOSTABLE PRO+",
+    "form": "Other"
+  },
+  {
+    "name": "PHYSIOGEL AI CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PHYSIOGEL CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PIGMENTO OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "PIGMENTO TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "PIGOLYN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PIGOLYN LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "PIGOLYN-ND LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "PIMOVATE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PODOWART PAINT 10ML",
+    "form": "Other"
+  },
+  {
+    "name": "POLYANTOX TABLETS",
+    "form": "Tablet"
+  },
+  {
+    "name": "POWERDEW CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PRAISE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "PRETIBENZYL CREAMY WASH",
+    "form": "Other"
+  },
+  {
+    "name": "PRETIBENZYL LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "PRIMOSA 1000",
+    "form": "Other"
+  },
+  {
+    "name": "PRIXICAM",
+    "form": "Other"
+  },
+  {
+    "name": "PROANAGEN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "PROFULVIN 500MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "PRONURIES CONDITIONER",
+    "form": "Other"
+  },
+  {
+    "name": "PRONURIES SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "PRONURIES-C SHAMPOO/CONDITIONER",
+    "form": "Shampoo"
+  },
+  {
+    "name": "PROPYSALIC NF 6 OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "PROPYSALIC NF OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "PROVELENT F VIT.C SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "PRUGO 10 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "PRUGO SYRUP",
+    "form": "Syrup"
+  },
+  {
+    "name": "PSORID 100",
+    "form": "Other"
+  },
+  {
+    "name": "PSORID 50 MG CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "PYNOMAX OD TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "PYNOMAX TX CREAMY LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "Q-SERA BLACK",
+    "form": "Other"
+  },
+  {
+    "name": "RANTAC TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "RAPIGLO TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "RAZO 20",
+    "form": "Other"
+  },
+  {
+    "name": "RAZO D",
+    "form": "Other"
+  },
+  {
+    "name": "RCIN 600",
+    "form": "Other"
+  },
+  {
+    "name": "REFRESH TEARS DROP",
+    "form": "Drops"
+  },
+  {
+    "name": "REGA BPO CREAMY WASH",
+    "form": "Other"
+  },
+  {
+    "name": "REGA BPO SPRAY",
+    "form": "Spray"
+  },
+  {
+    "name": "REGA-NP SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "REGESTRONE 5MG",
+    "form": "Other"
+  },
+  {
+    "name": "REGISO 20",
+    "form": "Other"
+  },
+  {
+    "name": "REINVIA HS SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "REMYLIN D TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "RENEWCELL RETINOL SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "REVIBRA A15",
+    "form": "Other"
+  },
+  {
+    "name": "REVIQUE SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "RIVELA LITE BRONZE",
+    "form": "Other"
+  },
+  {
+    "name": "ROUTWIN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ROZALET 10 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "ROZALET 20",
+    "form": "Other"
+  },
+  {
+    "name": "ROZAVEL 10",
+    "form": "Other"
+  },
+  {
+    "name": "rozavel 5",
+    "form": "Other"
+  },
+  {
+    "name": "SALDAN FIDX SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SALDAN SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SALDAN TVC LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SALICURE 12",
+    "form": "Other"
+  },
+  {
+    "name": "SALICURE 17",
+    "form": "Other"
+  },
+  {
+    "name": "SALIPAINT LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SALISIA KT SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SALYZAP-AZ",
+    "form": "Other"
+  },
+  {
+    "name": "S-CLEAR LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SEBOGEL",
+    "form": "Other"
+  },
+  {
+    "name": "SEBOLLIC SALICYLIC ACID SERUM 20",
+    "form": "Serum"
+  },
+  {
+    "name": "SEBONAC GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "SEBONIA SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "SEBOSHIELD FACE WASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "SEBOWASH SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SELENEXT WASH",
+    "form": "Other"
+  },
+  {
+    "name": "Selfyskin ALT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "SELSUN DAILY SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SELSUN SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SEREN CONDITIONER- 100",
+    "form": "Other"
+  },
+  {
+    "name": "SEREN SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SERUPTIN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "SGBACT B CREAM 20GM",
+    "form": "Cream"
+  },
+  {
+    "name": "SGBACT CREAM 20GM",
+    "form": "Cream"
+  },
+  {
+    "name": "SGK SOAP",
+    "form": "Soap"
+  },
+  {
+    "name": "SGMOM CREAM 15GM",
+    "form": "Cream"
+  },
+  {
+    "name": "SGMOM CREAM 30GM",
+    "form": "Cream"
+  },
+  {
+    "name": "SGMOM LOTION 50ML",
+    "form": "Lotion"
+  },
+  {
+    "name": "SGVATE CREAM 30GM",
+    "form": "Cream"
+  },
+  {
+    "name": "SGVATE F CREAM 15GM",
+    "form": "Cream"
+  },
+  {
+    "name": "SGVATE OINTMENT 30GM",
+    "form": "Ointment"
+  },
+  {
+    "name": "SGVATE-S OINTMENT 20GM",
+    "form": "Ointment"
+  },
+  {
+    "name": "SHADOW RX SPF 50 SPRAY",
+    "form": "Spray"
+  },
+  {
+    "name": "SHELACAL HD",
+    "form": "Other"
+  },
+  {
+    "name": "SHELCAL JOINTS CAB",
+    "form": "Other"
+  },
+  {
+    "name": "SKYA GLOW 10TAB",
+    "form": "Other"
+  },
+  {
+    "name": "SKYA GLOW TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "SOFTERON-Z CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "SOFTMAX LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SOLASAFE BRONZE T1",
+    "form": "Other"
+  },
+  {
+    "name": "SOLASAFE SPORTZ",
+    "form": "Other"
+  },
+  {
+    "name": "SOLASAFE SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "SOLASAFE TINT",
+    "form": "Other"
+  },
+  {
+    "name": "SOLCAN 150 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "SORVATE OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "SOTRET 10",
+    "form": "Other"
+  },
+  {
+    "name": "SOTRET 20",
+    "form": "Other"
+  },
+  {
+    "name": "SPER LOTION SPF 40 50ML",
+    "form": "Lotion"
+  },
+  {
+    "name": "SPIRODIN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "SPOO BABY SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "SPRINTAS 100",
+    "form": "Other"
+  },
+  {
+    "name": "SPRINTAS 50 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "STABLON",
+    "form": "Other"
+  },
+  {
+    "name": "stamlo 10",
+    "form": "Other"
+  },
+  {
+    "name": "STAYMOIST BODY WASH",
+    "form": "Other"
+  },
+  {
+    "name": "STAYMOIST CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "STRANDZ 10%",
+    "form": "Other"
+  },
+  {
+    "name": "STRANDZ 5% LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "STRANDZ-BOOST LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "STRESS RELIFE GUMMIES",
+    "form": "Other"
+  },
+  {
+    "name": "STRETCH RID",
+    "form": "Other"
+  },
+  {
+    "name": "SUBAWIN 100",
+    "form": "Other"
+  },
+  {
+    "name": "SUGARFREE GOLD",
+    "form": "Other"
+  },
+  {
+    "name": "SUNBAN FORTE PRO",
+    "form": "Other"
+  },
+  {
+    "name": "SUNBAN LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SUNBAN MATTE GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "SUNCROS LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SUNCROS SOFT GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "SUNCROS TINT GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "SUNCROS TINT LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SUNCROSS 50 AQUALOTION",
+    "form": "Other"
+  },
+  {
+    "name": "SUNCROSS NEO GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "SUNCROSS SOFT LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "SUNSTOP 19",
+    "form": "Other"
+  },
+  {
+    "name": "SUNSTOP AQUAGEL 30",
+    "form": "Other"
+  },
+  {
+    "name": "SWAMSTAT 100",
+    "form": "Other"
+  },
+  {
+    "name": "SWAMSTAT 200",
+    "form": "Other"
+  },
+  {
+    "name": "SWEATNIL GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "SWEATNIL GEL 50 ML",
+    "form": "Gel"
+  },
+  {
+    "name": "SWEATNIL SKIN LIGHTNING ROLL ON",
+    "form": "Other"
+  },
+  {
+    "name": "TACROVIN FORTE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "TACROVIN FORTE OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "TACROVIN LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "TACROZ FORTE OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "TAKFA FORTE 0.1 OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "TAKFA FORTE 0.1% LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "TAKFA OINTMENT 0.03%",
+    "form": "Ointment"
+  },
+  {
+    "name": "TARICH LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "TAXIM O 200MG",
+    "form": "Other"
+  },
+  {
+    "name": "TAYO 60 K",
+    "form": "Other"
+  },
+  {
+    "name": "T-BACT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "TECZINE 5MG",
+    "form": "Other"
+  },
+  {
+    "name": "TECZINE SYRUP",
+    "form": "Syrup"
+  },
+  {
+    "name": "TELMAAZ 40/8",
+    "form": "Other"
+  },
+  {
+    "name": "TENEBITE M 20/500 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "TESS PASTE",
+    "form": "Other"
+  },
+  {
+    "name": "TFCT NTB OINTMENT",
+    "form": "Ointment"
+  },
+  {
+    "name": "TFCT-NIB TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "THYRONORM 50",
+    "form": "Other"
+  },
+  {
+    "name": "TOFATAS 5 MG",
+    "form": "Other"
+  },
+  {
+    "name": "TONENGLO FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "TONENGLOW S",
+    "form": "Other"
+  },
+  {
+    "name": "TOPISAL 3% LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "TOPISAL 6% LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "TRETIFINE 20",
+    "form": "Other"
+  },
+  {
+    "name": "TRETIFINE-10",
+    "form": "Other"
+  },
+  {
+    "name": "TRETIN 0.025%",
+    "form": "Other"
+  },
+  {
+    "name": "TRETIN 0.05",
+    "form": "Other"
+  },
+  {
+    "name": "TRETIN-ISO 10 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "TRETIN-ISO 20 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "TRETIN-OL NIGHT REPAIR",
+    "form": "Other"
+  },
+  {
+    "name": "TRETIVA 5",
+    "form": "Other"
+  },
+  {
+    "name": "TRICHOEXITA HAIR CONDITIONER",
+    "form": "Other"
+  },
+  {
+    "name": "TRICHOEXITA HAIR SHAMPOO",
+    "form": "Shampoo"
+  },
+  {
+    "name": "TRICHOEXITO CONDITIONING HAIR MASK",
+    "form": "Other"
+  },
+  {
+    "name": "TRICHOLYS INTENSIVE GREY HAIR",
+    "form": "Other"
+  },
+  {
+    "name": "TRICHONIC TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "TRICHOSPIRE F HAIRKIT",
+    "form": "Other"
+  },
+  {
+    "name": "TRICHOSPIRE HAIR MASK",
+    "form": "Other"
+  },
+  {
+    "name": "TRICHOSPIRE M HAIRKIT",
+    "form": "Other"
+  },
+  {
+    "name": "TRICHOZ SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "TRICLEANZ HAIR CLEANSER",
+    "form": "Cleanser"
+  },
+  {
+    "name": "TRIFLOW CONDITIONER",
+    "form": "Other"
+  },
+  {
+    "name": "TRILAST HAIR CARE LOTI",
+    "form": "Other"
+  },
+  {
+    "name": "TRILAST HAIR SOLUTION",
+    "form": "Solution"
+  },
+  {
+    "name": "TRIOLITE CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "TRIOLITE FORTE TABLET",
+    "form": "Tablet"
+  },
+  {
+    "name": "TRIOLITE TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "TRUDERMA AQBSOULUTE RADIANCE SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "TRUDERMA DUO",
+    "form": "Other"
+  },
+  {
+    "name": "TRUDERMA EPIYUTH",
+    "form": "Other"
+  },
+  {
+    "name": "TRUDERMA FACEWASH",
+    "form": "Face wash"
+  },
+  {
+    "name": "TRUDERMA GENTLE FOAM CLEANSER",
+    "form": "Cleanser"
+  },
+  {
+    "name": "TRUDERMA I-LUXE",
+    "form": "Other"
+  },
+  {
+    "name": "TRUDERMA REGEN",
+    "form": "Other"
+  },
+  {
+    "name": "TRUDERMA STABILIZ 20ML",
+    "form": "Other"
+  },
+  {
+    "name": "TRUDERMA SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "TRUEDERMA VIT C SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "TUFACNE 10MG",
+    "form": "Other"
+  },
+  {
+    "name": "TUFACNE 20MG",
+    "form": "Other"
+  },
+  {
+    "name": "TYRODIN CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "TYRODIN CREAMY LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "TYRODIN FSR TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ULTRAWAVE SPF50 GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "UMIDO MOISTE GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "UNISTAR 5/75",
+    "form": "Other"
+  },
+  {
+    "name": "UNISTAR 75 CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "UNISTAR GOLD 10",
+    "form": "Other"
+  },
+  {
+    "name": "UPADAVIO 15TAB",
+    "form": "Other"
+  },
+  {
+    "name": "UV DOUX BLU SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "UV DOUX CLEANSER OC",
+    "form": "Cleanser"
+  },
+  {
+    "name": "UV DOUX D-TAN AQUA",
+    "form": "Other"
+  },
+  {
+    "name": "UV DOUX FACE CLEANSER",
+    "form": "Cleanser"
+  },
+  {
+    "name": "UV DOUX GOLD SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "UV DOUX MINERAL SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "UV OFF SUNSCREEN SPF-80",
+    "form": "Other"
+  },
+  {
+    "name": "UV-COVER SUNSCREEN GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "VALANIX-1000",
+    "form": "Other"
+  },
+  {
+    "name": "VALANIX-500",
+    "form": "Other"
+  },
+  {
+    "name": "VALCIVIR 1000MG TAB3",
+    "form": "Other"
+  },
+  {
+    "name": "VALCIVIR 500MG TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "VALOMOISTE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "VALTOVAL 1 GM",
+    "form": "Other"
+  },
+  {
+    "name": "valtoval 500 mg",
+    "form": "Other"
+  },
+  {
+    "name": "VANIZA GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "VB7 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "VENUSIA ACNE LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "VENUSIA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "VENUSIA DERM CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "VENUSIA LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "VENUSIA MAX CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "VENUSIA MAX LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "VENUSIA SOFT+ LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "VENUSIA SUN AQUA",
+    "form": "Other"
+  },
+  {
+    "name": "VENUSIA SUN TINT",
+    "form": "Other"
+  },
+  {
+    "name": "VENUSIA UREKA CREAM 10",
+    "form": "Cream"
+  },
+  {
+    "name": "VIDIMAX SUNSCREEN",
+    "form": "Other"
+  },
+  {
+    "name": "VIROPOX 1GM",
+    "form": "Other"
+  },
+  {
+    "name": "VITILEX 150",
+    "form": "Other"
+  },
+  {
+    "name": "VITILEX 50",
+    "form": "Other"
+  },
+  {
+    "name": "VITINEXT CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "VITINEXT LOTION",
+    "form": "Lotion"
+  },
+  {
+    "name": "VITINEXT PLUS TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "VITINEXT TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "VITIX GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "VOGLI 0.2MG",
+    "form": "Other"
+  },
+  {
+    "name": "VOLSTAR 10 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "VORXAR 4 TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "VOZAN TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "WELLGROW EVA TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "WELLGROW GOLD SERUM",
+    "form": "Serum"
+  },
+  {
+    "name": "WELLGROW TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "WELLWOMAN CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "WHITOLYN DS OINT",
+    "form": "Ointment"
+  },
+  {
+    "name": "WIPAC C GEL",
+    "form": "Gel"
+  },
+  {
+    "name": "XANTRON-500",
+    "form": "Other"
+  },
+  {
+    "name": "XERINA CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "YASMIN TABLETS",
+    "form": "Tablet"
+  },
+  {
+    "name": "YORGAIN PRO HAIR POWDER",
+    "form": "Powder"
+  },
+  {
+    "name": "YUGARD ANTI-AGEING",
+    "form": "Other"
+  },
+  {
+    "name": "YUVIT C CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "Z CAPS",
+    "form": "Capsule"
+  },
+  {
+    "name": "ZACHTO TAB",
+    "form": "Tablet"
+  },
+  {
+    "name": "ZEN CZ",
+    "form": "Other"
+  },
+  {
+    "name": "ZERODOL P",
+    "form": "Other"
+  },
+  {
+    "name": "ZIFI 100 DRY SYRUP",
+    "form": "Syrup"
+  },
+  {
+    "name": "zifi 200",
+    "form": "Other"
+  },
+  {
+    "name": "ZIFI CV 200",
+    "form": "Other"
+  },
+  {
+    "name": "ZIMIG 250",
+    "form": "Other"
+  },
+  {
+    "name": "ZINIKAM CREAM",
+    "form": "Cream"
+  },
+  {
+    "name": "ZITCARE CAP",
+    "form": "Capsule"
+  },
+  {
+    "name": "ZITCARE FORTE CAPSULE",
+    "form": "Capsule"
+  },
+  {
+    "name": "zovirax 400",
+    "form": "Other"
+  },
+  {
+    "name": "ZYDIP LOTION",
+    "form": "Lotion"
+  }
+]

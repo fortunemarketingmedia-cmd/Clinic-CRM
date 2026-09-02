@@ -1,16 +1,18 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Search, X } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { SegmentedTabs } from '@/components/ui/data-visuals';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
+import { QrRegistrationForm } from '@/modules/qr/qr-registration-form';
 import type { Patient } from '@/types/patient';
 import type { Lead } from '@/types/lead';
 
@@ -32,14 +34,22 @@ function money(value?: string | number) {
 }
 
 export function ClientsView() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState('');
   const [source, setSource] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [recordTab, setRecordTab] = useState<'PATIENTS' | 'LEADS'>('PATIENTS');
+  const [showCreatePatient, setShowCreatePatient] = useState(false);
   const { selectedBranchId } = useSessionStore();
   const branchId = selectedBranchId ?? '';
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
 
   const analyticsQuery = useQuery({
     queryKey: ['clients-analytics', branchId],
@@ -49,27 +59,28 @@ export function ClientsView() {
   const patientQueryString = useMemo(() => {
     const params = new URLSearchParams();
     if (branchId) params.set('branchId', branchId);
-    if (search.trim()) params.set('search', search.trim());
+    if (debouncedSearch) params.set('search', debouncedSearch);
     return params.toString();
-  }, [branchId, search]);
+  }, [branchId, debouncedSearch]);
 
   const patientsQuery = useQuery({
     queryKey: ['clients-patients', patientQueryString],
     queryFn: () => apiRequest<{ data: Patient[] }>(`/patients?${patientQueryString}`),
+    placeholderData: keepPreviousData,
   });
 
   const leadsQueryString = useMemo(() => {
     const params = new URLSearchParams();
     if (branchId) params.set('branchId', branchId);
-    if (search.trim()) params.set('search', search.trim());
+    if (debouncedSearch) params.set('search', debouncedSearch);
     if (status) params.set('status', status);
     if (source) params.set('source', source);
     if (dateFrom) params.set('createdFrom', new Date(`${dateFrom}T00:00:00`).toISOString());
     if (dateTo) params.set('createdTo', new Date(`${dateTo}T23:59:59`).toISOString());
     params.set('includeClosed', 'true');
     return params.toString();
-  }, [branchId, dateFrom, dateTo, search, source, status]);
-  const leadsQuery = useQuery({ queryKey: ['master-leads', leadsQueryString], queryFn: () => apiRequest<{ data: Lead[] }>(`/leads?${leadsQueryString}`) });
+  }, [branchId, dateFrom, dateTo, debouncedSearch, source, status]);
+  const leadsQuery = useQuery({ queryKey: ['master-leads', leadsQueryString], queryFn: () => apiRequest<{ data: Lead[] }>(`/leads?${leadsQueryString}`), placeholderData: keepPreviousData });
   const uniquePatients = useMemo(() => {
     const seen = new Set<string>();
     return (patientsQuery.data?.data ?? []).filter((patient) => {
@@ -103,7 +114,22 @@ export function ClientsView() {
         <Metric label="Revenue" value={money(totals?.revenue)} />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 lg:flex-row lg:items-center lg:justify-between"><SegmentedTabs tabs={[{ label: 'Patient master', value: 'PATIENTS', count: uniquePatients.length }, { label: 'Lead history', value: 'LEADS', count: leadsQuery.data?.data.length ?? 0 }]} value={recordTab} onChange={setRecordTab} /><p className="px-2 text-sm text-muted-foreground">Patients are unique by identity; repeat enquiries remain as separate lead history.</p></div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 lg:flex-row lg:items-center lg:justify-between"><SegmentedTabs tabs={[{ label: 'Patient master', value: 'PATIENTS', count: uniquePatients.length }, { label: 'Lead history', value: 'LEADS', count: leadsQuery.data?.data.length ?? 0 }]} value={recordTab} onChange={setRecordTab} /><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><p className="px-2 text-sm text-muted-foreground">Patient profiles are created only after the registration form is completed.</p>{recordTab === 'PATIENTS' ? <Button type="button" onClick={() => setShowCreatePatient(true)}><Plus className="size-4" />Create Patient</Button> : null}</div></div>
+
+      {showCreatePatient ? (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-6">
+          <div className="mx-auto flex max-w-3xl justify-end pb-2">
+            <Button type="button" variant="secondary" className="w-10 px-0" aria-label="Close patient registration" onClick={() => setShowCreatePatient(false)}><X className="size-4" /></Button>
+          </div>
+          <div className="mx-auto max-w-3xl">
+            <QrRegistrationForm token="clinic" initialBranchId={branchId || undefined} onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['clients-patients'] });
+              queryClient.invalidateQueries({ queryKey: ['patients'] });
+              queryClient.invalidateQueries({ queryKey: ['clients-analytics'] });
+            }} />
+          </div>
+        </div>
+      ) : null}
 
       {recordTab === 'PATIENTS' ? (
       <Card>

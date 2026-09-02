@@ -16,7 +16,7 @@ test('required conditional fields are enforced only when their condition is visi
 });
 
 test('clinical-only files are not available to reception roles', () => {
-  assert.equal(canAccessFile('DOCTOR', 'CLINICAL_ONLY'), true);
+  assert.equal(canAccessFile('ADMIN', 'CLINICAL_ONLY'), true);
   assert.equal(canAccessFile('RECEPTIONIST', 'CLINICAL_ONLY'), false);
   assert.equal(canAccessFile('RECEPTIONIST', 'ADMINISTRATIVE'), true);
 });

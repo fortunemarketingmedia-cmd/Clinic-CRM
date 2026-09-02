@@ -31,7 +31,7 @@ export const consentWithdrawalSchema = z.object({ reason: z.string().trim().min(
 
 export const secureFileSchema = z.object({
   patientId: z.string().min(1), sessionId: z.string().optional(), invoiceId: z.string().optional(), encounterId: z.string().optional(), procedureSessionId: z.string().optional(), appointmentId: z.string().optional(),
-  fileType: z.nativeEnum(PatientFileType), originalFilename: z.string().trim().min(1), mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
+  fileType: z.nativeEnum(PatientFileType), originalFilename: z.string().trim().min(1), mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv']),
   contentBase64: z.string().min(20), clinicalUsePermission: z.boolean().default(true), marketingPermission: z.boolean().default(false),
   visibility: z.nativeEnum(FileVisibility).default('CARE_TEAM'), photoAngle: z.nativeEnum(PhotoAngle).optional(), treatmentArea: z.string().optional(),
   visitDate: z.coerce.date().optional(), annotation: z.record(z.string(), z.unknown()).optional(), originalFileId: z.string().optional(),

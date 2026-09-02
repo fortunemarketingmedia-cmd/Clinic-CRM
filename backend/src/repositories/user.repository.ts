@@ -23,7 +23,7 @@ export const userRepository = {
 
   list() {
     return prisma.user.findMany({
-      where: { accessLevel: { not: 'DEVELOPER' } },
+      where: { accessLevel: { in: ['ADMIN', 'RECEPTIONIST'] } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

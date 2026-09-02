@@ -15,12 +15,7 @@ import { integrationService } from './integration.service.js';
 import { followUpRepository } from '../repositories/follow-up.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 
-const globalRoles: Role[] = [
-  RoleEnum.ADMIN,
-  RoleEnum.ORGANISATION_OWNER,
-  RoleEnum.CLINIC_ADMIN,
-  RoleEnum.AUDITOR,
-];
+const globalRoles: Role[] = [RoleEnum.ADMIN];
 
 function requireBranchForReceptionist(role: Role, branchId?: string) {
   if (!globalRoles.includes(role) && !branchId) {
@@ -54,6 +49,7 @@ async function createLeadFollowUp(
   notes?: string,
 ) {
   if (!lead.personId) return;
+  const reminderAt = new Date(Math.max(Date.now(), dueAt.getTime() - 15 * 60_000));
   await followUpRepository.create({
     personId: lead.personId,
     leadId: lead.id,
@@ -64,6 +60,7 @@ async function createLeadFollowUp(
     channel: 'CALL',
     direction: 'OUTBOUND',
     dueAt,
+    reminderAt,
     notes,
     priority: lead.priority,
     source: 'LEAD_NEXT_FOLLOW_UP',
@@ -269,6 +266,10 @@ export const leadService = {
     );
 
     const updated = await leadRepository.update(id, input);
+
+    if (input.status && ['CONVERTED', 'LOST', 'DISQUALIFIED'].includes(input.status)) {
+      await followUpRepository.closeOpenLeadFollowUps(id, `Lead closed as ${input.status.replaceAll('_', ' ').toLowerCase()}`);
+    }
 
     if (input.status && input.status !== lead.status) {
       await timelineRepository.create({

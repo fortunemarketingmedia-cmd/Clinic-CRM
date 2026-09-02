@@ -12,7 +12,8 @@
     "load:smoke": "node scripts/load-smoke.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:medicines": "node scripts/import-medicine-catalog.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",

@@ -11,30 +11,7 @@ type AppointmentFilters = {
 };
 
 export const appointmentRepository = {
-  async markPastConfirmedAsNotArrived() {
-    const pastAppointments = await prisma.appointment.findMany({
-      where: {
-        status: 'CONFIRMED',
-        OR: [{ endAt: { lt: new Date() } }, { endAt: null, appointmentAt: { lt: new Date() } }],
-      },
-      select: { id: true },
-    });
-
-    if (!pastAppointments.length) return;
-
-    const appointmentIds = pastAppointments.map((appointment) => appointment.id);
-
-    await prisma.$transaction([
-      prisma.appointment.updateMany({
-        where: { id: { in: appointmentIds }, status: 'CONFIRMED' },
-        data: { status: 'NO_SHOW', noShowReason: 'Automatically marked after confirmed appointment time passed' },
-      }),
-    ]);
-  },
-
   async list(filters: AppointmentFilters) {
-    await this.markPastConfirmedAsNotArrived();
-
     return prisma.appointment.findMany({
       where: {
         branchId: filters.branchId,
@@ -142,7 +119,8 @@ export const appointmentRepository = {
           personId: data.personId,
           appointmentAt: data.appointmentAt,
           appointmentType: data.appointmentType,
-          status: 'APPOINTMENT_BOOKED',
+          status: 'CONVERTED',
+          convertedAt: new Date(),
           ownerId: data.createdById,
           nextAction: 'Confirm appointment',
           nextActionDueAt: data.appointmentAt,
@@ -222,7 +200,8 @@ export const appointmentRepository = {
           branchId: data.branchId,
           appointmentAt: data.appointmentAt,
           appointmentType: data.appointmentType,
-          status: 'APPOINTMENT_BOOKED',
+          status: 'CONVERTED',
+          convertedAt: new Date(),
         },
       });
 

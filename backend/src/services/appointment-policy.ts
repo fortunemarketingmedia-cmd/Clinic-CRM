@@ -7,8 +7,8 @@ const transitions: Record<AppointmentStatus, AppointmentStatus[]> = {
   SCHEDULED: ['CONFIRMATION_PENDING', 'CONFIRMED', 'CHECKED_IN', 'RESCHEDULED', 'CANCELLED', 'NO_SHOW'],
   CONFIRMATION_PENDING: ['CONFIRMED', 'CHECKED_IN', 'RESCHEDULED', 'CANCELLED', 'NO_SHOW'],
   CONFIRMED: ['CHECKED_IN', 'RESCHEDULED', 'CANCELLED', 'NO_SHOW'],
-  CHECKED_IN: ['WAITING', 'IN_CONSULTATION', 'CANCELLED'],
-  WAITING: ['IN_CONSULTATION', 'CANCELLED'],
+  CHECKED_IN: ['WAITING', 'CANCELLED'],
+  WAITING: ['IN_CONSULTATION', 'COMPLETED', 'CANCELLED'],
   IN_CONSULTATION: ['TREATMENT_IN_PROGRESS', 'BILLING_PENDING', 'COMPLETED'],
   TREATMENT_IN_PROGRESS: ['BILLING_PENDING', 'COMPLETED'],
   BILLING_PENDING: ['COMPLETED'],
@@ -28,4 +28,3 @@ export function intervalsOverlap(first: { start: Date; end: Date }, second: { st
 }
 
 export function addMinutes(value: Date, minutes: number) { return new Date(value.getTime() + minutes * 60_000); }
-

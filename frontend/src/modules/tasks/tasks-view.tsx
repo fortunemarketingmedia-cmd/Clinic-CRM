@@ -55,21 +55,27 @@ export function TasksView() {
     enabled: Boolean(session),
   });
   const create = useMutation({
-    mutationFn: () => apiRequest('/tasks', {
+    mutationFn: () => {
+      const dueAt = new Date(taskForm.dueAt);
+      const defaultReminder = new Date(Math.max(Date.now(), dueAt.getTime() - 15 * 60_000)).toISOString();
+      return apiRequest('/tasks', {
       method: 'POST',
       body: JSON.stringify({
         ...taskForm,
         description: taskForm.description || undefined,
-        reminderAt: taskForm.reminderAt || undefined,
+        reminderAt: taskForm.reminderAt ? new Date(taskForm.reminderAt).toISOString() : defaultReminder,
         assignedUserId: taskForm.assignedUserId,
         branchId: selectedBranchId,
         automaticallyCreated: false,
       }),
-    }),
+      });
+    },
     onSuccess: () => {
       setTaskForm((current) => ({ title: '', description: '', type: 'GENERAL', priority: 'MEDIUM', dueAt: '', reminderAt: '', assignedUserId: current.assignedUserId }));
       setShowCreate(false);
       client.invalidateQueries({ queryKey: ['tasks'] });
+      client.invalidateQueries({ queryKey: ['notification-tasks'] });
+      client.invalidateQueries({ queryKey: ['header-reminders'] });
     },
   });
   const update = useMutation({
@@ -90,6 +96,8 @@ export function TasksView() {
       setCompletingTask(null);
       setCompletionNotes('');
       client.invalidateQueries({ queryKey: ['tasks'] });
+      client.invalidateQueries({ queryKey: ['notification-tasks'] });
+      client.invalidateQueries({ queryKey: ['header-reminders'] });
     },
   });
   const tasks = query.data?.data ?? [];
@@ -107,7 +115,7 @@ export function TasksView() {
           <p className="text-sm text-muted-foreground">
             Assigned operational work across CRM, appointments, and patient journeys.
           </p>
-          {!selectedBranchId ? <p className="mt-1 text-sm font-medium text-amber-700">Select a specific branch in Settings before adding a task.</p> : null}
+          {!selectedBranchId ? <p className="mt-1 text-sm font-medium text-amber-700">Select a specific branch from the top bar before adding a task.</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Select
@@ -156,7 +164,7 @@ export function TasksView() {
             </Select>
             <Input className="md:col-span-2" placeholder="Description (optional)" value={taskForm.description} onChange={(event) => setTaskForm((current) => ({ ...current, description: event.target.value }))} />
             <label className="block text-xs text-muted-foreground">Due date and time<Input className="mt-1" type="datetime-local" value={taskForm.dueAt} onChange={(event) => setTaskForm((current) => ({ ...current, dueAt: event.target.value }))} /></label>
-            <label className="block text-xs text-muted-foreground">Reminder date and time<Input className="mt-1" type="datetime-local" value={taskForm.reminderAt} onChange={(event) => setTaskForm((current) => ({ ...current, reminderAt: event.target.value }))} /></label>
+            <label className="block text-xs text-muted-foreground">Notification time (optional)<Input className="mt-1" type="datetime-local" value={taskForm.reminderAt} onChange={(event) => setTaskForm((current) => ({ ...current, reminderAt: event.target.value }))} /><span className="mt-1 block">Defaults to 15 minutes before the task is due.</span></label>
             <label className="block text-xs text-muted-foreground">Priority<Select className="mt-1 w-full" value={taskForm.priority} onChange={(event) => setTaskForm((current) => ({ ...current, priority: event.target.value }))}><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></Select></label>
             <label className="block text-xs text-muted-foreground md:col-span-2">Assign to<Select className="mt-1 w-full" value={taskForm.assignedUserId} onChange={(event) => setTaskForm((current) => ({ ...current, assignedUserId: event.target.value }))}><option value="">Select team member</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></label>
           </div>

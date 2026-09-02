@@ -1,8 +1,14 @@
 import 'dotenv/config';
 import bcrypt from 'bcrypt';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import { PrismaClient, Role } from '@prisma/client';
 
 const prisma = new PrismaClient();
+
+if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PRODUCTION_SEED !== 'I_UNDERSTAND_THIS_RESETS_DEMO_ACCOUNTS') {
+  throw new Error('Production seeding is blocked. Create production users through the application or set the explicit one-time override only after approval.');
+}
 
 function catalogId(prefix: string, name: string) {
   return `${prefix}_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60)}`;
@@ -351,6 +357,16 @@ async function main() {
     { name: 'Moisturizer', genericName: 'Barrier repair moisturizer', strength: 'As directed', form: 'Cream' },
   ].map((medicine) => ({ id: catalogId('medicine', `${medicine.name}_${medicine.strength}_${medicine.form}`), ...medicine }));
   for (const medicine of medicines) await prisma.medicine.upsert({ where: { name_strength: { name: medicine.name, strength: medicine.strength } }, update: { ...medicine, status: 'ACTIVE' }, create: { ...medicine, status: 'ACTIVE' } });
+
+  const medicineCatalog = JSON.parse(fs.readFileSync(new URL('./medicine-catalog.json', import.meta.url), 'utf8')) as Array<{ name: string; form: string }>;
+  for (let index = 0; index < medicineCatalog.length; index += 50) {
+    await Promise.all(medicineCatalog.slice(index, index + 50).map((medicine) => {
+      const slug = medicine.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
+      const hash = crypto.createHash('sha1').update(medicine.name.toLowerCase()).digest('hex').slice(0, 10);
+      const id = `medicine_catalog_${slug}_${hash}`;
+      return prisma.medicine.upsert({ where: { id }, update: { ...medicine, status: 'ACTIVE' }, create: { id, ...medicine, status: 'ACTIVE' } });
+    }));
+  }
 
   const registrationForm = await prisma.formTemplate.upsert({
     where: { id: 'form_patient_registration' },

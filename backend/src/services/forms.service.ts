@@ -12,8 +12,8 @@ import { canAccessFile, validateSubmission, type SnapshotField } from './form-po
 import { timelineRepository } from '../repositories/timeline.repository.js';
 
 type Actor = AuditContext & { id: string; role: Role };
-const administratorRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN];
-const careRoles: Role[] = [...administratorRoles, RoleEnum.BRANCH_MANAGER, RoleEnum.DOCTOR, RoleEnum.THERAPIST, RoleEnum.RECEPTIONIST];
+const administratorRoles: Role[] = [RoleEnum.ADMIN];
+const careRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
 
 function requireAdministrator(actor: Actor) { if (!administratorRoles.includes(actor.role)) throw new HttpError(403, 'Form and consent templates require clinic-administrator access'); }
 function requireCareRole(actor: Actor) { if (!careRoles.includes(actor.role)) throw new HttpError(403, 'You do not have permission to manage patient forms or files'); }

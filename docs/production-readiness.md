@@ -31,3 +31,5 @@ Revive CRM should be built as a production system from the first version, even w
 - Connect structured logs to the clinic's selected monitoring/alerting provider and configure on-call destinations.
 - Schedule encrypted backups, perform and record a disposable restore drill, and approve retention/deletion policy with the clinic's legal/compliance owner.
 - Complete penetration testing, privacy/legal review, provider sandbox acceptance, and a clinic user-acceptance run before production traffic.
+
+Use [`go-live-manual-checklist.md`](./go-live-manual-checklist.md) as the launch sign-off sheet. Production startup now rejects placeholder or missing security secrets, and the demo seed is blocked in production by default.

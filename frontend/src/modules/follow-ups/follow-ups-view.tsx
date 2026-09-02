@@ -51,7 +51,7 @@ type MovePayload = {
 
 type MoveRequest = { lead: Lead; stage: PipelineStage };
 
-const stages: PipelineStage[] = [
+const activeStages: PipelineStage[] = [
   {
     id: 'new',
     label: 'New enquiry',
@@ -73,23 +73,25 @@ const stages: PipelineStage[] = [
     label: 'Follow-up required',
     description: 'Next action needed',
     target: 'NURTURING',
-    statuses: ['NURTURING', 'POSTPONED', 'NOT_ARRIVED', 'CANCELLED'],
+    statuses: ['NURTURING', 'POSTPONED', 'NOT_ARRIVED', 'CANCELLED', 'APPOINTMENT_PROPOSED'],
     marker: 'bg-violet-500',
-  },
-  {
-    id: 'booked',
-    label: 'Appointment booked',
-    description: 'Confirmed appointment',
-    target: 'APPOINTMENT_BOOKED',
-    statuses: ['APPOINTMENT_PROPOSED', 'APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED'],
-    marker: 'bg-indigo-500',
   },
 ];
 
-const wonStage: PipelineStage = { id: 'won', label: 'Closed won', description: 'Successfully converted', target: 'CONVERTED', statuses: ['CONVERTED'], marker: 'bg-emerald-600' };
-const lostStage: PipelineStage = { id: 'lost', label: 'Closed lost', description: 'Lead did not convert', target: 'LOST', statuses: ['LOST', 'DISQUALIFIED'], marker: 'bg-red-500' };
+const wonStage: PipelineStage = { id: 'won', label: 'Closed won', description: 'Appointment booked · visible 7 days', target: 'CONVERTED', statuses: ['APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED', 'CONVERTED'], marker: 'bg-emerald-600' };
+const lostStage: PipelineStage = { id: 'lost', label: 'Closed lost', description: 'Did not convert · visible 7 days', target: 'LOST', statuses: ['LOST', 'DISQUALIFIED'], marker: 'bg-red-500' };
+const stages: PipelineStage[] = [...activeStages, wonStage, lostStage];
 
-const closedStatuses = new Set<LeadStatus>(['CONVERTED', 'LOST', 'DISQUALIFIED']);
+const closedStatuses = new Set<LeadStatus>(['APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED', 'CONVERTED', 'LOST', 'DISQUALIFIED']);
+const CLOSED_PIPELINE_VISIBILITY_DAYS = 7;
+const CLOSED_PIPELINE_VISIBILITY_MS = CLOSED_PIPELINE_VISIBILITY_DAYS * 24 * 60 * 60 * 1000;
+
+function isRecentlyClosed(lead: Lead, now = Date.now()) {
+  if (!closedStatuses.has(lead.status)) return true;
+  const closedAt = lead.closedAt ?? lead.convertedAt ?? lead.updatedAt ?? lead.createdAt;
+  const closedAtTime = new Date(closedAt).getTime();
+  return Number.isFinite(closedAtTime) && closedAtTime >= now - CLOSED_PIPELINE_VISIBILITY_MS;
+}
 
 function sourceLabel(value: Lead['source']) {
   return value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -133,6 +135,7 @@ export function FollowUpsView() {
   const [ownerFilter, setOwnerFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [showAllClosed, setShowAllClosed] = useState(false);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropStageId, setDropStageId] = useState<string | null>(null);
   const [moveRequest, setMoveRequest] = useState<MoveRequest | null>(null);
@@ -196,6 +199,10 @@ export function FollowUpsView() {
       );
     });
   }, [leads, ownerFilter, priorityFilter, search, sourceFilter]);
+  const pipelineLeads = useMemo(
+    () => filteredLeads.filter((lead) => showAllClosed || isRecentlyClosed(lead)),
+    [filteredLeads, showAllClosed],
+  );
 
   const metrics = useMemo(() => {
     const now = Date.now();
@@ -207,7 +214,7 @@ export function FollowUpsView() {
         Boolean(lead.nextActionDueAt) &&
         new Date(lead.nextActionDueAt!).getTime() < now,
     ).length;
-    const booked = leads.filter((lead) => ['APPOINTMENT_PROPOSED', 'APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED'].includes(lead.status)).length;
+    const booked = leads.filter((lead) => wonStage.statuses.includes(lead.status)).length;
     return { active, hot, overdue, booked };
   }, [leads]);
 
@@ -278,6 +285,7 @@ export function FollowUpsView() {
       stage.target === 'LOST' ||
       stage.target === 'DISQUALIFIED' ||
       stage.target === 'APPOINTMENT_BOOKED' ||
+      stage.id === 'won' ||
       stage.id === 'lost';
 
     if (needsDetails) {
@@ -301,8 +309,8 @@ export function FollowUpsView() {
     return (
       <section className="space-y-5">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Sales Pipeline</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Track every lead from first enquiry to conversion.</p>
+          <h1 className="text-2xl font-semibold text-foreground">Lead Journey</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Track every lead from first enquiry to a clear won or lost outcome.</p>
         </div>
         <BoardSkeleton columns={4} />
       </section>
@@ -313,9 +321,9 @@ export function FollowUpsView() {
     <section className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Sales Pipeline</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Lead Journey</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Drag leads between stages and keep the next sales action clear.
+            Move every enquiry through contact, follow-up and appointment, then close it as won or lost.
           </p>
         </div>
         <a
@@ -330,10 +338,27 @@ export function FollowUpsView() {
         <PipelineMetric label="Active leads" value={metrics.active} icon={Target} />
         <PipelineMetric label="Hot leads" value={metrics.hot} icon={Flame} />
         <PipelineMetric label="Overdue actions" value={metrics.overdue} icon={AlertCircle} />
-        <PipelineMetric label="Appointments booked" value={metrics.booked} icon={CheckCircle2} />
+        <PipelineMetric label="Closed won / booked" value={metrics.booked} icon={CheckCircle2} />
       </div>
 
-      <Card className="p-4">
+      <Card className="border-primary/20 bg-primary/5 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="font-semibold text-foreground">Required lead journey</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Every active lead must have an owner, a clear next action and a due time. Close only after recording the final outcome.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium">
+            {['New enquiry', 'Contacted', 'Follow-up required', 'Appointment booked = Closed won', 'Closed lost'].map((label, index) => (
+              <div key={label} className="flex items-center gap-1.5">
+                {index > 0 ? <span className="text-muted-foreground">→</span> : null}
+                <span className="rounded-full border border-border bg-surface px-2.5 py-1">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      <Card className="space-y-3 p-4">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_220px_180px_160px]">
           <label className="relative">
             <span className="sr-only">Search leads</span>
@@ -367,6 +392,19 @@ export function FollowUpsView() {
             <option value="LOW">Low</option>
           </Select>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+          <p className="text-xs text-muted-foreground">
+            Closed won and lost leads remain on this board for {CLOSED_PIPELINE_VISIBILITY_DAYS} days, then stay available in Archived Leads.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            aria-pressed={showAllClosed}
+            onClick={() => setShowAllClosed((current) => !current)}
+          >
+            {showAllClosed ? 'Show recent closed only' : 'Show all closed'}
+          </Button>
+        </div>
       </Card>
 
       {moveError && (
@@ -378,11 +416,11 @@ export function FollowUpsView() {
 
       <div className="-mx-4 overflow-x-auto px-4 pb-3 md:-mx-6 md:px-6 xl:-mx-8 xl:px-8">
         <div
-          className="grid min-w-[980px] overflow-hidden rounded-lg border border-border bg-muted/20"
+          className="grid min-w-[1320px] overflow-hidden rounded-lg border border-border bg-muted/20"
           style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(190px, 1fr))` }}
         >
           {stages.map((stage) => {
-            const stageLeads = filteredLeads.filter((lead) => stage.statuses.includes(lead.status));
+            const stageLeads = pipelineLeads.filter((lead) => stage.statuses.includes(lead.status));
             const isDropTarget = dropStageId === stage.id;
             return (
               <div
@@ -424,7 +462,7 @@ export function FollowUpsView() {
                       }}
                       onDragEnd={() => { setDraggingId(null); setDropStageId(null); }}
                       onMove={(target) => {
-                        const destination = [...stages, wonStage, lostStage].find((item) => item.target === target);
+                        const destination = stages.find((item) => item.target === target);
                         if (destination) requestMove(lead, destination);
                       }}
                       onOpen={() => setSelectedLead(lead)}
@@ -447,7 +485,7 @@ export function FollowUpsView() {
         </div>
       </div>
 
-      {!filteredLeads.length && leads.length > 0 && (
+      {!pipelineLeads.length && leads.length > 0 && (
         <p className="text-center text-sm text-muted-foreground">No leads match the selected filters.</p>
       )}
 
@@ -512,6 +550,7 @@ function LeadCard({
   onCloseWon: () => void;
   onCloseLost: () => void;
 }) {
+  const isClosed = closedStatuses.has(lead.status);
   const overdue =
     Boolean(lead.nextActionDueAt) &&
     !closedStatuses.has(lead.status) &&
@@ -559,9 +598,9 @@ function LeadCard({
 
           <div className="mt-1.5 border-t border-border pt-1.5">
             <p className={cn('flex min-w-0 items-center gap-1 text-[10px]', overdue ? 'font-medium text-primary' : 'text-muted-foreground')}>
-              <CalendarCheck className="size-3 shrink-0" />
-              <span className="truncate" title={`${lead.nextAction || 'No next action'} - ${formatDueDate(lead.nextActionDueAt)}`}>
-                {lead.nextAction || formatDueDate(lead.nextActionDueAt)}
+              {isClosed ? <CheckCircle2 className="size-3 shrink-0" /> : <CalendarCheck className="size-3 shrink-0" />}
+              <span className="truncate" title={isClosed ? `Final outcome: ${stageForStatus(lead.status).label}` : `${lead.nextAction || 'No next action'} - ${formatDueDate(lead.nextActionDueAt)}`}>
+                {isClosed ? `Final outcome: ${stageForStatus(lead.status).label}` : lead.nextAction || formatDueDate(lead.nextActionDueAt)}
               </span>
             </p>
           </div>
@@ -587,10 +626,12 @@ function LeadCard({
               <option key={stage.id} value={stage.target}>{stage.label}</option>
             ))}
           </Select>
-          <div className="mt-1.5 grid grid-cols-2 gap-1" onClick={(event) => event.stopPropagation()}>
-            <button type="button" onClick={onCloseWon} className="rounded border border-emerald-200 bg-emerald-50 px-1 py-1 text-[9px] font-medium text-emerald-700 hover:bg-emerald-100">Close as won</button>
-            <button type="button" onClick={onCloseLost} className="rounded border border-red-200 bg-red-50 px-1 py-1 text-[9px] font-medium text-red-700 hover:bg-red-100">Close as lost</button>
-          </div>
+          {!isClosed ? (
+            <div className="mt-1.5 grid grid-cols-2 gap-1" onClick={(event) => event.stopPropagation()}>
+              <button type="button" onClick={onCloseWon} className="rounded border border-emerald-200 bg-emerald-50 px-1 py-1 text-[9px] font-medium text-emerald-700 hover:bg-emerald-100">Close as won</button>
+              <button type="button" onClick={onCloseLost} className="rounded border border-red-200 bg-red-50 px-1 py-1 text-[9px] font-medium text-red-700 hover:bg-red-100">Close as lost</button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -627,18 +668,14 @@ function MoveLeadDialog({
   const [targetStatus] = useState<LeadStatus>(stage.target);
   const [appointmentAt, setAppointmentAt] = useState(toDateTimeLocal(lead.appointmentAt) || defaultAppointmentDateTime());
   const [appointmentType, setAppointmentType] = useState<'CLINIC_VISIT' | 'VIDEO_CONSULTATION'>(lead.appointmentType ?? 'CLINIC_VISIT');
-  const [serviceId, setServiceId] = useState('');
-  const [resourceType, setResourceType] = useState<'CONSULTATION' | 'TREATMENT_ROOM'>('CONSULTATION');
-  const [roomNumber, setRoomNumber] = useState('');
-  const [resourceId, setResourceId] = useState('');
+  const resourceType = 'CONSULTATION' as const;
   const [notes, setNotes] = useState(lead.followupNotes ?? '');
   const [validationError, setValidationError] = useState('');
   const needsActiveFields = !closedStatuses.has(targetStatus);
   const appointmentExists = Boolean(lead.appointmentAt || lead.appointments?.length);
-  const bookingBlocked = targetStatus === 'APPOINTMENT_BOOKED' && !appointmentExists;
-  const activeServices = services.filter((service) => service.active);
-  const selectedService = activeServices.find((service) => service.id === serviceId);
-  const roomResources = resources.filter((resource) => resource.active && ['ROOM', 'TREATMENT_CHAIR'].includes(resource.type));
+  const bookingBlocked = stage.id === 'won' && !appointmentExists;
+  void services;
+  void resources;
 
   const bookAppointment = useMutation({
     mutationFn: () =>
@@ -650,12 +687,9 @@ function MoveLeadDialog({
           appointmentAt: new Date(appointmentAt).toISOString(),
           appointmentType,
           resourceType,
-          roomNumber: resourceType === 'TREATMENT_ROOM' && roomNumber ? Number(roomNumber) : undefined,
-          serviceId: serviceId || undefined,
-          durationMinutes: selectedService?.durationMinutes ?? 30,
-          bufferMinutes: selectedService?.bufferMinutes ?? 0,
+          durationMinutes: 30,
+          bufferMinutes: 10,
           doctorId: undefined,
-          resourceId: resourceId || undefined,
           notes: notes.trim() || undefined,
           bookingSource: 'SALES_PIPELINE',
           bookingChannel: 'CRM',
@@ -690,6 +724,10 @@ function MoveLeadDialog({
       setValidationError('Please add a reason before closing this lead.');
       return;
     }
+    if (targetStatus === 'CONVERTED' && !notes.trim()) {
+      setValidationError('Please record the successful outcome before closing this lead as won.');
+      return;
+    }
 
     const payload: MovePayload = { status: targetStatus };
     if (needsActiveFields) {
@@ -705,6 +743,7 @@ function MoveLeadDialog({
     }
     if (targetStatus === 'LOST') payload.lostReason = reason.trim();
     if (targetStatus === 'DISQUALIFIED') payload.disqualificationReason = reason.trim();
+    if (targetStatus === 'CONVERTED') payload.followupNotes = notes.trim();
     onConfirm(payload);
   }
 
@@ -712,10 +751,6 @@ function MoveLeadDialog({
     setValidationError('');
     if (!appointmentAt) {
       setValidationError('Appointment date and time are required.');
-      return;
-    }
-    if (resourceType === 'TREATMENT_ROOM' && !roomNumber) {
-      setValidationError('Select a room for treatment room bookings.');
       return;
     }
     bookAppointment.mutate();
@@ -749,55 +784,13 @@ function MoveLeadDialog({
                 </Field>
                 <Field label="Appointment type">
                   <Select className="w-full" value={appointmentType} onChange={(event) => setAppointmentType(event.target.value as 'CLINIC_VISIT' | 'VIDEO_CONSULTATION')}>
-                    <option value="CLINIC_VISIT">Clinic visit</option>
+                    <option value="CLINIC_VISIT">In-clinic consultancy</option>
                     <option value="VIDEO_CONSULTATION">Video consultation</option>
                   </Select>
                 </Field>
-                <Field label="Service">
-                  <Select
-                    className="w-full"
-                    value={serviceId}
-                    onChange={(event) => {
-                      const service = activeServices.find((item) => item.id === event.target.value);
-                      setServiceId(event.target.value);
-                      if (service?.resourceType) setResourceType(service.resourceType);
-                    }}
-                  >
-                    <option value="">No service selected</option>
-                    {activeServices.map((service) => <option key={service.id} value={service.id}>{service.category ? `${service.category} - ` : ''}{service.name}</option>)}
-                  </Select>
-                </Field>
                 <Field label="Visit purpose">
-                  <Select
-                    className="w-full"
-                    value={resourceType}
-                    onChange={(event) => {
-                      setResourceType(event.target.value as 'CONSULTATION' | 'TREATMENT_ROOM');
-                      setResourceId('');
-                    }}
-                  >
-                    <option value="CONSULTATION">Consultation</option>
-                    <option value="TREATMENT_ROOM">Treatment room</option>
-                  </Select>
+                  <div className="flex h-10 items-center rounded-md border border-border bg-muted/40 px-3 text-sm">Consultation</div>
                 </Field>
-                {resourceType === 'TREATMENT_ROOM' ? (
-                  <>
-                    <Field label="Treatment room number">
-                      <Select className="w-full" value={roomNumber} onChange={(event) => setRoomNumber(event.target.value)}>
-                        <option value="">Select room</option>
-                        {[1, 2, 3, 4].map((room) => <option key={room} value={room}>Room {room}</option>)}
-                      </Select>
-                    </Field>
-                    {roomResources.length ? (
-                      <Field label="Resource name">
-                        <Select className="w-full" value={resourceId} onChange={(event) => setResourceId(event.target.value)}>
-                          <option value="">Assign resource later</option>
-                          {roomResources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}
-                        </Select>
-                      </Field>
-                    ) : null}
-                  </>
-                ) : null}
               </div>
               <Field label="Notes">
                 <textarea
@@ -854,6 +847,17 @@ function MoveLeadDialog({
                   />
                 </Field>
               )}
+              {targetStatus === 'CONVERTED' && (
+                <Field label="Won outcome">
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    rows={3}
+                    placeholder="Record what converted, such as consultation booked, package selected, or payment received"
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  />
+                </Field>
+              )}
             </>
           )}
 
@@ -892,13 +896,17 @@ function LeadDetailsDialog({ lead, staff, onClose, onWon, onLost }: { lead: Lead
     onError: (error) => setFormError(getErrorMessage(error)),
   });
   const schedule = useMutation({
-    mutationFn: () => apiRequest('/follow-ups', { method: 'POST', body: JSON.stringify({
+    mutationFn: () => {
+      const dueAt = new Date(followUpAt);
+      const reminderAt = new Date(Math.max(Date.now(), dueAt.getTime() - 15 * 60_000));
+      return apiRequest('/follow-ups', { method: 'POST', body: JSON.stringify({
       personId: lead.personId, leadId: lead.id, patientId: lead.patient?.id,
       assignedUserId, branchId: lead.branchId, activityType: 'Lead follow-up',
-      channel: 'CALL', direction: 'OUTBOUND', dueAt: new Date(followUpAt).toISOString(),
-      reminderAt: new Date(followUpAt).toISOString(), notes: note.trim() || undefined,
+      channel: 'CALL', direction: 'OUTBOUND', dueAt: dueAt.toISOString(),
+      reminderAt: reminderAt.toISOString(), notes: note.trim() || undefined,
       priority: lead.priority, source: 'SALES_PIPELINE',
-    }) }),
+      }) });
+    },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ['sales-pipeline'] }); client.invalidateQueries({ queryKey: ['notification-follow-ups'] }); client.invalidateQueries({ queryKey: ['header-reminders'] }); client.invalidateQueries({ queryKey: ['dashboard-overview'] }); onClose();
     },
@@ -912,7 +920,7 @@ function LeadDetailsDialog({ lead, staff, onClose, onWon, onLost }: { lead: Lead
     schedule.mutate();
   }
   const saving = saveNote.isPending || schedule.isPending;
-  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><Card className="max-h-[92vh] w-full max-w-2xl overflow-y-auto"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{lead.name}</h2><p className="mt-1 text-sm text-muted-foreground">{lead.mobile} · {sourceLabel(lead.source)}</p></div><button type="button" onClick={onClose} aria-label="Close details" className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-5" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><Detail label="Pipeline stage" value={stageForStatus(lead.status).label} /><Detail label="Assigned to" value={lead.owner?.name ?? 'Unassigned'} /><Detail label="Treatment / service" value={lead.interestedTreatment ?? '-'} /><Detail label="Priority" value={lead.priority} /><Detail label="Next action" value={lead.nextAction ?? '-'} /><Detail label="Due" value={formatDueDate(lead.nextActionDueAt)} /><Detail label="Email" value={lead.email ?? '-'} breakWords /></div><div className="mt-5 space-y-4 rounded-lg border border-border bg-muted/20 p-4"><div><h3 className="font-semibold">Lead note & reminder</h3><p className="text-sm text-muted-foreground">The note remains visible whenever this lead is opened. Scheduling also creates a receptionist reminder.</p></div><Field label="Lead note"><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write call context, preference, or follow-up instructions" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></Field><div className="grid gap-3 sm:grid-cols-2"><Field label="Follow-up date & time"><Input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></Field><Field label="Reminder assigned to"><Select className="w-full" value={assignedUserId} onChange={(event) => setAssignedUserId(event.target.value)}><option value="">Select team member</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></Field></div>{formError ? <p role="alert" className="text-sm text-red-600">{formError}</p> : null}<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={!note.trim() || saving} onClick={() => saveNote.mutate()}>Save note</Button><Button type="button" disabled={saving} onClick={scheduleReminder}><CalendarPlus className="size-4" />{schedule.isPending ? 'Scheduling...' : 'Schedule reminder'}</Button></div></div><div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border pt-4"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button type="button" variant="secondary" className="border-red-200 text-red-700" onClick={onLost}>Close as lost</Button><Button type="button" onClick={onWon}>Close as won</Button></div></Card></div>;
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><Card className="max-h-[92vh] w-full max-w-2xl overflow-y-auto"><div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold">{lead.name}</h2><p className="mt-1 text-sm text-muted-foreground">{lead.mobile} · {sourceLabel(lead.source)}</p></div><button type="button" onClick={onClose} aria-label="Close details" className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-5" /></button></div><div className="mt-5 grid gap-3 sm:grid-cols-2"><Detail label="Journey stage" value={stageForStatus(lead.status).label} /><Detail label="Assigned to" value={lead.owner?.name ?? 'Unassigned'} /><Detail label="Treatment / service" value={lead.interestedTreatment ?? '-'} /><Detail label="Priority" value={lead.priority} /><Detail label="Next action" value={lead.nextAction ?? '-'} /><Detail label="Due" value={formatDueDate(lead.nextActionDueAt)} /><Detail label="Email" value={lead.email ?? '-'} breakWords /></div><div className="mt-5 space-y-4 rounded-lg border border-border bg-muted/20 p-4"><div><h3 className="font-semibold">Lead note & followup</h3><p className="text-sm text-muted-foreground">The note stays with the lead. The assigned team member receives an in-app notification 15 minutes before the scheduled followup.</p></div><Field label="Lead note"><textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Write call context, preference, or follow-up instructions" className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></Field><div className="grid gap-3 sm:grid-cols-2"><Field label="Followup date & time"><Input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} /></Field><Field label="Assign followup to"><Select className="w-full" value={assignedUserId} onChange={(event) => setAssignedUserId(event.target.value)}><option value="">Select team member</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></Field></div>{formError ? <p role="alert" className="text-sm text-red-600">{formError}</p> : null}<div className="flex flex-wrap gap-2"><Button type="button" variant="secondary" disabled={!note.trim() || saving} onClick={() => saveNote.mutate()}>Save note</Button><Button type="button" disabled={saving} onClick={scheduleReminder}><CalendarPlus className="size-4" />{schedule.isPending ? 'Scheduling...' : 'Schedule followup'}</Button></div></div><div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border pt-4"><Button type="button" variant="secondary" onClick={onClose}>Close</Button><Button type="button" variant="secondary" className="border-red-200 text-red-700" onClick={onLost}>Close as lost</Button><Button type="button" onClick={onWon}>Close as won</Button></div></Card></div>;
 }
 
 function Detail({ label, value, breakWords = false }: { label: string; value: string; breakWords?: boolean }) {

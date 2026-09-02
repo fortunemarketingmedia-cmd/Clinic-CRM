@@ -33,10 +33,12 @@ export const frontDeskService = {
     ]);
     const requestedIds = new Set([input.doctorId, input.therapistId, input.resourceId, input.equipmentId].filter(Boolean));
     const conflicts = appointments.filter((appointment) => {
+      const existingStart = appointment.checkInAt ?? appointment.appointmentAt;
       const existingEnd = addMinutes(appointment.endAt ?? addMinutes(appointment.appointmentAt, appointment.durationMinutes), appointment.bufferMinutes);
       const shared = [appointment.doctorId, appointment.therapistId, appointment.resourceId, appointment.equipmentId].some((id) => id && requestedIds.has(id));
       const legacyRoom = Boolean(input.roomNumber && appointment.roomNumber === input.roomNumber);
-      return (shared || legacyRoom) && intervalsOverlap({ start: input.startsAt, end }, { start: appointment.appointmentAt, end: existingEnd });
+      const consultancyOverlap = input.resourceType === 'CONSULTATION' && appointment.resourceType === 'CONSULTATION';
+      return (consultancyOverlap || shared || legacyRoom) && intervalsOverlap({ start: input.startsAt, end }, { start: existingStart, end: existingEnd });
     });
     const clock = clinicClock(input.startsAt);
     const outsideSchedule = schedules.some((userSchedules) => userSchedules.length > 0 && !userSchedules.some((schedule) => schedule.weekday === clock.weekday && clock.minutes >= schedule.startMinutes && clock.minutes + input.durationMinutes <= schedule.endMinutes));
@@ -54,5 +56,9 @@ export const frontDeskService = {
     return records.map((record) => ({ ...record, queueStage: stage(record.status) }));
   },
 
-  scheduleAppointments: frontDeskRepository.scheduleAppointments,
+  async scheduleAppointments(filters: Parameters<typeof frontDeskRepository.scheduleAppointments>[0]) {
+    const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    await frontDeskRepository.expireUnattendedTreatmentRoomBookings(new Date(`${localDate}T00:00:00+05:30`));
+    return frontDeskRepository.scheduleAppointments(filters);
+  },
 };

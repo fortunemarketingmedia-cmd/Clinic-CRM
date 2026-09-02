@@ -99,7 +99,6 @@ export const patient360Service = {
     if (!signingRoles.includes(actor.role)) throw new HttpError(403, 'Only doctors or clinic administrators can sign clinical notes');
     const encounter = await patient360Repository.findEncounter(id); if (!encounter) throw new HttpError(404, 'Clinical encounter not found');
     await requirePatient(encounter.patientId, actor); assertEncounterSignable(encounter.status);
-    if (actor.role === RoleEnum.DOCTOR && encounter.doctorId !== actor.id) throw new HttpError(403, 'Doctors may only sign their own clinical notes');
     const signed = await patient360Repository.signEncounter(id, actor.id);
     await timelineRepository.create({ patientId: encounter.patientId, createdById: actor.id, type: 'CLINICAL_NOTE_SIGNED', title: 'Clinical note signed and locked', description: encounter.type });
     await audit(actor, { action: 'CLINICAL_ENCOUNTER_SIGNED', entity: 'ClinicalEncounter', entityId: id, previousValue: { status: encounter.status }, newValue: { status: 'LOCKED', signedById: actor.id } });
@@ -156,9 +155,8 @@ export const patient360Service = {
   async createPrescription(patientId: string, input: z.infer<typeof prescriptionSchema>, actor: Actor) {
     if (!signingRoles.includes(actor.role)) throw new HttpError(403, 'Only doctors or clinic administrators can create prescriptions');
     const patient = await requirePatient(patientId, actor); const { items, ...prescription } = input;
-    if (actor.role === RoleEnum.DOCTOR && prescription.doctorId !== actor.id) throw new HttpError(403, 'Doctors may only prescribe as themselves');
     const prescriptionNo = `REV-RX-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-    const created = await patient360Repository.createPrescription({ patientId, prescriptionNo, ...prescription, items: { create: items } });
+    const created = await patient360Repository.createPrescription({ patientId, prescriptionNo, ...prescription, status: 'SIGNED', signedById: actor.id, signedAt: new Date(), items: { create: items } });
     await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId, patientId, createdById: actor.id, type: 'PRESCRIPTION_CREATED', title: 'Prescription issued', description: prescriptionNo });
     await audit(actor, { action: 'PRESCRIPTION_CREATED', entity: 'Prescription', entityId: created.id, newValue: { prescriptionNo, status: created.status } });
     return created;
@@ -168,7 +166,6 @@ export const patient360Service = {
     const prescription = await patient360Repository.findPrescription(id); if (!prescription) throw new HttpError(404, 'Prescription not found');
     await requirePatient(prescription.patientId, actor);
     if (prescription.status !== 'DRAFT') throw new HttpError(409, 'Only draft prescriptions can be signed');
-    if (actor.role === RoleEnum.DOCTOR && prescription.doctorId !== actor.id) throw new HttpError(403, 'Doctors may only sign their own prescriptions');
     const signed = await patient360Repository.signPrescription(id, actor.id);
     await audit(actor, { action: 'PRESCRIPTION_SIGNED', entity: 'Prescription', entityId: id, previousValue: { status: prescription.status }, newValue: { status: signed.status } });
     return signed;
@@ -206,6 +203,10 @@ export const patient360Service = {
         .text(`Date: ${prescription.prescribedAt.toLocaleDateString('en-IN')}`, 330, 212)
         .text(`Branch: ${prescription.patient.branch?.name ?? '-'}`, 330, 230);
       let y = 270;
+      if (prescription.consultationSummary) {
+        doc.font('Helvetica-Bold').text('Consulted / treated for', 48, y).font('Helvetica').text(prescription.consultationSummary, 170, y, { width: 370 });
+        y = doc.y + 12;
+      }
       if (prescription.diagnosisSummary) {
         doc.font('Helvetica-Bold').text('Diagnosis', 48, y).font('Helvetica').text(prescription.diagnosisSummary, 120, y, { width: 420 });
         y = doc.y + 16;
@@ -223,7 +224,7 @@ export const patient360Service = {
       if (prescription.instructions) { doc.moveDown().font('Helvetica-Bold').fillColor('#2b171a').text('Instructions').font('Helvetica').fillColor('#4f3035').text(prescription.instructions); }
       if (prescription.precautions) { doc.moveDown(0.5).font('Helvetica-Bold').fillColor('#2b171a').text('Precautions').font('Helvetica').fillColor('#4f3035').text(prescription.precautions); }
       doc.fontSize(9).fillColor('#6d565a').text('This prescription is generated from Revive Clinic CRM and is intended only for the named client.', 48, 690, { width: 300 });
-      doc.fontSize(10).fillColor('#2b171a').text(prescription.signedBy ? `Digitally signed by ${prescription.signedBy.name}` : 'Draft - not signed', 350, 675, { width: 198, align: 'right' });
+      doc.fontSize(10).fillColor('#2b171a').text(`Prescribed by Dr. ${prescription.doctor.name}`, 350, 675, { width: 198, align: 'right' });
       if (prescription.signedAt) doc.fontSize(8).fillColor('#6d565a').text(prescription.signedAt.toLocaleString('en-IN'), 350, 692, { width: 198, align: 'right' });
       doc.end();
     });

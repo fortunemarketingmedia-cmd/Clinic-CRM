@@ -4,8 +4,8 @@ import { patient360Controller } from '../controllers/patient-360.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
 
-const clinicalRoles = [Role.ADMIN, Role.RECEPTIONIST] as const;
-const prescribingRoles = [Role.ADMIN, Role.RECEPTIONIST] as const;
+const clinicalRoles = [Role.ADMIN] as const;
+const prescribingRoles = [Role.ADMIN] as const;
 
 export const patient360Routes = Router();
 patient360Routes.use(requireAuth);

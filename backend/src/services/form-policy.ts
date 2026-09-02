@@ -22,8 +22,8 @@ export function validateSubmission(fields: SnapshotField[], values: Record<strin
   }
 }
 
-const clinicalFileRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.DOCTOR, RoleEnum.THERAPIST];
-const adminFileRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.BRANCH_MANAGER, RoleEnum.BILLING_EXECUTIVE, RoleEnum.RECEPTIONIST];
+const clinicalFileRoles: Role[] = [RoleEnum.ADMIN];
+const adminFileRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
 
 export function canAccessFile(role: Role, visibility: 'CLINICAL_ONLY' | 'CARE_TEAM' | 'ADMINISTRATIVE' | 'PATIENT_VISIBLE') {
   if (visibility === 'CLINICAL_ONLY' || visibility === 'CARE_TEAM') return clinicalFileRoles.includes(role);

@@ -40,7 +40,7 @@ export function UsersView() {
                   <tr key={user.id} className="border-t border-border">
                     <td className="px-4 py-3 font-medium">{user.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                    <td className="px-4 py-3">{user.role === 'ADMIN' ? 'Dr. Revive' : 'Receptionist'}</td>
+                    <td className="px-4 py-3">{user.role === 'ADMIN' ? 'Admin' : 'Receptionist'}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
                         {user.status === 'ACTIVE' ? (

@@ -32,7 +32,7 @@ export const leadController = {
   async duplicates(req: Request, res: Response) {
     if (!req.user) throw new HttpError(401, 'Authentication required');
     const query = duplicateLeadQuerySchema.parse(req.query);
-    if (!query.branchId && !['ADMIN', 'ORGANISATION_OWNER', 'CLINIC_ADMIN', 'AUDITOR'].includes(req.user.role)) throw new HttpError(400, 'Branch is required');
+    if (!query.branchId && req.user.role !== 'ADMIN') throw new HttpError(400, 'Branch is required');
     await accessService.assertBranchAccess(req.user.id, req.user.role, query.branchId);
     const data = await leadService.findDuplicates(query);
     return res.json({ data });

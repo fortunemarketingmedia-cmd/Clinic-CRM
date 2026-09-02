@@ -8,10 +8,10 @@ import { HttpError } from '../utils/http-error.js';
 const storageRoot = path.resolve(env.FILE_STORAGE_ROOT ?? path.join(process.cwd(), 'storage', 'private'));
 const accessSecret = env.FILE_ACCESS_SECRET ?? env.JWT_ACCESS_SECRET;
 const maxFileBytes = 10 * 1024 * 1024;
-const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv']);
 
 function extensionFor(mimeType: string) {
-  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' } as Record<string, string>)[mimeType] ?? 'bin';
+  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'text/plain': 'txt', 'text/csv': 'csv' } as Record<string, string>)[mimeType] ?? 'bin';
 }
 
 function resolveStorageKey(storageKey: string) {
@@ -25,7 +25,7 @@ function decodeBase64(contentBase64: string, mimeType: string) {
   const buffer = Buffer.from(encoded, 'base64');
   if (!buffer.length) throw new HttpError(400, 'File content is empty');
   if (buffer.length > maxFileBytes) throw new HttpError(413, 'File must be 10 MB or smaller');
-  if (!allowedMimeTypes.has(mimeType)) throw new HttpError(400, 'Only JPEG, PNG, WebP, and PDF files are supported');
+  if (!allowedMimeTypes.has(mimeType)) throw new HttpError(400, 'Unsupported document type');
   validateFileContent(buffer, mimeType);
   return buffer;
 }
@@ -34,6 +34,8 @@ function validateFileContent(buffer: Buffer, mimeType: string) {
   if (mimeType === 'image/jpeg' && !(buffer.length > 4 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer.at(-2) === 0xff && buffer.at(-1) === 0xd9)) throw new HttpError(400, 'JPEG content is invalid');
   if (mimeType === 'image/webp' && !(buffer.length > 12 && buffer.subarray(0, 4).toString() === 'RIFF' && buffer.subarray(8, 12).toString() === 'WEBP')) throw new HttpError(400, 'WebP content is invalid');
   if (mimeType === 'application/pdf' && buffer.subarray(0, 5).toString() !== '%PDF-') throw new HttpError(400, 'PDF content is invalid');
+  if (['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(mimeType) && buffer.subarray(0, 2).toString() !== 'PK') throw new HttpError(400, 'Office document content is invalid');
+  if (['application/msword', 'application/vnd.ms-excel'].includes(mimeType) && !buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))) throw new HttpError(400, 'Office document content is invalid');
   if (mimeType !== 'image/png') return;
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
   if (buffer.length < 33 || !buffer.subarray(0, 8).equals(signature)) throw new HttpError(400, 'PNG content is invalid');

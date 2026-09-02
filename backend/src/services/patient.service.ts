@@ -23,9 +23,14 @@ async function ensureBranchExists(branchId?: string) {
 
 async function registrationTemplate(branchId?: string) { return formsRepository.findPublishedRegistrationTemplate(branchId); }
 
-async function recordRegistrationSubmission(patientId: string, branchId: string, values: Record<string, unknown>, metadata?: { ipAddress?: string; deviceMetadata?: string }) {
-  const template = await registrationTemplate(branchId); if (!template?.versions[0]) return;
+async function validateRegistrationSubmission(branchId: string | undefined, values: Record<string, unknown>) {
+  const template = await registrationTemplate(branchId); if (!template?.versions[0]) return null;
   const snapshot = template.versions[0].snapshot as { fields?: SnapshotField[] }; validateSubmission(snapshot.fields ?? [], values);
+  return template;
+}
+
+async function recordRegistrationSubmission(patientId: string, branchId: string | undefined, values: Record<string, unknown>, metadata?: { ipAddress?: string; deviceMetadata?: string }) {
+  const template = await validateRegistrationSubmission(branchId, values); if (!template?.versions[0]) return;
   await formsRepository.createSubmission({ templateId: template.id, templateVersionId: template.versions[0].id, patientId, values: values as Prisma.InputJsonValue, status: 'SUBMITTED', ipAddress: metadata?.ipAddress, deviceMetadata: metadata?.deviceMetadata });
 }
 
@@ -84,7 +89,7 @@ export const patientService = {
     const duplicates = await patientRepository.findDuplicates({ mobile: input.mobile ?? lead.mobile, email: input.email ?? lead.email ?? undefined });
     if (duplicates.length) throw new HttpError(409, 'A patient profile already exists with the same mobile or email');
 
-    const convertibleStatuses: LeadStatus[] = [LeadStatus.ARRIVED, LeadStatus.CONFIRMED, LeadStatus.BOOKED];
+    const convertibleStatuses: LeadStatus[] = [LeadStatus.ARRIVED, LeadStatus.CONFIRMED, LeadStatus.BOOKED, LeadStatus.APPOINTMENT_BOOKED, LeadStatus.CONVERTED];
 
     if (!convertibleStatuses.includes(lead.status)) {
       throw new HttpError(409, 'Lead must be booked, confirmed, or arrived before patient conversion');
@@ -316,6 +321,7 @@ export const patientService = {
       }
 
       await ensureBranchExists(input.branchId);
+      await validateRegistrationSubmission(undefined, input as unknown as Record<string, unknown>);
 
       const duplicates = await patientRepository.findDuplicates({ mobile: input.mobile, email: input.email });
       if (duplicates.length) throw new HttpError(409, 'A patient profile already exists with the same mobile or email');
@@ -355,13 +361,14 @@ export const patientService = {
         title: 'QR form submitted',
         description: patient.patientNo,
       });
-      await recordRegistrationSubmission(patient.id, patient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
+      await recordRegistrationSubmission(patient.id, undefined, input as unknown as Record<string, unknown>, submissionMetadata);
       return patient;
     }
 
     const lead = await leadRepository.findByQrToken(qrToken);
 
     if (lead) {
+      await validateRegistrationSubmission(lead.branchId, input as unknown as Record<string, unknown>);
       if (lead.patient) {
         const patient = await patientRepository.submitQrProfile(
           lead.patient.qrToken,
@@ -397,12 +404,6 @@ export const patientService = {
         });
         await recordRegistrationSubmission(patient.id, patient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
         return patient;
-      }
-
-      const convertibleStatuses: LeadStatus[] = [LeadStatus.ARRIVED, LeadStatus.CONFIRMED, LeadStatus.BOOKED];
-
-      if (!convertibleStatuses.includes(lead.status)) {
-        throw new HttpError(409, 'Lead must be confirmed or arrived before QR registration creates a patient');
       }
 
       const patient = await patientRepository.convertLeadWithProfile({
@@ -446,6 +447,7 @@ export const patientService = {
 
     const patient = await patientRepository.findByQrToken(qrToken);
     if (!patient) throw new HttpError(404, 'Registration link not found');
+    await validateRegistrationSubmission(patient.branchId, input as unknown as Record<string, unknown>);
 
     const updatedPatient = await patientRepository.submitQrProfile(
       qrToken,

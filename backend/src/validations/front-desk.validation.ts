@@ -65,6 +65,7 @@ export const exceptionSchema = z
   });
 export const availabilityQuerySchema = z.object({
   branchId: z.string().min(1),
+  resourceType: z.nativeEnum(AppointmentResource).optional(),
   startsAt: z.coerce.date(),
   durationMinutes: z.coerce.number().int().min(5).max(480),
   bufferMinutes: z.coerce.number().int().min(0).max(120).default(0),

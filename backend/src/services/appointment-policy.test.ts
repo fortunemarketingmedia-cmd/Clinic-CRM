@@ -11,5 +11,8 @@ test('appointment lifecycle rejects skipped operational states and requires reas
   assert.throws(() => validateAppointmentTransition('CONFIRMED', 'COMPLETED', {}), /cannot move/);
   assert.throws(() => validateAppointmentTransition('CONFIRMED', 'CANCELLED', {}), /reason is required/);
   assert.doesNotThrow(() => validateAppointmentTransition('CONFIRMED', 'CHECKED_IN', {}));
+  assert.throws(() => validateAppointmentTransition('CHECKED_IN', 'IN_CONSULTATION', {}), /cannot move/);
+  assert.throws(() => validateAppointmentTransition('CHECKED_IN', 'COMPLETED', {}), /cannot move/);
+  assert.doesNotThrow(() => validateAppointmentTransition('CHECKED_IN', 'WAITING', {}));
+  assert.doesNotThrow(() => validateAppointmentTransition('WAITING', 'COMPLETED', {}));
 });
-

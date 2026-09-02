@@ -95,11 +95,6 @@ export const patientRepository = {
         data: { status: 'CONVERTED', convertedAt: new Date() },
       });
 
-      await tx.appointment.updateMany({
-        where: { leadId: data.leadId },
-        data: { status: 'COMPLETED' },
-      });
-
       return patient;
     });
   },

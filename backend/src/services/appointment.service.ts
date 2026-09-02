@@ -17,7 +17,7 @@ import { automationService } from './automation.service.js';
 import { integrationService } from './integration.service.js';
 import { whatsappAppointmentService } from './whatsapp-appointment.service.js';
 
-const globalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.ORGANISATION_OWNER, RoleEnum.CLINIC_ADMIN, RoleEnum.AUDITOR];
+const globalRoles: Role[] = [RoleEnum.ADMIN];
 
 function requireBranchForReceptionist(role: Role, branchId?: string) {
   if (!globalRoles.includes(role) && !branchId) {
@@ -139,7 +139,7 @@ export const appointmentService = {
     const durationMinutes = input.durationMinutes ?? service?.durationMinutes ?? 30;
     const bufferMinutes = input.bufferMinutes ?? service?.bufferMinutes ?? 0;
     const endAt = addMinutes(input.appointmentAt, durationMinutes);
-    const availability = await frontDeskService.availability({ branchId: input.branchId, startsAt: input.appointmentAt, durationMinutes, bufferMinutes, doctorId: input.doctorId, therapistId: input.therapistId, resourceId: input.resourceId, equipmentId: input.equipmentId, roomNumber: input.roomNumber ?? undefined });
+    const availability = await frontDeskService.availability({ branchId: input.branchId, resourceType: input.resourceType, startsAt: input.appointmentAt, durationMinutes, bufferMinutes, doctorId: input.doctorId, therapistId: input.therapistId, resourceId: input.resourceId, equipmentId: input.equipmentId, roomNumber: input.roomNumber ?? undefined });
     if (!availability.available) throw new HttpError(409, 'The selected staff member or resource is not available for this interval');
 
     if (!input.leadId) {
@@ -255,23 +255,29 @@ export const appointmentService = {
     const appointment = await this.getAppointment(id);
     await ensureBranchExists(input.branchId);
     ensureReceptionStatus(input.status);
-    if (input.status) validateAppointmentTransition(appointment.status, input.status, input);
+    const directRoomCheckout = appointment.resourceType === 'TREATMENT_ROOM' && appointment.status === AppointmentStatusEnum.CHECKED_IN && input.status === AppointmentStatusEnum.COMPLETED;
+    if (input.status && !directRoomCheckout) validateAppointmentTransition(appointment.status, input.status, input);
 
     if (input.branchId) {
       await ensureLeadCanBeScheduled(appointment.leadId, input.branchId);
     }
 
     const service = input.serviceId === null ? null : input.serviceId ? await frontDeskRepository.findService(input.serviceId) : appointment.serviceId ? await frontDeskRepository.findService(appointment.serviceId) : null;
-    const startsAt = input.appointmentAt ?? appointment.appointmentAt;
+    const isRoomCheckIn = input.status === AppointmentStatusEnum.CHECKED_IN && appointment.resourceType === 'TREATMENT_ROOM';
+    const now = new Date();
+    if (isRoomCheckIn) {
+      const clinicDate = (value: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(value);
+      if (clinicDate(appointment.appointmentAt) !== clinicDate(now)) throw new HttpError(409, 'Treatment-room check-in is allowed only on the scheduled day');
+    }
+    const startsAt = isRoomCheckIn ? now : input.appointmentAt ?? appointment.appointmentAt;
     const durationMinutes = input.durationMinutes ?? service?.durationMinutes ?? appointment.durationMinutes;
     const bufferMinutes = input.bufferMinutes ?? service?.bufferMinutes ?? appointment.bufferMinutes;
-    const schedulingChanged = Boolean(input.appointmentAt || input.branchId || input.doctorId !== undefined || input.therapistId !== undefined || input.resourceId !== undefined || input.equipmentId !== undefined || input.roomNumber !== undefined || input.durationMinutes || input.bufferMinutes);
+    const schedulingChanged = Boolean(isRoomCheckIn || input.appointmentAt || input.branchId || input.doctorId !== undefined || input.therapistId !== undefined || input.resourceId !== undefined || input.equipmentId !== undefined || input.roomNumber !== undefined || input.durationMinutes || input.bufferMinutes);
     if (schedulingChanged) {
-      const availability = await frontDeskService.availability({ branchId: input.branchId ?? appointment.branchId, startsAt, durationMinutes, bufferMinutes, doctorId: input.doctorId === null ? undefined : input.doctorId ?? appointment.doctorId ?? undefined, therapistId: input.therapistId === null ? undefined : input.therapistId ?? appointment.therapistId ?? undefined, resourceId: input.resourceId === null ? undefined : input.resourceId ?? appointment.resourceId ?? undefined, equipmentId: input.equipmentId === null ? undefined : input.equipmentId ?? appointment.equipmentId ?? undefined, roomNumber: input.roomNumber ?? appointment.roomNumber ?? undefined, excludeAppointmentId: id });
+      const availability = await frontDeskService.availability({ branchId: input.branchId ?? appointment.branchId, resourceType: input.resourceType ?? appointment.resourceType, startsAt, durationMinutes, bufferMinutes, doctorId: input.doctorId === null ? undefined : input.doctorId ?? appointment.doctorId ?? undefined, therapistId: input.therapistId === null ? undefined : input.therapistId ?? appointment.therapistId ?? undefined, resourceId: input.resourceId === null ? undefined : input.resourceId ?? appointment.resourceId ?? undefined, equipmentId: input.equipmentId === null ? undefined : input.equipmentId ?? appointment.equipmentId ?? undefined, roomNumber: input.roomNumber ?? appointment.roomNumber ?? undefined, excludeAppointmentId: id });
       if (!availability.available) throw new HttpError(409, 'The selected staff member or resource is not available for this interval');
     }
-    const now = new Date();
-    const lifecycleData = input.status === 'CHECKED_IN' ? { arrivalAt: now, checkInAt: now } : input.status === 'WAITING' ? { waitingStartedAt: now } : input.status === 'IN_CONSULTATION' ? { consultationStartedAt: now } : input.status === 'TREATMENT_IN_PROGRESS' ? { consultationCompletedAt: now, treatmentStartedAt: now } : input.status === 'BILLING_PENDING' ? { treatmentCompletedAt: now } : input.status === 'COMPLETED' ? { checkoutAt: now } : {};
+    const lifecycleData = input.status === 'CHECKED_IN' ? appointment.resourceType === 'TREATMENT_ROOM' ? { arrivalAt: now, checkInAt: now, treatmentStartedAt: now } : { arrivalAt: now } : input.status === 'WAITING' ? { checkInAt: now, waitingStartedAt: now } : input.status === 'IN_CONSULTATION' ? { consultationStartedAt: now } : input.status === 'TREATMENT_IN_PROGRESS' ? { consultationCompletedAt: now, treatmentStartedAt: now } : input.status === 'BILLING_PENDING' ? { treatmentCompletedAt: now } : input.status === 'COMPLETED' ? { checkoutAt: now, ...(appointment.resourceType === 'TREATMENT_ROOM' ? { treatmentCompletedAt: now } : {}) } : {};
     const updated = await appointmentRepository.update(id, { ...input, ...lifecycleData, endAt: addMinutes(startsAt, durationMinutes), durationMinutes, bufferMinutes, rescheduleCount: input.appointmentAt && input.appointmentAt.getTime() !== appointment.appointmentAt.getTime() ? appointment.rescheduleCount + 1 : appointment.rescheduleCount });
 
     if (input.status === AppointmentStatusEnum.CHECKED_IN) {
@@ -279,7 +285,7 @@ export const appointmentService = {
         leadId: updated.leadId,
         patientId: updated.lead?.patient?.id,
         type: 'PATIENT_ARRIVED',
-        title: 'Patient arrived',
+        title: appointment.resourceType === 'TREATMENT_ROOM' ? 'Treatment room checked in' : 'Patient arrived',
       });
     } else if (input.status) {
       await timelineRepository.create({

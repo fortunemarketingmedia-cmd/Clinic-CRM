@@ -435,10 +435,10 @@ export function DashboardView() {
                 </Link>
                 <Link
                   className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm hover:bg-muted"
-                  href="/patients"
+                  href="/daily-client-queue"
                 >
                   <Search className="size-4 text-primary" />
-                  Quick Search
+                  Daily Client Queue
                 </Link>
               </>
             )}

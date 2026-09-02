@@ -37,6 +37,16 @@ export type MedicalProfile = {
   medicalHistory?: string | null;
   currentMedications?: string | null;
   allergyToDrugs?: string | null;
+  surgicalHistory?: string | null;
+  productAllergies?: string | null;
+  foodAllergies?: string | null;
+  previousAestheticProcedures?: string | null;
+  breastfeedingStatus?: string | null;
+  familyHistory?: string | null;
+  smokingStatus?: string | null;
+  alcoholHistory?: string | null;
+  clinicalAlerts?: string | null;
+  criticalAlert?: boolean;
   keloidOrHypertrophicScar?: string | null;
   productsCurrentlyUsed?: string | null;
   menstrualHistory?: string | null;
@@ -78,6 +88,11 @@ export type TreatmentPackage = {
   completedSessions: number;
   amount: string;
   paidAmount: string;
+  outstandingAmount?: string;
+  status?: string;
+  purchaseDate?: string;
+  startDate?: string;
+  expiryDate?: string;
 };
 
 export type PatientFile = {

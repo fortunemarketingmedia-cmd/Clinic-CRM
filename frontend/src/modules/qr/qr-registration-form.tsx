@@ -53,7 +53,7 @@ type RegistrationPreview = {
   formTemplate?: FormTemplate | null;
 };
 
-export function QrRegistrationForm({ token }: { token: string }) {
+export function QrRegistrationForm({ token, onSuccess, initialBranchId }: { token: string; onSuccess?: () => void; initialBranchId?: string }) {
   const registrationQuery = useQuery({
     queryKey: ['qr-registration', token],
     queryFn: () => publicApiRequest<{ data: RegistrationPreview }>(`/public/qr/${token}`),
@@ -63,7 +63,9 @@ export function QrRegistrationForm({ token }: { token: string }) {
     resolver: zodResolver(qrSchema),
     values: registrationQuery.data
       ? {
-          branchId: registrationQuery.data.data.branches?.[0]?.id,
+          branchId: registrationQuery.data.data.branches?.some((branch) => branch.id === initialBranchId)
+            ? initialBranchId
+            : registrationQuery.data.data.branches?.[0]?.id,
           fullName: registrationQuery.data.data.fullName,
           mobile: registrationQuery.data.data.mobile,
         }
@@ -76,6 +78,7 @@ export function QrRegistrationForm({ token }: { token: string }) {
         method: 'POST',
         body: JSON.stringify(values),
       }),
+    onSuccess,
   });
 
   if (registrationQuery.isLoading) {

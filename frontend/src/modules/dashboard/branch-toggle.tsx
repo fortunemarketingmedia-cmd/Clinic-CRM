@@ -6,11 +6,12 @@ import { Select } from '@/components/ui/select';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Branch } from '@/types/branch';
+import { cn } from '@/lib/utils';
 
-export function BranchToggle() {
+export function BranchToggle({ className }: { className?: string }) {
   const { session, selectedBranchId, setSelectedBranchId, hasHydrated } = useSessionStore();
 
-  const isAdmin = Boolean(session && ['ADMIN', 'ORGANISATION_OWNER', 'CLINIC_ADMIN', 'AUDITOR'].includes(session.user.role));
+  const isAdmin = session?.user.role === 'ADMIN';
 
   const branchesQuery = useQuery({
     queryKey: ['branches'],
@@ -47,7 +48,7 @@ export function BranchToggle() {
       aria-label="Branch"
       value={value}
       onChange={(event) => setSelectedBranchId(event.target.value)}
-      className="w-44"
+      className={cn('w-44', className)}
       disabled={!hasHydrated || branchesQuery.isLoading || branches.length === 0}
     >
       {isAdmin ? <option value="">All branches</option> : null}

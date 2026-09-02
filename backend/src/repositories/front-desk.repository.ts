@@ -122,7 +122,10 @@ export const frontDeskRepository = {
         branchId: input.branchId,
         id: input.excludeId ? { not: input.excludeId } : undefined,
         status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
-        appointmentAt: { gt: new Date(input.start.getTime() - 86_400_000), lt: input.end },
+        OR: [
+          { appointmentAt: { lt: input.end } },
+          { checkInAt: { not: null, lt: input.end } },
+        ],
       },
       include: {
         lead: true,
@@ -133,12 +136,22 @@ export const frontDeskRepository = {
       },
     });
   },
+  expireUnattendedTreatmentRoomBookings(before: Date) {
+    return prisma.appointment.updateMany({
+      where: {
+        resourceType: 'TREATMENT_ROOM',
+        appointmentAt: { lt: before },
+        status: { in: ['REQUESTED', 'SLOT_PROPOSED', 'SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED', 'RESCHEDULED'] },
+      },
+      data: { status: 'NO_SHOW', noShowReason: 'Treatment-room booking expired at the end of its scheduled day' },
+    });
+  },
   todayQueue(branchId: string, start: Date, end: Date) {
     return prisma.appointment.findMany({
       where: {
         branchId,
         appointmentAt: { gte: start, lte: end },
-        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        status: { in: ['WAITING', 'IN_CONSULTATION'] },
       },
       include: {
         lead: { include: { patient: true } },

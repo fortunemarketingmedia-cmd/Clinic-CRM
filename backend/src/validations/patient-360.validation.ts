@@ -67,7 +67,7 @@ const prescriptionItemSchema = z.object({
 
 export const prescriptionSchema = z.object({
   encounterId: z.string().optional(), doctorId: z.string().min(1), prescribedAt: z.coerce.date().optional(),
-  diagnosisSummary: optionalText, instructions: optionalText, precautions: optionalText, followUpDate: z.coerce.date().optional(),
+  consultationSummary: optionalText, diagnosisSummary: optionalText, instructions: optionalText, precautions: optionalText,
   status: z.nativeEnum(PrescriptionStatus).refine((value) => value === 'DRAFT', 'New prescriptions must be drafts').default('DRAFT'),
   items: z.array(prescriptionItemSchema).min(1),
 });

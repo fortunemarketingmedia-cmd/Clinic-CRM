@@ -30,6 +30,7 @@ import { integrationRoutes } from './routes/integration.routes.js';
 import { automationRoutes } from './routes/automation.routes.js';
 import { reportRoutes } from './routes/report.routes.js';
 import { securityRoutes } from './routes/security.routes.js';
+import { auditRoutes } from './routes/audit.routes.js';
 import { prisma } from './config/db.js';
 import { HttpError } from './utils/http-error.js';
 
@@ -121,6 +122,7 @@ app.use('/api/integrations', integrationRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/audit', auditRoutes);
 
 app.use((req, _res, next) => {
   next(new HttpError(404, `Route ${req.method} ${req.path} was not found`));

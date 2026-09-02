@@ -23,6 +23,9 @@ export type Appointment = {
   branchId: string;
   appointmentAt: string;
   endAt?: string | null;
+  arrivalAt?: string | null;
+  checkInAt?: string | null;
+  checkoutAt?: string | null;
   durationMinutes: number;
   bufferMinutes: number;
   appointmentType: 'CLINIC_VISIT' | 'VIDEO_CONSULTATION';

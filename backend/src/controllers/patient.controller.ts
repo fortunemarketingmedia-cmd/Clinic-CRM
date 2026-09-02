@@ -3,7 +3,6 @@ import { patientService } from '../services/patient.service.js';
 import { HttpError } from '../utils/http-error.js';
 import {
   convertLeadSchema,
-  createPatientSchema,
   medicalProfileSchema,
   patientQuerySchema,
   importPatientsSchema,
@@ -12,6 +11,7 @@ import {
 import { qrRegistrationSchema } from '../validations/qr.validation.js';
 import { auditService } from '../services/audit.service.js';
 import { accessService } from '../services/access.service.js';
+import { leadService } from '../services/lead.service.js';
 
 export const patientController = {
   async list(req: Request, res: Response) {
@@ -38,14 +38,10 @@ export const patientController = {
   },
 
   async convertLead(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
     const input = convertLeadSchema.parse(req.body);
+    await leadService.getLead(input.leadId, req.user);
     const patient = await patientService.convertLead(input);
-    return res.status(201).json({ data: patient });
-  },
-
-  async create(req: Request, res: Response) {
-    const input = createPatientSchema.parse(req.body);
-    const patient = await patientService.createPatient(input);
     return res.status(201).json({ data: patient });
   },
 

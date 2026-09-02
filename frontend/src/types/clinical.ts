@@ -14,10 +14,9 @@ export type TreatmentPlanItem = { id: string; name: string; plannedSessions: num
 export type TreatmentPlan = { id: string; concern: string; diagnosis?: string | null; goals?: string | null; status: string; patientAcceptance: string; consentStatus: string; estimatedCost?: string | null; reviewDate?: string | null; assignedDoctor: Clinician; assignedTherapist?: Clinician | null; items: TreatmentPlanItem[]; createdAt: string };
 export type ProcedureSession = { id: string; procedureName: string; treatmentArea?: string | null; status: string; consentVerified: boolean; adverseEventFlag: boolean; performedAt?: string | null; practitioner: Clinician; room?: { name: string } | null; device?: { name: string } | null; procedureNotes?: string | null; postCareInstructions?: string | null; createdAt: string };
 export type PrescriptionItem = { id: string; medicineName: string; strength?: string | null; dosage: string; frequency: string; duration: string; route?: string | null; timing?: string | null; instructions?: string | null };
-export type ClinicalPrescription = { id: string; prescriptionNo: string; prescribedAt: string; diagnosisSummary?: string | null; status: 'DRAFT' | 'SIGNED' | 'CANCELLED'; doctor: Clinician; signedBy?: Clinician | null; items: PrescriptionItem[] };
+export type ClinicalPrescription = { id: string; prescriptionNo: string; prescribedAt: string; consultationSummary?: string | null; diagnosisSummary?: string | null; status: 'DRAFT' | 'SIGNED' | 'CANCELLED'; doctor: Clinician; signedBy?: Clinician | null; items: PrescriptionItem[] };
 export type Patient360 = Patient & {
   primaryConcern?: string | null;
-  assignedDoctor?: Clinician | null;
   person?: { marketingConsent: boolean; transactionalConsent: boolean; appointmentNotificationConsent: boolean; dataProcessingConsent: boolean } | null;
   medicalProfile?: (MedicalProfile & { clinicalAlerts?: string | null; criticalAlert?: boolean; surgicalHistory?: string | null; productAllergies?: string | null; foodAllergies?: string | null; familyHistory?: string | null; smokingStatus?: string | null; alcoholHistory?: string | null; versions?: MedicalProfileVersion[] }) | null;
   lead: NonNullable<Patient['lead']> & { appointments: Appointment[] };
@@ -27,7 +26,7 @@ export type Patient360 = Patient & {
   procedureSessions?: ProcedureSession[];
   prescriptions?: ClinicalPrescription[];
   packages: TreatmentPackage[];
-  invoices: Array<{ id: string; invoiceNo: string; totalAmount: string; paidAmount?: string; outstandingAmount?: string; status: string; invoiceDate: string; items?: Array<{ id: string; description: string; quantity: string; unitPrice: string; totalAmount: string }>; payments: Array<{ id: string; amount: string; paidAt: string; mode?: string }> }>;
+  invoices: Array<{ id: string; invoiceNo: string; subtotal?: string; discount?: string; taxAmount?: string; gstAmount?: string; totalAmount: string; paidAmount?: string; outstandingAmount?: string; status: string; invoiceDate: string; dueDate?: string | null; notes?: string | null; terms?: string | null; items?: Array<{ id: string; description: string; quantity: string; unitPrice: string; discount?: string; taxPercent?: string; taxAmount?: string; totalAmount: string }>; payments: Array<{ id: string; amount: string; paidAt: string; mode?: string }> }>;
   files: PatientFile[];
   timelineEvents: Array<{ id: string; type: string; title: string; description?: string | null; createdAt: string }>;
   summary: { outstandingAmount: number; sessionsRemaining: number; activeTreatmentPlan?: TreatmentPlan | null; lastVisit?: Appointment | null; nextAppointment?: Appointment | null };

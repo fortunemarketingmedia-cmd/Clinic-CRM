@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { UserStatus, type AccessLevel, type Role } from '@prisma/client';
+import { AccessLevel as AccessLevelEnum, UserStatus, type AccessLevel, type Role } from '@prisma/client';
 import { refreshTokenRepository } from '../repositories/refresh-token.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { HttpError } from '../utils/http-error.js';
@@ -21,6 +21,10 @@ type RequestMeta = {
   userAgent?: string;
   ipAddress?: string;
 };
+
+function isOperationalAccount(accessLevel: AccessLevel) {
+  return accessLevel === AccessLevelEnum.ADMIN || accessLevel === AccessLevelEnum.RECEPTIONIST;
+}
 
 function serializeUser(user: {
   id: string;
@@ -45,7 +49,7 @@ export const authService = {
   async login(email: string, password: string, meta: RequestMeta, mfa?: { code?: string; recoveryCode?: string }) {
     const user = await userRepository.findByEmail(email);
 
-    if (!user || user.status !== UserStatus.ACTIVE || user.accessLevel === 'DEVELOPER') {
+    if (!user || user.status !== UserStatus.ACTIVE || !isOperationalAccount(user.accessLevel)) {
       await integrationRepository.createLoginEvent({ email, success: false, reason: 'INVALID_CREDENTIALS', ipAddress: meta.ipAddress, userAgent: meta.userAgent });
       throw new HttpError(401, 'Invalid email or password');
     }
@@ -94,7 +98,7 @@ export const authService = {
     const tokenHash = hashToken(refreshToken);
     const storedToken = await refreshTokenRepository.findActiveByHash(tokenHash);
 
-    if (!storedToken || storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE || storedToken.user.accessLevel === 'DEVELOPER') {
+    if (!storedToken || storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE || !isOperationalAccount(storedToken.user.accessLevel)) {
       throw new HttpError(401, 'Invalid refresh token');
     }
 
@@ -136,7 +140,7 @@ export const authService = {
   async getCurrentUser(userId: string) {
     const user = await userRepository.findById(userId);
 
-    if (!user || user.status !== UserStatus.ACTIVE || user.accessLevel === 'DEVELOPER') {
+    if (!user || user.status !== UserStatus.ACTIVE || !isOperationalAccount(user.accessLevel)) {
       throw new HttpError(401, 'User is not active');
     }
 

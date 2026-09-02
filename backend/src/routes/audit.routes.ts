@@ -5,6 +5,5 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/role.js';
 
 export const auditRoutes = Router();
-auditRoutes.use(requireAuth, requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN, Role.AUDITOR));
+auditRoutes.use(requireAuth, requireRole(Role.ADMIN));
 auditRoutes.get('/', (req, res, next) => auditController.list(req, res).catch(next));
-

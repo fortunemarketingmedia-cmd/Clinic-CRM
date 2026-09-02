@@ -28,9 +28,7 @@ export function agingBucket(dueDate: Date | null, now = new Date()) {
 }
 
 export function discountLimit(role: Role) {
-  if (role === 'ADMIN' || role === 'ORGANISATION_OWNER') return 100;
-  if (role === 'CLINIC_ADMIN' || role === 'BRANCH_MANAGER') return 20;
-  if (role === 'BILLING_EXECUTIVE') return 10;
+  if (role === 'ADMIN') return 100;
   return 5;
 }
 

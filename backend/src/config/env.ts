@@ -18,6 +18,8 @@ const envSchema = z.object({
   FRONTEND_URLS: z.string().optional(),
   FILE_STORAGE_ROOT: z.string().optional(),
   FILE_ACCESS_SECRET: z.string().min(16).optional(),
+  GOOGLE_ADS_INGEST_SECRET: z.string().min(24).optional(),
+  META_ADS_INGEST_SECRET: z.string().min(24).optional(),
   PAYMENT_GATEWAY_SECRET: z.string().min(16).optional(),
   INTEGRATION_ENCRYPTION_KEY: z.string().min(32).optional(),
   META_GRAPH_API_URL: z.string().url().default('https://graph.facebook.com'),
@@ -46,8 +48,27 @@ const envSchema = z.object({
 });
 
 const parsedEnv = envSchema.parse(process.env);
-if (parsedEnv.NODE_ENV === 'production' && !parsedEnv.INTEGRATION_ENCRYPTION_KEY) {
-  throw new Error('INTEGRATION_ENCRYPTION_KEY is required in production');
+if (parsedEnv.NODE_ENV === 'production') {
+  const placeholderValues = new Set([
+    'replace-with-access-secret',
+    'replace-with-refresh-secret',
+    'replace-with-at-least-32-random-characters',
+  ]);
+  const requiredSecrets = {
+    JWT_ACCESS_SECRET: parsedEnv.JWT_ACCESS_SECRET,
+    JWT_REFRESH_SECRET: parsedEnv.JWT_REFRESH_SECRET,
+    INTEGRATION_ENCRYPTION_KEY: parsedEnv.INTEGRATION_ENCRYPTION_KEY,
+    FILE_ACCESS_SECRET: parsedEnv.FILE_ACCESS_SECRET,
+    GOOGLE_ADS_INGEST_SECRET: parsedEnv.GOOGLE_ADS_INGEST_SECRET,
+    META_ADS_INGEST_SECRET: parsedEnv.META_ADS_INGEST_SECRET,
+  };
+  const invalid = Object.entries(requiredSecrets)
+    .filter(([, value]) => !value || placeholderValues.has(value))
+    .map(([key]) => key);
+  if (invalid.length) throw new Error(`Production secrets are missing or unsafe: ${invalid.join(', ')}`);
+  if (parsedEnv.JWT_ACCESS_SECRET === parsedEnv.JWT_REFRESH_SECRET) {
+    throw new Error('JWT access and refresh secrets must be independent');
+  }
 }
 
 export const env = {

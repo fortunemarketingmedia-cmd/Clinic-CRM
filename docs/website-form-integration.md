@@ -29,6 +29,10 @@ await fetch(`${process.env.NEXT_PUBLIC_CRM_API_URL}/public/website-leads`, {
 });
 ```
 
+The public website endpoint uses a honeypot field and a stricter per-IP rate limit. Keep the `website` field visually hidden and submit it as an empty string; automated submissions that populate it are rejected.
+
+The `/public/ads/google` and `/public/ads/meta` endpoints are server-to-server only. Their callers must send `x-lead-ingest-secret` using `GOOGLE_ADS_INGEST_SECRET` or `META_ADS_INGEST_SECRET`. Never place either secret in browser code or a `NEXT_PUBLIC_*` variable.
+
 Each submission creates an assigned lead with source `WEBSITE`, status `ASSIGNED`, an immediate follow-up action, and the submitted message/tracking details in follow-up notes. Send `branchId` when a form is explicitly for one clinic branch; otherwise the CRM assigns the first configured branch.
 
 For Vercel, set `NEXT_PUBLIC_CRM_API_URL` to your publicly reachable API base URL, for example `https://api.your-domain.com/api`. Do not use `localhost` in Vercel environment variables.

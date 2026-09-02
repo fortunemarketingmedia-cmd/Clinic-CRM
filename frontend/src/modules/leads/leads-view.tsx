@@ -367,10 +367,12 @@ export function LeadsView() {
   const publicBase = typeof window !== 'undefined' ? `${window.location.origin.replace(/:\d+$/, ':4000')}/api/public` : '/api/public';
   const leads = useMemo(() => {
     const rows = leadsQuery.data?.data ?? [];
-    const isArchived = (lead: Lead) => ['CONVERTED', 'LOST', 'DISQUALIFIED'].includes(lead.status);
+    const closedWonStatuses: LeadStatus[] = ['APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED', 'CONVERTED'];
+    const closedLostStatuses: LeadStatus[] = ['LOST', 'DISQUALIFIED'];
+    const isArchived = (lead: Lead) => [...closedWonStatuses, ...closedLostStatuses].includes(lead.status);
     if (activeTab === 'ARCHIVED') return rows.filter(isArchived).filter((lead) => {
-      const closedAt = new Date(lead.updatedAt ?? lead.createdAt).getTime();
-      return (!archiveOutcome || (archiveOutcome === 'WON' ? lead.status === 'CONVERTED' : ['LOST', 'DISQUALIFIED'].includes(lead.status))) &&
+      const closedAt = new Date(lead.closedAt ?? lead.convertedAt ?? lead.updatedAt ?? lead.createdAt).getTime();
+      return (!archiveOutcome || (archiveOutcome === 'WON' ? closedWonStatuses.includes(lead.status) : closedLostStatuses.includes(lead.status))) &&
         (!archiveOwner || lead.ownerId === archiveOwner) &&
         (!archiveTreatment || lead.interestedTreatment?.toLowerCase().includes(archiveTreatment.toLowerCase())) &&
         (!archiveLostReason || lead.lostReason?.toLowerCase().includes(archiveLostReason.toLowerCase())) &&

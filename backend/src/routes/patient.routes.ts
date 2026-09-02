@@ -13,10 +13,6 @@ patientRoutes.get('/', (req, res, next) => {
   patientController.list(req, res).catch(next);
 });
 
-patientRoutes.post('/', (req, res, next) => {
-  patientController.create(req, res).catch(next);
-});
-
 patientRoutes.post('/import', requireRole(Role.ADMIN), (req, res, next) => {
   patientController.import(req, res).catch(next);
 });
@@ -37,7 +33,7 @@ patientRoutes.patch('/:id', (req, res, next) => {
   patientController.update(req, res).catch(next);
 });
 
-patientRoutes.put('/:id/medical-profile', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
+patientRoutes.put('/:id/medical-profile', requireRole(Role.ADMIN), (req, res, next) => {
   patientController.upsertMedicalProfile(req, res).catch(next);
 });
 

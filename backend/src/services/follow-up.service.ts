@@ -86,6 +86,9 @@ export const followUpService = {
         channel: existing.channel,
         direction: existing.direction,
         dueAt: input.nextFollowUpAt ?? new Date(),
+        reminderAt: input.nextFollowUpAt
+          ? new Date(Math.max(Date.now(), input.nextFollowUpAt.getTime() - 15 * 60_000))
+          : new Date(),
         notes: input.notes,
         priority: existing.priority,
         source: 'FOLLOW_UP_NEXT_ACTION',

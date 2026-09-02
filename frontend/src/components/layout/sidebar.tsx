@@ -37,8 +37,8 @@ export const navigationSections = [
     label: 'CRM',
     items: [
       { label: 'Leads', icon: Users, href: '/leads', roles: crmRoles },
-      { label: 'Follow-ups', icon: Columns3, href: '/follow-ups', roles: crmRoles },
-      { label: 'Notifications & Reminders', icon: BellRing, href: '/notifications', roles: allOperational },
+      { label: 'Lead Journey', icon: Columns3, href: '/follow-ups', roles: crmRoles },
+      { label: 'Notifications & Followups', icon: BellRing, href: '/notifications', roles: allOperational },
       { label: 'Tasks', icon: ListTodo, href: '/tasks', roles: allOperational },
     ],
   },

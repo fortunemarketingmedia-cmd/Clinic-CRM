@@ -45,6 +45,11 @@ textarea {
   font: inherit;
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: hsl(var(--muted-foreground) / 0.42);
+}
+
 ::selection {
   background: hsl(var(--primary) / 0.18);
 }

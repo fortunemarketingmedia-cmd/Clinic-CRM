@@ -4,7 +4,7 @@ import type { Role } from '@prisma/client';
 
 export const branchService = {
   listBranches(user?: { id: string; role: Role }) {
-    if (!user || ['ADMIN', 'ORGANISATION_OWNER', 'CLINIC_ADMIN', 'AUDITOR'].includes(user.role)) return branchRepository.list();
+    if (!user || user.role === 'ADMIN') return branchRepository.list();
     return branchRepository.listForUser(user.id);
   },
 

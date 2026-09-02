@@ -20,7 +20,7 @@ test('collections aging uses required buckets', () => {
 });
 
 test('discount and package policies enforce authority and balances', () => {
-  assert.equal(discountLimit('RECEPTIONIST'), 5); assert.equal(discountLimit('BRANCH_MANAGER'), 20);
+  assert.equal(discountLimit('RECEPTIONIST'), 5); assert.equal(discountLimit('BRANCH_MANAGER'), 5);
   assert.throws(() => assertPackageAction('ACTIVE', 'SESSION_CONSUMPTION', 0), /enough remaining/);
   assert.throws(() => assertPackageAction('PAUSED', 'SESSION_CONSUMPTION', 5), /active packages/);
   assert.throws(() => assertPackageAction('ACTIVE', 'RESERVATION', 0), /enough remaining/);

@@ -6,7 +6,7 @@ import { requireRole } from '../middleware/role.js';
 export const leadScoringRoutes = Router();
 leadScoringRoutes.use(
   requireAuth,
-  requireRole(Role.ADMIN, Role.ORGANISATION_OWNER, Role.CLINIC_ADMIN),
+  requireRole(Role.ADMIN),
 );
 leadScoringRoutes.get('/', (req, res, next) => leadScoringController.list(req, res).catch(next));
 leadScoringRoutes.post('/', (req, res, next) => leadScoringController.create(req, res).catch(next));

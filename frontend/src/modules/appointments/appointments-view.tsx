@@ -45,8 +45,8 @@ const appointmentStatuses: Array<{ label: string; value: AppointmentStatus }> = 
   { label: 'Scheduled', value: 'SCHEDULED' },
   { label: 'Confirmation pending', value: 'CONFIRMATION_PENDING' },
   { label: 'Confirmed', value: 'CONFIRMED' },
-  { label: 'Checked in', value: 'CHECKED_IN' },
-  { label: 'Waiting', value: 'WAITING' },
+  { label: 'Arrived', value: 'CHECKED_IN' },
+  { label: 'Checked in', value: 'WAITING' },
   { label: 'In consultation', value: 'IN_CONSULTATION' },
   { label: 'Treatment in progress', value: 'TREATMENT_IN_PROGRESS' },
   { label: 'Billing pending', value: 'BILLING_PENDING' },
@@ -68,8 +68,8 @@ const visitPurposeOptions = [
 ] as const;
 
 const appointmentTypeOptions = [
-  { label: 'Clinic visit', value: 'CLINIC_VISIT' },
-  { label: 'Video consultation', value: 'VIDEO_CONSULTATION' },
+  { label: 'In-clinic consultancy', value: 'CLINIC_VISIT' },
+  { label: 'Video consultancy', value: 'VIDEO_CONSULTATION' },
 ] as const;
 
 const bookingPlanOptions = [
@@ -163,22 +163,13 @@ function appointmentProblem(error: unknown) {
   };
 }
 
-function quickStatuses(status: AppointmentStatus) {
-  const allowed: Partial<Record<AppointmentStatus, AppointmentStatus[]>> = {
-    REQUESTED: ['SLOT_PROPOSED', 'SCHEDULED'],
-    SLOT_PROPOSED: ['SCHEDULED'],
-    SCHEDULED: ['CONFIRMATION_PENDING', 'CONFIRMED', 'CHECKED_IN'],
-    CONFIRMATION_PENDING: ['CONFIRMED', 'CHECKED_IN'],
-    CONFIRMED: ['CHECKED_IN'],
-    CHECKED_IN: ['WAITING', 'IN_CONSULTATION'],
-    WAITING: ['IN_CONSULTATION'],
-    IN_CONSULTATION: ['TREATMENT_IN_PROGRESS', 'COMPLETED'],
-    TREATMENT_IN_PROGRESS: ['COMPLETED'],
-    RESCHEDULED: ['SCHEDULED', 'CONFIRMED'],
-  };
-  return appointmentStatuses.filter(
-    (item) => item.value === status || allowed[status]?.includes(item.value),
-  );
+type AppointmentWorkflowAction = 'ARRIVED' | 'NOT_ARRIVED' | 'CANCELLED' | 'CHECK_IN';
+
+function appointmentActionPayload(action: AppointmentWorkflowAction) {
+  if (action === 'ARRIVED') return { status: 'CHECKED_IN' as AppointmentStatus };
+  if (action === 'CHECK_IN') return { status: 'WAITING' as AppointmentStatus };
+  if (action === 'NOT_ARRIVED') return { status: 'NO_SHOW' as AppointmentStatus, noShowReason: 'Marked not arrived from the consultancy appointment calendar' };
+  return { status: 'CANCELLED' as AppointmentStatus, cancellationReason: 'Cancelled from the consultancy appointment calendar' };
 }
 
 const appointmentSchema = z
@@ -291,6 +282,8 @@ export function AppointmentsView() {
   const queryClient = useQueryClient();
   const { session, selectedBranchId, setSelectedBranchId } = useSessionStore();
   const isAdmin = session?.user.role === 'ADMIN';
+  const isReceptionist = session?.user.role === 'RECEPTIONIST';
+  const canBookAppointment = isAdmin || isReceptionist;
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()));
   const [search, setSearch] = useState('');
@@ -345,7 +338,7 @@ export function AppointmentsView() {
       [...(appointmentsQuery.data?.data ?? [])].sort(
         (first, second) =>
           new Date(first.appointmentAt).getTime() - new Date(second.appointmentAt).getTime(),
-      ),
+      ).filter((appointment) => appointment.resourceType === 'CONSULTATION'),
     [appointmentsQuery.data],
   );
 
@@ -539,20 +532,13 @@ export function AppointmentsView() {
   }, [activeBranchId, editingAppointment, form]);
 
   useEffect(() => {
-    const roomNumber = searchParams.get('room');
-    const roomBranchId = searchParams.get('branchId');
     const createRequested = searchParams.get('create') === '1';
-    if (!createRequested && (!roomNumber || !roomBranchId)) return;
+    if (!createRequested || !canBookAppointment) return;
     setShowAppointmentForm(true);
-    if (roomBranchId) form.setValue('branchId', roomBranchId);
-    if (roomNumber) {
-      form.setValue('resourceType', 'TREATMENT_ROOM');
-      form.setValue('roomNumber', Number(roomNumber));
-      form.setValue('bookingPlan', 'SINGLE_TREATMENT');
-    }
+    form.setValue('resourceType', 'CONSULTATION');
     const date = searchParams.get('date');
     if (date) form.setValue('appointmentAt', `${date}T10:00`);
-  }, [form, searchParams]);
+  }, [canBookAppointment, form, searchParams]);
 
   useEffect(() => {
     if (formResourceType !== 'CONSULTATION') return;
@@ -651,6 +637,9 @@ export function AppointmentsView() {
         'roomNumber' | 'serviceId' | 'doctorId' | 'resourceId' | 'equipmentId'
       > & {
         status?: AppointmentStatus;
+        cancellationReason?: string;
+        noShowReason?: string;
+        rescheduleReason?: string;
         roomNumber?: number | null;
         serviceId?: string | null;
         doctorId?: string | null;
@@ -672,6 +661,7 @@ export function AppointmentsView() {
   const bookingProblem = appointmentProblem(bookingError);
 
   function startEdit(appointment: Appointment) {
+    if (!isReceptionist) return;
     setEditingAppointment(appointment);
     setShowAppointmentForm(true);
     form.reset({
@@ -703,6 +693,7 @@ export function AppointmentsView() {
   }
 
   function startLeadBooking(lead: Lead) {
+    if (!canBookAppointment) return;
     setEditingAppointment(null);
     setShowAppointmentForm(true);
     form.reset({
@@ -731,27 +722,39 @@ export function AppointmentsView() {
   }
 
   function onSubmit(values: AppointmentFormValues) {
+    const consultationValues = {
+      ...values,
+      resourceType: 'CONSULTATION' as const,
+      roomNumber: undefined,
+      serviceId: undefined,
+      resourceId: undefined,
+      equipmentId: undefined,
+      bookingPlan: 'CONSULTATION' as const,
+      packageMasterId: undefined,
+      durationMinutes: STANDARD_CONSULTATION_MINUTES,
+      bufferMinutes: STANDARD_CONSULTATION_BUFFER_MINUTES,
+    };
     if (editingAppointment) {
       updateAppointment.mutate({
         id: editingAppointment.id,
         values: {
-          branchId: values.branchId,
-          appointmentAt: values.appointmentAt,
-          appointmentType: values.appointmentType,
-          resourceType: values.resourceType,
-          roomNumber: values.resourceType === 'TREATMENT_ROOM' ? values.roomNumber : null,
-          notes: values.notes || undefined,
-          serviceId: values.resourceType === 'CONSULTATION' ? null : values.serviceId || null,
-          durationMinutes: values.durationMinutes,
-          bufferMinutes: values.bufferMinutes,
+          branchId: consultationValues.branchId,
+          appointmentAt: consultationValues.appointmentAt,
+          appointmentType: consultationValues.appointmentType,
+          resourceType: 'CONSULTATION',
+          roomNumber: null,
+          notes: consultationValues.notes || undefined,
+          serviceId: null,
+          durationMinutes: STANDARD_CONSULTATION_MINUTES,
+          bufferMinutes: STANDARD_CONSULTATION_BUFFER_MINUTES,
           doctorId: null,
-          resourceId: values.resourceId || null,
-          equipmentId: values.equipmentId || null,
+          resourceId: null,
+          equipmentId: null,
         },
       });
       return;
     }
-    createAppointment.mutate(values);
+    createAppointment.mutate(consultationValues);
   }
 
   if (appointmentsQuery.isLoading) return <PageSkeleton />;
@@ -762,14 +765,14 @@ export function AppointmentsView() {
         <div>
           <h1 className="text-2xl font-semibold">Appointments</h1>
           <p className="text-sm text-muted-foreground">
-            Universal clinic calendar with time-wise daily schedule.
+            Consultation and video-consultation calendar. Treatment-room bookings stay in Schedules & Rooms.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Button type="button" onClick={() => setShowAppointmentForm(true)}>
+          {canBookAppointment ? <Button type="button" onClick={() => setShowAppointmentForm(true)}>
             <CalendarClock className="size-4" />
             Create New Appointment
-          </Button>
+          </Button> : null}
         </div>
       </div>
 
@@ -779,12 +782,12 @@ export function AppointmentsView() {
         ))}
       </div>
 
-      <Card className="p-4">
+      {canBookAppointment ? <Card className="p-4">
         <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-semibold">Lead appointment confirmations</h2>
             <p className="text-sm text-muted-foreground">
-              Leads moved to Appointment proposed appear here until reception books the actual slot.
+              Leads moved to Appointment proposed appear here until reception or a doctor books the actual slot.
             </p>
           </div>
           <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
@@ -817,7 +820,7 @@ export function AppointmentsView() {
             No proposed appointments are waiting for confirmation.
           </p>
         )}
-      </Card>
+      </Card> : null}
 
       <Card>
         <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between">
@@ -1005,8 +1008,8 @@ export function AppointmentsView() {
             appointments={selectedDayAppointments}
             onSelect={setSelectedAppointment}
             onEdit={startEdit}
-            onStatusChange={(appointment, nextStatus) =>
-              updateAppointment.mutate({ id: appointment.id, values: { status: nextStatus } })
+            onAction={(appointment, action) =>
+              updateAppointment.mutate({ id: appointment.id, values: appointmentActionPayload(action) })
             }
           />
         ) : null}
@@ -1015,8 +1018,8 @@ export function AppointmentsView() {
             appointments={appointments}
             onSelect={setSelectedAppointment}
             onEdit={startEdit}
-            onStatusChange={(appointment, nextStatus) =>
-              updateAppointment.mutate({ id: appointment.id, values: { status: nextStatus } })
+            onAction={(appointment, action) =>
+              updateAppointment.mutate({ id: appointment.id, values: appointmentActionPayload(action) })
             }
           />
         ) : null}
@@ -1053,36 +1056,11 @@ export function AppointmentsView() {
                     {appointment.lead?.source?.replace('_', ' ')}
                   </div>
                 </div>
-                <Select
-                  aria-label="Appointment status"
-                  value={appointment.status}
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) =>
-                    updateAppointment.mutate({
-                      id: appointment.id,
-                      values: { status: event.target.value as AppointmentStatus },
-                    })
-                  }
-                >
-                  {quickStatuses(appointment.status).map((appointmentStatus) => (
-                    <option key={appointmentStatus.value} value={appointmentStatus.value}>
-                      {appointmentStatus.label}
-                    </option>
-                  ))}
-                  {!appointmentStatuses.some(
-                    (appointmentStatus) => appointmentStatus.value === appointment.status,
-                  ) ? (
-                    <option value={appointment.status}>
-                      {appointment.status.replace('_', ' ')}
-                    </option>
-                  ) : null}
-                </Select>
-                <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
-                  <Button type="button" variant="secondary" onClick={() => startEdit(appointment)}>
-                    <RotateCcw className="size-4" />
-                    Reschedule
-                  </Button>
-                </div>
+                <AppointmentWorkflowActions
+                  appointment={appointment}
+                  onReschedule={() => startEdit(appointment)}
+                  onAction={(action) => updateAppointment.mutate({ id: appointment.id, values: appointmentActionPayload(action) })}
+                />
               </div>
             ))}
             {!appointmentsQuery.isLoading && selectedDayAppointments.length === 0 ? (
@@ -1140,12 +1118,12 @@ export function AppointmentsView() {
               />
               <AppointmentDetail label="Notes" value={selectedAppointment.notes ?? '-'} />
             </div>
-            <div className="mt-5 flex gap-2">
+            {isReceptionist ? <div className="mt-5 flex gap-2">
               <Button type="button" onClick={() => startEdit(selectedAppointment)}>
                 <RotateCcw className="size-4" />
                 Reschedule
               </Button>
-            </div>
+            </div> : null}
           </Card>
         </div>
       ) : null}
@@ -1476,12 +1454,12 @@ function AppointmentList({
   appointments,
   onSelect,
   onEdit,
-  onStatusChange,
+  onAction,
 }: {
   appointments: Appointment[];
   onSelect: (appointment: Appointment) => void;
   onEdit: (appointment: Appointment) => void;
-  onStatusChange: (appointment: Appointment, status: AppointmentStatus) => void;
+  onAction: (appointment: Appointment, action: AppointmentWorkflowAction) => void;
 }) {
   return (
     <div className="mt-4 space-y-3">
@@ -1505,31 +1483,11 @@ function AppointmentList({
                 : ' - Consultation'}
             </div>
           </div>
-          <Select
-            aria-label="Appointment status"
-            value={appointment.status}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) =>
-              onStatusChange(appointment, event.target.value as AppointmentStatus)
-            }
-          >
-            {quickStatuses(appointment.status).map((appointmentStatus) => (
-              <option key={appointmentStatus.value} value={appointmentStatus.value}>
-                {appointmentStatus.label}
-              </option>
-            ))}
-            {!appointmentStatuses.some(
-              (appointmentStatus) => appointmentStatus.value === appointment.status,
-            ) ? (
-              <option value={appointment.status}>{appointment.status.replace('_', ' ')}</option>
-            ) : null}
-          </Select>
-          <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
-            <Button type="button" variant="secondary" onClick={() => onEdit(appointment)}>
-              <RotateCcw className="size-4" />
-              Reschedule
-            </Button>
-          </div>
+          <AppointmentWorkflowActions
+            appointment={appointment}
+            onReschedule={() => onEdit(appointment)}
+            onAction={(action) => onAction(appointment, action)}
+          />
         </div>
       ))}
       {!appointments.length ? (
@@ -1539,6 +1497,18 @@ function AppointmentList({
       ) : null}
     </div>
   );
+}
+
+function AppointmentWorkflowActions({ appointment, onReschedule, onAction }: { appointment: Appointment; onReschedule: () => void; onAction: (action: AppointmentWorkflowAction) => void }) {
+  const { session } = useSessionStore();
+  const isReceptionist = session?.user.role === 'RECEPTIONIST';
+  const finished = ['CHECKED_IN', 'WAITING', 'IN_CONSULTATION', 'COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(appointment.status);
+  const canRecordArrival = isReceptionist && ['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED'].includes(appointment.status);
+  return <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+    {canRecordArrival ? <Button type="button" variant="secondary" onClick={onReschedule}><RotateCcw className="size-4" />Reschedule</Button> : null}
+    {canRecordArrival ? <Select aria-label="Appointment action" value="" onChange={(event) => { if (event.target.value) onAction(event.target.value as 'ARRIVED' | 'NOT_ARRIVED' | 'CANCELLED'); }}><option value="">Action</option><option value="ARRIVED">Arrived</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select> : <span className="inline-flex h-10 items-center rounded-md bg-muted px-3 text-xs font-semibold text-muted-foreground">{appointment.status === 'CHECKED_IN' ? 'ARRIVED' : finished ? appointment.status.replaceAll('_', ' ') : 'PENDING'}</span>}
+    {isReceptionist && appointment.status === 'CHECKED_IN' ? <Button type="button" onClick={() => onAction('CHECK_IN')}>Check in</Button> : null}
+  </div>;
 }
 
 function AppointmentDetail({ label, value }: { label: string; value: string | number }) {

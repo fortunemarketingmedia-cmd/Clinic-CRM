@@ -81,17 +81,23 @@ type AnalyticsOverview = {
     };
     financial: {
       invoices: number;
+      subtotal: number;
+      discounts: number;
+      taxCollected: number;
       billed: number;
       collected: number;
       outstanding: number;
       collectionRate: number;
       byStatus: Breakdown;
       byMode: Breakdown;
+      gst: { invoices: number; billed: number; tax: number; collected: number };
+      nonGst: { invoices: number; billed: number; collected: number };
     };
   };
 };
 
-type AnalyticsTab = 'EXECUTIVE' | 'LEADS' | 'PATIENTS' | 'FOLLOW_UPS' | 'FINANCIAL' | 'BRANCHES';
+type AnalyticsMode = 'CRM' | 'FINANCE';
+type AnalyticsTab = 'EXECUTIVE' | 'LEADS' | 'PATIENTS' | 'FOLLOW_UPS' | 'BRANCHES';
 
 function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -124,6 +130,7 @@ export function AnalyticsView() {
   const branchId = selectedBranchId ?? '';
   const [dateFrom, setDateFrom] = useState(defaultRange.from);
   const [dateTo, setDateTo] = useState(defaultRange.to);
+  const [mode, setMode] = useState<AnalyticsMode>('CRM');
   const [tab, setTab] = useState<AnalyticsTab>('EXECUTIVE');
 
   const queryString = useMemo(() => {
@@ -150,7 +157,7 @@ export function AnalyticsView() {
       ),
     })) ?? [];
 
-  function quickRange(range: '7D' | '30D' | '90D' | 'MONTH' | 'ALL') {
+  function quickRange(range: '7D' | '30D' | '90D' | 'MONTH' | 'YEAR' | 'LAST_YEAR' | 'ALL') {
     if (range === 'ALL') {
       setDateFrom('');
       setDateTo('');
@@ -162,6 +169,8 @@ export function AnalyticsView() {
     if (range === '30D') start.setDate(end.getDate() - 29);
     if (range === '90D') start.setDate(end.getDate() - 89);
     if (range === 'MONTH') start.setDate(1);
+    if (range === 'YEAR') { start.setMonth(0); start.setDate(1); }
+    if (range === 'LAST_YEAR') { start.setFullYear(end.getFullYear() - 1, 0, 1); end.setFullYear(end.getFullYear() - 1, 11, 31); }
     setDateFrom(dateKey(start));
     setDateTo(dateKey(end));
   }
@@ -175,8 +184,7 @@ export function AnalyticsView() {
           </p>
           <h1 className="mt-1 text-2xl font-semibold">Clinic Analytics Command Centre</h1>
           <p className="text-sm text-muted-foreground">
-            Leads, patients, appointments, follow-ups, branches, and financial performance in one
-            decision-ready dashboard.
+            Switch between CRM operations and detailed finance performance with the same date and branch filters.
           </p>
         </div>
         <div className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-muted-foreground">
@@ -187,7 +195,7 @@ export function AnalyticsView() {
       <Card className="p-4">
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            {(['7D', '30D', '90D', 'MONTH', 'ALL'] as const).map((range) => (
+            {(['7D', '30D', '90D', 'MONTH', 'YEAR', 'LAST_YEAR', 'ALL'] as const).map((range) => (
               <Button
                 key={range}
                 type="button"
@@ -196,6 +204,10 @@ export function AnalyticsView() {
               >
                 {range === 'MONTH'
                   ? 'This month'
+                  : range === 'YEAR'
+                    ? 'This year'
+                    : range === 'LAST_YEAR'
+                      ? 'Last year'
                   : range === 'ALL'
                     ? 'All time'
                     : `Last ${range.replace('D', '')} days`}
@@ -232,22 +244,13 @@ export function AnalyticsView() {
         </div>
       </Card>
 
-      <SegmentedTabs
-        tabs={[
-          { label: 'Executive', value: 'EXECUTIVE' },
-          { label: 'Leads', value: 'LEADS' },
-          { label: 'Patients', value: 'PATIENTS' },
-          { label: 'Follow-ups', value: 'FOLLOW_UPS' },
-          { label: 'Financial', value: 'FINANCIAL' },
-          { label: 'Branches', value: 'BRANCHES' },
-        ]}
-        value={tab}
-        onChange={setTab}
-      />
+      <Card className="p-2"><SegmentedTabs tabs={[{ label: 'CRM analytics', value: 'CRM' }, { label: 'Finance analytics', value: 'FINANCE' }]} value={mode} onChange={setMode} /></Card>
+
+      {mode === 'CRM' ? <SegmentedTabs tabs={[{ label: 'Overview', value: 'EXECUTIVE' }, { label: 'Leads', value: 'LEADS' }, { label: 'Patients', value: 'PATIENTS' }, { label: 'Follow-ups', value: 'FOLLOW_UPS' }, { label: 'Branches', value: 'BRANCHES' }]} value={tab} onChange={setTab} /> : null}
 
       {!isAdmin && !branchId ? (
         <Card className="text-center text-sm text-muted-foreground">
-          Select your active branch in Settings to view analytics.
+          Select your active branch from the top bar to view analytics.
         </Card>
       ) : analyticsQuery.isLoading ? (
         <PageSkeleton />
@@ -257,12 +260,12 @@ export function AnalyticsView() {
         </Card>
       ) : (
         <>
-          {tab === 'EXECUTIVE' ? <ExecutiveTab overview={overview} trend={trend} /> : null}
-          {tab === 'LEADS' ? <LeadsTab overview={overview} trend={trend} /> : null}
-          {tab === 'PATIENTS' ? <PatientsTab overview={overview} trend={trend} /> : null}
-          {tab === 'FOLLOW_UPS' ? <FollowUpsTab overview={overview} trend={trend} /> : null}
-          {tab === 'FINANCIAL' ? <FinancialTab overview={overview} trend={trend} /> : null}
-          {tab === 'BRANCHES' ? <BranchesTab overview={overview} /> : null}
+          {mode === 'FINANCE' ? <FinancialTab overview={overview} trend={trend} /> : null}
+          {mode === 'CRM' && tab === 'EXECUTIVE' ? <ExecutiveTab overview={overview} trend={trend} /> : null}
+          {mode === 'CRM' && tab === 'LEADS' ? <LeadsTab overview={overview} trend={trend} /> : null}
+          {mode === 'CRM' && tab === 'PATIENTS' ? <PatientsTab overview={overview} trend={trend} /> : null}
+          {mode === 'CRM' && tab === 'FOLLOW_UPS' ? <FollowUpsTab overview={overview} trend={trend} /> : null}
+          {mode === 'CRM' && tab === 'BRANCHES' ? <BranchesTab overview={overview} /> : null}
         </>
       )}
     </section>
@@ -277,7 +280,6 @@ function ExecutiveTab({
   trend: Array<TrendPoint & { label: string }>;
 }) {
   const totals = overview?.totals;
-  const financial = overview?.analytics.financial;
   const followUps = overview?.analytics.followUps;
   return (
     <>
@@ -301,12 +303,6 @@ function ExecutiveTab({
           icon={CalendarDays}
         />
         <Metric
-          label="Collections"
-          value={money(financial?.collected ?? 0)}
-          note={`${financial?.collectionRate ?? 0}% collection rate`}
-          icon={IndianRupee}
-        />
-        <Metric
           label="Converted leads"
           value={totals?.convertedLeads ?? 0}
           note="Enquiry to patient"
@@ -317,18 +313,6 @@ function ExecutiveTab({
           value={followUps?.open ?? 0}
           note={`${followUps?.overdue ?? 0} overdue`}
           icon={Clock3}
-        />
-        <Metric
-          label="Billed"
-          value={money(financial?.billed ?? 0)}
-          note={`${financial?.invoices ?? 0} invoices`}
-          icon={CircleDollarSign}
-        />
-        <Metric
-          label="Outstanding"
-          value={money(financial?.outstanding ?? 0)}
-          note="Pending collection"
-          icon={Banknote}
         />
       </div>
       <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
@@ -362,19 +346,6 @@ function ExecutiveTab({
           />
         </ChartCard>
       </div>
-      <ChartCard
-        title="Revenue and collections trend"
-        subtitle="Billing raised compared with money collected"
-      >
-        <LineChart
-          data={trend}
-          series={[
-            { key: 'billed', label: 'Billed', color: '#6366f1' },
-            { key: 'collected', label: 'Collected', color: '#14b8a6' },
-          ]}
-          valueFormatter={(value) => money(value, true)}
-        />
-      </ChartCard>
     </>
   );
 }
@@ -541,6 +512,11 @@ function FinancialTab({
         <Metric label="Collected" value={money(data?.collected ?? 0)} icon={Banknote} />
         <Metric label="Outstanding" value={money(data?.outstanding ?? 0)} icon={Activity} />
         <Metric label="Collection rate" value={`${data?.collectionRate ?? 0}%`} icon={TrendingUp} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="border-primary/20 bg-primary/5"><div className="text-sm text-muted-foreground">GST invoices</div><div className="mt-2 text-2xl font-semibold">{data?.gst.invoices ?? 0}</div><div className="mt-2 text-sm">Billed {money(data?.gst.billed ?? 0)} · GST {money(data?.gst.tax ?? 0)}</div></Card>
+        <Card><div className="text-sm text-muted-foreground">Non-GST invoices</div><div className="mt-2 text-2xl font-semibold">{data?.nonGst.invoices ?? 0}</div><div className="mt-2 text-sm">Billed {money(data?.nonGst.billed ?? 0)}</div></Card>
+        <Card><div className="text-sm text-muted-foreground">Discounts given</div><div className="mt-2 text-2xl font-semibold">{money(data?.discounts ?? 0)}</div><div className="mt-2 text-sm">Subtotal {money(data?.subtotal ?? 0)} · Tax {money(data?.taxCollected ?? 0)}</div></Card>
       </div>
       <ChartCard
         title="Financial performance trend"

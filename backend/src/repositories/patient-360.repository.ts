@@ -14,15 +14,14 @@ export const patient360Repository = {
     return prisma.patient.findUnique({ where: { id }, select: { id: true, branchId: true, leadId: true, personId: true } });
   },
 
-  getPatient360(id: string) {
-    return prisma.patient.findUnique({
+  async getPatient360(id: string) {
+    const patient = await prisma.patient.findUnique({
       where: { id },
       include: {
         branch: true,
-        assignedDoctor: { select: { id: true, name: true } },
         person: true,
         medicalProfile: { include: { versions: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } } } },
-        lead: { include: { appointments: { include: { doctor: { select: { id: true, name: true } }, service: true }, orderBy: { appointmentAt: 'desc' } } } },
+        lead: true,
         sessions: { include: { package: true, files: true }, orderBy: { visitDate: 'desc' } },
         clinicalEncounters: { include: encounterInclude, orderBy: { visitDate: 'desc' } },
         treatmentPlans: { include: { assignedDoctor: { select: { id: true, name: true } }, assignedTherapist: { select: { id: true, name: true } }, items: { include: { service: true, practitioner: { select: { id: true, name: true } } } } }, orderBy: { createdAt: 'desc' } },
@@ -34,6 +33,30 @@ export const patient360Repository = {
         timelineEvents: { orderBy: { createdAt: 'desc' }, take: 200 },
       },
     });
+
+    if (!patient) return null;
+
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        OR: [
+          { leadId: patient.leadId },
+          ...(patient.personId ? [{ lead: { personId: patient.personId } }] : []),
+        ],
+      },
+      include: {
+        doctor: { select: { id: true, name: true } },
+        service: true,
+      },
+      orderBy: { appointmentAt: 'desc' },
+    });
+
+    return {
+      ...patient,
+      lead: {
+        ...patient.lead,
+        appointments,
+      },
+    };
   },
 
   listEncounters(patientId: string) {

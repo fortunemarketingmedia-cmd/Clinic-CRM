@@ -17,10 +17,12 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { RowsSkeleton } from '@/components/ui/skeleton';
+import { PatientDirectorySearch } from '@/modules/front-desk/patient-directory-search';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment, ClinicResource, ClinicService } from '@/types/appointment';
+import type { AppointmentStatus } from '@/types/appointment';
 import type { Branch } from '@/types/branch';
 
 function branchQuery(branchId: string | null) {
@@ -60,7 +62,7 @@ function formatDate(value: Date) {
 }
 
 function formatTimeRange(appointment: Appointment) {
-  const start = new Date(appointment.appointmentAt);
+  const start = new Date(appointment.checkInAt ?? appointment.appointmentAt);
   const treatmentEnd = appointment.endAt
     ? new Date(appointment.endAt)
     : addMinutes(start, appointment.durationMinutes);
@@ -88,6 +90,25 @@ function roomNumberFromName(name: string) {
   return match ? Number(match[1]) : null;
 }
 
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+type RoomWorkflowAction = 'CANCELLED' | 'CHECK_IN' | 'CHECKOUT';
+
+function roomActionPayload(action: RoomWorkflowAction) {
+  if (action === 'CHECK_IN') return { status: 'CHECKED_IN' as AppointmentStatus };
+  if (action === 'CHECKOUT') return { status: 'COMPLETED' as AppointmentStatus };
+  return { status: 'CANCELLED' as AppointmentStatus, cancellationReason: 'Cancelled from Schedules & Rooms because the client is not coming' };
+}
+
+function roomStatusLabel(appointment: Appointment) {
+  if (appointment.status === 'NO_SHOW') return 'EXPIRED';
+  if (appointment.status === 'CHECKED_IN') return 'CHECKED IN';
+  return appointment.status.replaceAll('_', ' ');
+}
+
 export function SchedulesView() {
   const queryClient = useQueryClient();
   const { session, selectedBranchId } = useSessionStore();
@@ -95,6 +116,7 @@ export function SchedulesView() {
   const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
   const [viewMode, setViewMode] = useState<'rooms' | 'calendar'>('rooms');
   const [showRoomBooking, setShowRoomBooking] = useState(false);
+  const [reschedulingRoom, setReschedulingRoom] = useState<Appointment | null>(null);
 
   const branches = useQuery({
     queryKey: ['branches'],
@@ -162,15 +184,16 @@ export function SchedulesView() {
   const dayAppointments = allAppointments.filter(
     (appointment) => localDateKey(new Date(appointment.appointmentAt)) === dayKey,
   );
-  const roomAppointments = dayAppointments.filter(
-    (appointment) => appointment.resourceType === 'TREATMENT_ROOM',
+  const roomBookings = dayAppointments.filter(
+    (appointment) => appointment.resourceType === 'TREATMENT_ROOM' && !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appointment.status),
   );
+  const checkedInRoomAppointments = roomBookings.filter((appointment) => ['CHECKED_IN', 'WAITING', 'IN_CONSULTATION', 'TREATMENT_IN_PROGRESS'].includes(appointment.status));
   const allRoomAppointments = allAppointments.filter(
     (appointment) => appointment.resourceType === 'TREATMENT_ROOM',
   );
   const nextSevenRoomAppointments = allRoomAppointments.filter((appointment) => {
     const startsAt = new Date(appointment.appointmentAt);
-    return startsAt >= range.dateFrom && startsAt <= range.dateTo;
+    return startsAt >= range.dateFrom && startsAt <= range.dateTo && !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appointment.status);
   });
   const configuredRooms = (resources.data?.data ?? []).filter(
     (resource) =>
@@ -179,13 +202,13 @@ export function SchedulesView() {
       (!allRoomBranches || allowedRoomBranchIds.has(resource.branchId)),
   );
   const occupiedRoomKeys = new Set(
-    roomAppointments.map((appointment) => appointment.roomNumber ?? appointment.resourceId).filter(Boolean),
+    checkedInRoomAppointments.map((appointment) => appointment.roomNumber ?? appointment.resourceId).filter(Boolean),
   );
   const fallbackRoomCapacity = allRoomBranches ? roomBranches.length * 4 : 4;
   const roomCapacity = configuredRooms.length || fallbackRoomCapacity;
   const displayedRoomBranches = allRoomBranches ? roomBranches : selectedRoomBranch ? [selectedRoomBranch] : roomBranches;
   const metrics = [
-    { label: 'Room bookings', value: roomAppointments.length },
+    { label: 'Room bookings', value: roomBookings.length },
     { label: 'Rooms occupied', value: occupiedRoomKeys.size },
     { label: 'Rooms available', value: Math.max(roomCapacity - occupiedRoomKeys.size, 0) },
     {
@@ -193,6 +216,16 @@ export function SchedulesView() {
       value: `${roomCapacity ? Math.round((occupiedRoomKeys.size / roomCapacity) * 100) : 0}%`,
     },
   ];
+
+  const updateRoomStatus = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: RoomWorkflowAction }) => apiRequest(`/appointments/${id}`, { method: 'PATCH', body: JSON.stringify(roomActionPayload(action)) }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['schedule-appointments'] }),
+        queryClient.invalidateQueries({ queryKey: ['appointments'] }),
+      ]);
+    },
+  });
 
   return (
     <section className="space-y-5">
@@ -204,13 +237,13 @@ export function SchedulesView() {
           </p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Building2 className="size-3.5" />Branch: {selectedRoomBranch?.name ?? 'All branches'} (change in Settings)</p>
-          <Button type="button" onClick={() => setShowRoomBooking(true)}><Plus className="size-4" />Create appointment</Button>
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Building2 className="size-3.5" />Branch: {selectedRoomBranch?.name ?? 'All branches'} (change from the top bar)</p>
+          {session?.user.role === 'ADMIN' || session?.user.role === 'RECEPTIONIST' ? <Button type="button" onClick={() => setShowRoomBooking(true)}><Plus className="size-4" />Create appointment</Button> : null}
         </div>
       </div>
 
       {!canLoad ? (
-        <Card className="text-sm text-muted-foreground">Select the clinic branch in Settings to view room schedules.</Card>
+        <Card className="text-sm text-muted-foreground">Select the clinic branch from the top bar to view room schedules.</Card>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -221,6 +254,14 @@ export function SchedulesView() {
               </Card>
             ))}
           </div>
+
+          <PatientDirectorySearch
+            branchId={roomBranchId}
+            title="Find patient after room treatment"
+            description="Search Patient Master after treatment, open the full patient profile, and continue with treatment records, follow-ups, or billing."
+          />
+
+          {updateRoomStatus.isError ? <p role="alert" className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">{updateRoomStatus.error.message}</p> : null}
 
           <Card className="p-0">
             <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -279,10 +320,13 @@ export function SchedulesView() {
               <State text="Room bookings could not be loaded." error />
             ) : viewMode === 'rooms' ? (
               <RoomBoard
-                appointments={roomAppointments}
+                appointments={checkedInRoomAppointments}
                 configuredRooms={configuredRooms}
                 allBranches={allRoomBranches}
                 roomBranches={displayedRoomBranches}
+                savingId={updateRoomStatus.isPending ? updateRoomStatus.variables?.id : undefined}
+                onAction={(appointment, action) => updateRoomStatus.mutate({ id: appointment.id, action })}
+                onReschedule={setReschedulingRoom}
               />
             ) : (
               <RoomCalendar
@@ -320,6 +364,7 @@ export function SchedulesView() {
                       <th className="px-4 py-3">Practitioner</th>
                       <th className="px-4 py-3">Resource</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -339,7 +384,8 @@ export function SchedulesView() {
                           {appointment.doctor?.name ?? appointment.therapist?.name ?? '-'}
                         </td>
                         <td className="px-4 py-3">{appointmentResourceLabel(appointment)}</td>
-                        <td className="px-4 py-3">{appointment.status.replaceAll('_', ' ')}</td>
+                        <td className="px-4 py-3">{roomStatusLabel(appointment)}</td>
+                        <td className="px-4 py-3"><RoomWorkflowActions appointment={appointment} saving={updateRoomStatus.isPending && updateRoomStatus.variables?.id === appointment.id} onAction={(action) => updateRoomStatus.mutate({ id: appointment.id, action })} onReschedule={() => setReschedulingRoom(appointment)} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -364,6 +410,7 @@ export function SchedulesView() {
               }}
             />
           ) : null}
+          {reschedulingRoom ? <RoomRescheduleDialog appointment={reschedulingRoom} resources={configuredRooms} onClose={() => setReschedulingRoom(null)} onSaved={async () => { setReschedulingRoom(null); await queryClient.invalidateQueries({ queryKey: ['schedule-appointments'] }); }} /> : null}
         </>
       )}
     </section>
@@ -384,11 +431,17 @@ function RoomBoard({
   configuredRooms,
   allBranches,
   roomBranches,
+  savingId,
+  onAction,
+  onReschedule,
 }: {
   appointments: Appointment[];
   configuredRooms: ClinicResource[];
   allBranches: boolean;
   roomBranches: Branch[];
+  savingId?: string;
+  onAction: (appointment: Appointment, action: RoomWorkflowAction) => void;
+  onReschedule: (appointment: Appointment) => void;
 }) {
   const configuredBranchIds = new Set(configuredRooms.map((resource) => resource.branchId));
   const fallbackSlots = roomBranches
@@ -454,12 +507,13 @@ function RoomBoard({
                 </div>
                 <div className="mt-1 truncate text-sm">{appointment.lead?.name ?? 'Client'}</div>
                 <div className="mt-0.5 text-xs text-muted-foreground">
-                  {appointment.status.replaceAll('_', ' ')}
+                  {roomStatusLabel(appointment)}
                   {appointment.service?.name ? ` - ${appointment.service.name}` : ''}
                 </div>
                 <div className="mt-1 text-[11px] font-medium text-muted-foreground">
                   Busy for {busyDurationLabel(appointment)}
                 </div>
+                <RoomWorkflowActions appointment={appointment} saving={savingId === appointment.id} onAction={(action) => onAction(appointment, action)} onReschedule={() => onReschedule(appointment)} />
               </div>
             ))}
             {!slot.appointments.length ? (
@@ -472,6 +526,33 @@ function RoomBoard({
       ))}
     </div>
   );
+}
+
+function RoomWorkflowActions({ appointment, saving, onAction, onReschedule }: { appointment: Appointment; saving: boolean; onAction: (action: RoomWorkflowAction) => void; onReschedule: () => void }) {
+  const { session } = useSessionStore();
+  const role = session?.user.role;
+  const isReceptionist = role === 'RECEPTIONIST';
+  const canCheckoutRoom = role === 'ADMIN' || role === 'RECEPTIONIST';
+  const awaitingCheckIn = isReceptionist && ['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED', 'RESCHEDULED'].includes(appointment.status);
+  return <div className="mt-3 flex flex-wrap gap-1.5">
+    {awaitingCheckIn ? <Button type="button" variant="secondary" className="h-8 px-2 text-xs" onClick={onReschedule}>Reschedule</Button> : null}
+    {awaitingCheckIn ? <Button type="button" className="h-8 px-2 text-xs" disabled={saving} onClick={() => onAction('CHECK_IN')}>{saving ? 'Checking in...' : 'Check in'}</Button> : null}
+    {awaitingCheckIn ? <Button type="button" variant="secondary" className="h-8 px-2 text-xs" disabled={saving} onClick={() => onAction('CANCELLED')}>Cancel</Button> : null}
+    {canCheckoutRoom && ['CHECKED_IN', 'WAITING', 'IN_CONSULTATION', 'TREATMENT_IN_PROGRESS'].includes(appointment.status) ? <Button type="button" className="h-8 px-2 text-xs" disabled={saving} onClick={() => onAction('CHECKOUT')}>{saving ? 'Checking out...' : 'Checkout'}</Button> : null}
+  </div>;
+}
+
+function RoomRescheduleDialog({ appointment, resources, onClose, onSaved }: { appointment: Appointment; resources: ClinicResource[]; onClose: () => void; onSaved: () => void }) {
+  const [appointmentAt, setAppointmentAt] = useState(toDateTimeLocal(appointment.appointmentAt));
+  const [roomNumber, setRoomNumber] = useState(String(appointment.roomNumber ?? ''));
+  const rooms = resources.filter((resource) => resource.branchId === appointment.branchId);
+  const roomNumbers = rooms.length ? rooms.map((resource) => roomNumberFromName(resource.name)).filter((room): room is number => Boolean(room)) : [1, 2, 3, 4];
+  const selectedResource = rooms.find((resource) => roomNumberFromName(resource.name) === Number(roomNumber));
+  const mutation = useMutation({
+    mutationFn: () => apiRequest(`/appointments/${appointment.id}`, { method: 'PATCH', body: JSON.stringify({ appointmentAt: new Date(appointmentAt).toISOString(), resourceType: 'TREATMENT_ROOM', roomNumber: Number(roomNumber), resourceId: selectedResource?.id ?? null, rescheduleReason: 'Rescheduled from Schedules & Rooms' }) }),
+    onSuccess: onSaved,
+  });
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true"><Card className="w-full max-w-md"><div className="flex items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Reschedule room booking</h2><p className="mt-1 text-sm text-muted-foreground">{appointment.lead?.name ?? 'Client'} · Treatment-room workflow</p></div><Button type="button" variant="ghost" onClick={onClose}>Close</Button></div><div className="mt-5 grid gap-4"><label className="space-y-2 text-sm font-medium">New date and time<Input type="datetime-local" value={appointmentAt} onChange={(event) => setAppointmentAt(event.target.value)} /></label><label className="space-y-2 text-sm font-medium">Treatment room<Select value={roomNumber} onChange={(event) => setRoomNumber(event.target.value)}><option value="">Select room</option>{Array.from(new Set(roomNumbers)).sort().map((room) => <option key={room} value={room}>Treatment Room {room}</option>)}</Select></label>{mutation.isError ? <p className="text-sm text-red-700">{mutation.error.message}</p> : null}</div><div className="mt-5 flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="button" disabled={!appointmentAt || !roomNumber || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving...' : 'Save reschedule'}</Button></div></Card></div>;
 }
 
 function RoomCalendar({ appointments, selectedDate, onSelectDate }: { appointments: Appointment[]; selectedDate: Date; onSelectDate: (date: Date) => void }) {
@@ -493,7 +574,7 @@ function RoomCalendar({ appointments, selectedDate, onSelectDate }: { appointmen
           const selected = key === localDateKey(selectedDate);
           return <button key={key} type="button" onClick={() => onSelectDate(startOfDay(day))} className={cn('min-h-28 border-b border-r border-border p-2 text-left hover:bg-muted/40', day.getMonth() !== selectedDate.getMonth() && 'bg-muted/20 text-muted-foreground', selected && 'bg-primary/10 ring-2 ring-inset ring-primary')}>
             <span className={cn('inline-grid size-7 place-items-center rounded-full text-xs font-semibold', selected && 'bg-primary text-white')}>{day.getDate()}</span>
-            <div className="mt-2 space-y-1">{bookings.slice(0, 3).map((item) => <div key={item.id} className="truncate rounded bg-primary/10 px-1.5 py-1 text-[11px] text-primary">{new Date(item.appointmentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} · R{item.roomNumber} · {item.lead?.name ?? 'Client'}</div>)}{bookings.length > 3 ? <div className="text-[11px] text-muted-foreground">+{bookings.length - 3} more</div> : null}</div>
+            <div className="mt-2 space-y-1">{bookings.slice(0, 3).map((item) => <div key={item.id} className="truncate rounded bg-primary/10 px-1.5 py-1 text-[11px] text-primary">{new Date(item.appointmentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} · R{item.roomNumber} · {item.lead?.name ?? 'Client'} · {roomStatusLabel(item)}</div>)}{bookings.length > 3 ? <div className="text-[11px] text-muted-foreground">+{bookings.length - 3} more</div> : null}</div>
           </button>;
         })}
       </div>

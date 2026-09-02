@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, ChevronLeft, ClipboardList, Database, Download, QrCode, Save, Upload, UserCog } from 'lucide-react';
+import { ChevronLeft, ClipboardList, Database, Download, QrCode, Save, Upload, UserCog } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { UsersView } from '@/modules/users/users-view';
-import { BranchToggle } from '@/modules/dashboard/branch-toggle';
 import { apiRequest } from '@/services/api';
 import type { Lead } from '@/types/lead';
 import type { Patient } from '@/types/patient';
@@ -44,7 +43,7 @@ type SettingsResponse = SettingsValues & {
 };
 
 type FieldMode = 'REQUIRED' | 'OPTIONAL' | 'HIDDEN';
-type SettingsSection = 'OVERVIEW' | 'CLINIC' | 'BRANCH' | 'INTAKE' | 'TEAM' | 'DATA';
+type SettingsSection = 'OVERVIEW' | 'CLINIC' | 'INTAKE' | 'TEAM' | 'DATA';
 
 const patientFields = [
   'Name',
@@ -221,19 +220,16 @@ export function SettingsView() {
   return (
     <section className="space-y-5">
       <div>
-        <div className="flex items-center gap-3">{activeSection !== 'OVERVIEW' ? <Button type="button" variant="secondary" className="w-10 px-0" onClick={() => setActiveSection('OVERVIEW')} aria-label="Back to settings"><ChevronLeft className="size-4" /></Button> : null}<div><h1 className="text-2xl font-semibold">{activeSection === 'OVERVIEW' ? 'Settings' : ({ CLINIC: 'Clinic profile', BRANCH: 'Active branch', INTAKE: 'Patient intake', TEAM: 'Team & access', DATA: 'Data & exports', OVERVIEW: 'Settings' } as const)[activeSection]}</h1><p className="text-sm text-muted-foreground">Configure the CRM in focused sections without an overwhelming long form.</p></div></div>
+        <div className="flex items-center gap-3">{activeSection !== 'OVERVIEW' ? <Button type="button" variant="secondary" className="w-10 px-0" onClick={() => setActiveSection('OVERVIEW')} aria-label="Back to settings"><ChevronLeft className="size-4" /></Button> : null}<div><h1 className="text-2xl font-semibold">{activeSection === 'OVERVIEW' ? 'Settings' : ({ CLINIC: 'Clinic profile', INTAKE: 'Patient intake', TEAM: 'Team & access', DATA: 'Data & exports', OVERVIEW: 'Settings' } as const)[activeSection]}</h1><p className="text-sm text-muted-foreground">Configure the CRM in focused sections without an overwhelming long form.</p></div></div>
       </div>
 
       {activeSection === 'OVERVIEW' ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <SettingsTile icon={Building2} title="Active branch" description="Choose the single branch context used throughout the CRM" onClick={() => setActiveSection('BRANCH')} />
         <SettingsTile icon={ClipboardList} title="Patient intake" description="QR registration and patient form visibility" onClick={() => setActiveSection('INTAKE')} />
         <SettingsTile icon={UserCog} title="Team & access" description="Users, roles and branch access" onClick={() => setActiveSection('TEAM')} />
         <SettingsTile icon={Database} title="Data & exports" description="Export patient and lead records with governance logs" onClick={() => setActiveSection('DATA')} />
       </div> : null}
 
-      {activeSection === 'BRANCH' ? <Card><div className="flex items-start gap-3"><div className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary"><Building2 className="size-5" /></div><div><h2 className="font-semibold">CRM branch context</h2><p className="mt-1 text-sm text-muted-foreground">This selection controls the dashboard, leads, appointments, queue, tasks, and reports.</p></div></div><div className="mt-5 max-w-sm"><BranchToggle /></div></Card> : null}
-
-      {activeSection !== 'OVERVIEW' && activeSection !== 'BRANCH' && activeSection !== 'TEAM' && activeSection !== 'DATA' ? <form className="space-y-5" onSubmit={form.handleSubmit((values) => saveSettings.mutate(values))}>
+      {activeSection !== 'OVERVIEW' && activeSection !== 'TEAM' && activeSection !== 'DATA' ? <form className="space-y-5" onSubmit={form.handleSubmit((values) => saveSettings.mutate(values))}>
         {activeSection === 'CLINIC' ? (
         <Card>
           <h2 className="text-base font-semibold">Clinic Settings</h2>
@@ -325,7 +321,7 @@ export function SettingsView() {
             <Button type="button" variant="secondary" className="mt-3" onClick={() => downloadCsv('revive-patient-import-template.csv', [{ Name: 'Example Patient', Mobile: '9876543210', Email: 'patient@example.com', Age: 32, Sex: 'FEMALE', Address: '', Occupation: '', 'Marital Status': '', 'Referred By': '', 'Medical History': '', Notes: '' }])}><Download className="size-4" />Download CSV template</Button>
           </div>
           {importFileName && importRows.length ? <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"><strong>{importFileName}</strong> is ready: {importRows.length.toLocaleString('en-IN')} patient rows found.</div> : null}
-          {!selectedBranchId ? <p className="mt-3 text-sm font-medium text-amber-700">Choose a specific Active Branch in Settings before importing patients.</p> : null}
+          {!selectedBranchId ? <p className="mt-3 text-sm font-medium text-amber-700">Choose a specific branch from the top bar before importing patients.</p> : null}
           {importError ? <p className="mt-3 text-sm text-red-600">{importError}</p> : null}
           {importPatients.isError ? <p className="mt-3 text-sm text-red-600">{importPatients.error.message}</p> : null}
           {importPatients.data ? <div className="mt-4 rounded-lg border border-border p-4"><h3 className="font-medium">Import complete</h3><p className="mt-1 text-sm text-muted-foreground">Imported {importPatients.data.data.imported}, skipped {importPatients.data.data.skipped} duplicates, failed {importPatients.data.data.failed}.</p>{importPatients.data.data.errors.length ? <details className="mt-3 text-sm"><summary className="cursor-pointer font-medium">View skipped/failed rows</summary><ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-muted-foreground">{importPatients.data.data.errors.map((error) => <li key={`${error.row}-${error.name}`}>Row {error.row}: {error.name} — {error.message}</li>)}</ul></details> : null}</div> : null}

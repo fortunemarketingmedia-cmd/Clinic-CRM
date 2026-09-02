@@ -1,6 +1,5 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
-import { appointmentRepository } from './appointment.repository.js';
 
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -20,8 +19,6 @@ function endOfMonth(date: Date) {
 
 export const analyticsRepository = {
   async overview(filters: { branchId?: string; dateFrom?: Date; dateTo?: Date } = {}) {
-    await appointmentRepository.markPastConfirmedAsNotArrived();
-
     const now = new Date();
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);
@@ -226,6 +223,8 @@ export const analyticsRepository = {
       overdueFollowUps,
       invoiceByStatus,
       invoiceSummary,
+      gstInvoiceSummary,
+      nonGstInvoiceSummary,
       paymentByMode,
       paymentSummary,
       trendRows,
@@ -301,7 +300,17 @@ export const analyticsRepository = {
           invoiceDate: createdAtFilter,
           status: { not: 'CANCELLED' },
         },
-        _sum: { totalAmount: true, paidAmount: true, outstandingAmount: true },
+        _sum: { subtotal: true, discount: true, taxAmount: true, totalAmount: true, paidAmount: true, outstandingAmount: true },
+        _count: { id: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { ...branchFilter, invoiceDate: createdAtFilter, status: { not: 'CANCELLED' }, taxAmount: { gt: 0 } },
+        _sum: { totalAmount: true, taxAmount: true, paidAmount: true },
+        _count: { id: true },
+      }),
+      prisma.invoice.aggregate({
+        where: { ...branchFilter, invoiceDate: createdAtFilter, status: { not: 'CANCELLED' }, taxAmount: 0 },
+        _sum: { totalAmount: true, paidAmount: true },
         _count: { id: true },
       }),
       prisma.payment.groupBy({
@@ -482,6 +491,9 @@ export const analyticsRepository = {
         },
         financial: {
           invoices: invoiceSummary._count.id,
+          subtotal: Number(invoiceSummary._sum.subtotal ?? 0),
+          discounts: Number(invoiceSummary._sum.discount ?? 0),
+          taxCollected: Number(invoiceSummary._sum.taxAmount ?? 0),
           billed: Number(invoiceSummary._sum.totalAmount ?? 0),
           collected: Number(paymentSummary._sum.amount ?? 0),
           outstanding: Number(invoiceSummary._sum.outstandingAmount ?? 0),
@@ -502,6 +514,17 @@ export const analyticsRepository = {
             count: row._count.id,
             amount: Number(row._sum.amount ?? 0),
           })),
+          gst: {
+            invoices: gstInvoiceSummary._count.id,
+            billed: Number(gstInvoiceSummary._sum.totalAmount ?? 0),
+            tax: Number(gstInvoiceSummary._sum.taxAmount ?? 0),
+            collected: Number(gstInvoiceSummary._sum.paidAmount ?? 0),
+          },
+          nonGst: {
+            invoices: nonGstInvoiceSummary._count.id,
+            billed: Number(nonGstInvoiceSummary._sum.totalAmount ?? 0),
+            collected: Number(nonGstInvoiceSummary._sum.paidAmount ?? 0),
+          },
         },
       },
     };
