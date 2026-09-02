@@ -4,6 +4,10 @@ dist
 coverage
 .env
 .env.local
+.env.*
+!.env.example
+!.env.production.example
+!.env.hostinger.example
 .DS_Store
 *.log
 *.tsbuildinfo

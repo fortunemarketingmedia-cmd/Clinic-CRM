@@ -2,6 +2,22 @@ import { env } from './config/env.js';
 import { app } from './app.js';
 import { integrationJobService } from './services/integration-job.service.js';
 import { prisma } from './config/db.js';
+import { fileStorageService } from './services/file-storage.service.js';
+
+async function verifyDependencies() {
+  await prisma.$queryRaw`SELECT 1`;
+  await fileStorageService.healthCheck();
+}
+
+await verifyDependencies().catch(async (error) => {
+  console.error(JSON.stringify({
+    level: 'error',
+    component: 'startup',
+    message: error instanceof Error ? error.message : String(error),
+  }));
+  await prisma.$disconnect();
+  process.exit(1);
+});
 
 const server = app.listen(env.PORT, () => {
   console.log(`Revive CRM backend running on port ${env.PORT}`);

@@ -51,3 +51,5 @@ A lead is not a patient. A patient is created only after arrival, profile comple
 ## Production Standard
 
 See [docs/production-readiness.md](docs/production-readiness.md) for the quality rules this project should follow as each phase is built.
+
+For the complete Hostinger VPS stack—containers, private PostgreSQL/MinIO, encrypted patient files, automatic HTTPS, backups, database migrations, secure Admin bootstrap, and release steps—see [docs/deployment.md](docs/deployment.md).

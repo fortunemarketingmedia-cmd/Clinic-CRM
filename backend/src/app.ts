@@ -33,9 +33,11 @@ import { securityRoutes } from './routes/security.routes.js';
 import { auditRoutes } from './routes/audit.routes.js';
 import { prisma } from './config/db.js';
 import { HttpError } from './utils/http-error.js';
+import { fileStorageService } from './services/file-storage.service.js';
 
 export const app = express();
 
+app.set('trust proxy', env.TRUST_PROXY_HOPS);
 app.use(requestContext);
 app.use(helmet());
 app.use(
@@ -60,7 +62,24 @@ app.use(
   }),
 );
 app.use(cookieParser());
-app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+if (env.NODE_ENV === 'development') app.use(morgan('dev'));
+else app.use((req, res, next) => {
+  const startedAt = performance.now();
+  res.on('finish', () => {
+    console.log(JSON.stringify({
+      level: 'info',
+      component: 'http',
+      timestamp: new Date().toISOString(),
+      correlationId: req.correlationId,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs: Number((performance.now() - startedAt).toFixed(1)),
+      ip: req.ip,
+    }));
+  });
+  next();
+});
 app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 240, keyPrefix: 'api' }));
 
 app.get('/health', (_req, res) => {
@@ -68,11 +87,12 @@ app.get('/health', (_req, res) => {
 });
 app.get('/api/health', async (_req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    const [, storage] = await Promise.all([prisma.$queryRaw`SELECT 1`, fileStorageService.healthCheck()]);
     res.json({
       status: 'ok',
       service: 'revive-crm-backend',
       database: 'ready',
+      storage: storage.provider,
       timestamp: new Date().toISOString(),
     });
   } catch {
@@ -80,6 +100,7 @@ app.get('/api/health', async (_req, res) => {
       status: 'unavailable',
       service: 'revive-crm-backend',
       database: 'unavailable',
+      storage: 'unavailable',
       timestamp: new Date().toISOString(),
     });
   }

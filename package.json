@@ -11,9 +11,11 @@
     "format": "prettier --write .",
     "prepare": "husky"
   },
+  "overrides": {
+    "qs": "6.16.0"
+  },
   "devDependencies": {
     "husky": "^9.1.7",
     "prettier": "^3.4.2"
   }
 }
-

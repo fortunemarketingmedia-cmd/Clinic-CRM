@@ -13,11 +13,14 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:medicines": "node scripts/import-medicine-catalog.mjs"
+    "prisma:medicines": "node scripts/import-medicine-catalog.mjs",
+    "bootstrap:admin": "node scripts/bootstrap-production-admin.mjs",
+    "storage:migrate:s3": "node scripts/migrate-private-files-to-s3.mjs"
   },
   "dependencies": {
-    "@prisma/client": "^6.0.0",
-    "bcrypt": "^5.1.1",
+    "@aws-sdk/client-s3": "^3.1124.0",
+    "@prisma/client": "^6.12.0",
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -41,7 +44,7 @@
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
     "eslint": "^9.17.0",
-    "prisma": "^6.19.3",
+    "prisma": "^6.12.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.19.1"

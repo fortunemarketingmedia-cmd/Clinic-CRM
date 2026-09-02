@@ -18,7 +18,7 @@
 
 ## Deployment checklist
 
-1. Use managed PostgreSQL with private networking, TLS, PITR, encrypted storage, daily backups, and quarterly restore drills.
+1. On Hostinger, keep PostgreSQL on the private Docker network with a persistent volume, daily verified dumps, Hostinger snapshots, encrypted offsite replication, and quarterly restore drills. Never publish port 5432.
 2. Generate independent high-entropy JWT, file-access, webhook, and integration-encryption secrets in a secret manager.
 3. Configure `BACKEND_PUBLIC_URL`, exact frontend origins, secure cookie domain, Meta webhook URLs, and the Google OAuth redirect URI.
 4. Apply `prisma migrate deploy` before starting new application instances. Run one release canary and verify `/api/security/health`.

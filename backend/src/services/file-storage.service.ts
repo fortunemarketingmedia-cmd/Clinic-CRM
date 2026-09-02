@@ -1,12 +1,25 @@
 import crypto from 'node:crypto';
+import { GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { inflateSync } from 'node:zlib';
 import { env } from '../config/env.js';
 import { HttpError } from '../utils/http-error.js';
+import { decryptFileBuffer, encryptFileBuffer, isEncryptedFileBuffer } from '../utils/file-encryption.js';
 
 const storageRoot = path.resolve(env.FILE_STORAGE_ROOT ?? path.join(process.cwd(), 'storage', 'private'));
 const accessSecret = env.FILE_ACCESS_SECRET ?? env.JWT_ACCESS_SECRET;
+const storageProvider = env.FILE_STORAGE_PROVIDER;
+const encryptionKey = env.FILE_ENCRYPTION_KEY ? Buffer.from(env.FILE_ENCRYPTION_KEY, 'base64') : null;
+const s3 = storageProvider === 's3' ? new S3Client({
+  region: env.S3_REGION,
+  endpoint: env.S3_ENDPOINT,
+  forcePathStyle: env.S3_FORCE_PATH_STYLE === 'true',
+  credentials: env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY ? {
+    accessKeyId: env.S3_ACCESS_KEY_ID,
+    secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+  } : undefined,
+}) : null;
 const maxFileBytes = 10 * 1024 * 1024;
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv']);
 
@@ -18,6 +31,69 @@ function resolveStorageKey(storageKey: string) {
   const resolved = path.resolve(storageRoot, storageKey);
   if (!resolved.startsWith(`${storageRoot}${path.sep}`)) throw new HttpError(400, 'Invalid storage key');
   return resolved;
+}
+
+function objectKey(storageKey: string) {
+  if (storageKey.startsWith('/') || storageKey.includes('..') || storageKey.includes('\\')) throw new HttpError(400, 'Invalid storage key');
+  return [env.S3_KEY_PREFIX.replace(/^\/+|\/+$/g, ''), storageKey].filter(Boolean).join('/');
+}
+
+function encryptForStorage(buffer: Buffer) {
+  if (!encryptionKey) return buffer;
+  return encryptFileBuffer(buffer, encryptionKey);
+}
+
+function decryptFromStorage(buffer: Buffer) {
+  if (!encryptionKey) return buffer;
+  if (!isEncryptedFileBuffer(buffer)) {
+    throw new HttpError(409, 'Stored file is not encrypted with the active key; complete the controlled file migration');
+  }
+  try {
+    return decryptFileBuffer(buffer, encryptionKey);
+  } catch {
+    throw new HttpError(409, 'Stored file failed its encryption integrity check');
+  }
+}
+
+function serverSideEncryptionOptions() {
+  if (env.S3_SERVER_SIDE_ENCRYPTION === 'none') return {};
+  return {
+    ServerSideEncryption: env.S3_SERVER_SIDE_ENCRYPTION,
+    ...(env.S3_SERVER_SIDE_ENCRYPTION === 'aws:kms' ? { SSEKMSKeyId: env.S3_KMS_KEY_ID } : {}),
+  };
+}
+
+async function writeStoredFile(storageKey: string, buffer: Buffer, mimeType: string) {
+  const encryptedBuffer = encryptForStorage(buffer);
+  if (storageProvider === 's3') {
+    if (!s3 || !env.S3_BUCKET) throw new Error('S3-compatible storage is not configured');
+    await s3.send(new PutObjectCommand({
+      Bucket: env.S3_BUCKET,
+      Key: objectKey(storageKey),
+      Body: encryptedBuffer,
+      ContentType: 'application/octet-stream',
+      ...serverSideEncryptionOptions(),
+      Metadata: {
+        sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+        encryption: encryptionKey ? 'aes-256-gcm-v1' : 'none',
+        originalcontenttype: mimeType,
+      },
+    }));
+    return;
+  }
+  const target = resolveStorageKey(storageKey);
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, encryptedBuffer, { flag: 'wx', mode: 0o600 });
+}
+
+async function readStoredFile(storageKey: string) {
+  if (storageProvider === 's3') {
+    if (!s3 || !env.S3_BUCKET) throw new Error('S3-compatible storage is not configured');
+    const response = await s3.send(new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: objectKey(storageKey) }));
+    if (!response.Body) throw new HttpError(404, 'Stored file content was not found');
+    return decryptFromStorage(Buffer.from(await response.Body.transformToByteArray()));
+  }
+  return decryptFromStorage(await readFile(resolveStorageKey(storageKey)));
 }
 
 function decodeBase64(contentBase64: string, mimeType: string) {
@@ -57,6 +133,15 @@ function validateFileContent(buffer: Buffer, mimeType: string) {
 }
 
 export const fileStorageService = {
+  async healthCheck() {
+    if (storageProvider === 's3') {
+      if (!s3 || !env.S3_BUCKET) throw new Error('S3-compatible storage is not configured');
+      await s3.send(new HeadBucketCommand({ Bucket: env.S3_BUCKET }));
+      return { provider: 's3' as const };
+    }
+    await mkdir(storageRoot, { recursive: true, mode: 0o700 });
+    return { provider: 'local' as const };
+  },
   async writeBase64(patientId: string, contentBase64: string, mimeType: string) {
     return this.writeBuffer(patientId, decodeBase64(contentBase64, mimeType), mimeType);
   },
@@ -64,12 +149,10 @@ export const fileStorageService = {
     if (buffer.length > maxFileBytes) throw new HttpError(413, 'File must be 10 MB or smaller');
     if (!allowedMimeTypes.has(mimeType)) throw new HttpError(400, 'Unsupported file type');
     const storageKey = path.posix.join(patientId, `${crypto.randomUUID()}.${extensionFor(mimeType)}`);
-    const target = resolveStorageKey(storageKey);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, buffer, { flag: 'wx', mode: 0o600 });
+    await writeStoredFile(storageKey, buffer, mimeType);
     return { storageKey, sizeBytes: buffer.length, checksum: crypto.createHash('sha256').update(buffer).digest('hex') };
   },
-  read(storageKey: string) { return readFile(resolveStorageKey(storageKey)); },
+  read(storageKey: string) { return readStoredFile(storageKey); },
   decodeLegacyDataUrl(url: string) {
     const match = /^data:([^;,]+);base64,(.+)$/s.exec(url);
     if (!match) throw new HttpError(409, 'Legacy external file requires a controlled storage migration before it can be opened');

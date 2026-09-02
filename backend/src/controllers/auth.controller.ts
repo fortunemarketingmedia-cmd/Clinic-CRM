@@ -8,7 +8,7 @@ import { loginSchema, logoutSchema, refreshTokenSchema } from '../validations/au
 const refreshCookieOptions: CookieOptions = {
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
-  sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+  sameSite: 'lax',
   maxAge: env.REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
   path: '/api/auth',
   domain: env.COOKIE_DOMAIN || undefined,

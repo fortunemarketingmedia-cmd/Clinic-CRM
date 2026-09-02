@@ -17,16 +17,16 @@ Revive CRM should be built as a production system from the first version, even w
 
 ## Deployment Rules
 
-- Frontend deploys to Vercel.
-- Backend deploys to a VPS.
-- PostgreSQL should be managed with migrations, backups, and restricted network access.
+- The frontend, backend, PostgreSQL, private MinIO storage, TLS proxy, and backup worker deploy together on the Hostinger VPS using [`compose.production.yml`](../compose.production.yml).
+- Only Caddy and SSH are public; application, PostgreSQL, and MinIO ports remain private.
+- PostgreSQL must use migrations, persistent volumes, daily backups, offsite replication, and verified restore drills.
 - Production secrets must never be committed.
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` must be strong random values.
 - `COOKIE_DOMAIN` and CORS must match the deployed frontend/backend domains.
 
 ## Environment-owned go-live work
 
-- Provision managed PostgreSQL and production object storage; the repository cannot provision vendor infrastructure by itself.
+- Provision the Hostinger VPS, DNS, secrets, Docker volumes, offsite backup destination, and monitoring. The repository provides PostgreSQL and private MinIO services for the VPS.
 - Register live Meta/Google apps, webhook subscriptions, OAuth redirect URLs, business verification, ad accounts, conversion datasets/actions, and least-privilege credentials.
 - Connect structured logs to the clinic's selected monitoring/alerting provider and configure on-call destinations.
 - Schedule encrypted backups, perform and record a disposable restore drill, and approve retention/deletion policy with the clinic's legal/compliance owner.

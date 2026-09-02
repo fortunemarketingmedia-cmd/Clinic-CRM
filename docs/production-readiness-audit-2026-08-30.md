@@ -4,6 +4,12 @@
 **Scope:** Full repository (`backend/` Express + Prisma + PostgreSQL, `frontend/` Next.js 16) — security, authentication/authorization, API wiring, database, integrations, file handling, and frontend functionality.
 **Method:** Direct source review of every route/controller/service/middleware file, the Prisma schema, frontend API client and module views, plus a live run of `tsc`, `eslint`, and `npm test` on both apps.
 
+## Remediation update — 2 September 2026
+
+The repository findings in this dated audit have since been remediated where source changes were possible: production placeholder secrets are rejected, independent encryption/file secrets are required, patient files use authenticated AES-256-GCM encryption, the audit API is mounted, direct patient creation was removed, public ad intake is secret-protected, active authorization branches use the current access levels, production demo seeding is blocked, and automated tests pass. A Hostinger VPS Compose stack now provides private PostgreSQL/MinIO, automatic TLS, health checks, secure Admin bootstrap, daily backups, deployment scripts, and CI verification.
+
+Items that still require the deployment owner remain in [`go-live-manual-checklist.md`](./go-live-manual-checklist.md): the Hostinger VPS/DNS, real secrets and provider accounts, migration baselining, file migration, offsite backup and restore evidence, monitoring, doctor/inventory policy decisions, legal review, penetration testing, and clinic acceptance.
+
 **Important note on scope:** this audit covers everything on disk right now, including **uncommitted changes**. `git status` shows ~29 modified files not yet committed (touching `auth.service.ts`, `patient.service.ts`, `patient-360` routes, and more) — commit or review these deliberately before treating any "current state" finding below as final.
 
 ---

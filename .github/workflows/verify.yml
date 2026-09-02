@@ -1,0 +1,45 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run prisma:generate -w backend
+      - run: npm run lint
+      - run: npm run typecheck -w frontend
+      - run: npm test -w backend
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.invalid.example/api
+      - name: Validate Hostinger deployment assets
+        env:
+          HOSTINGER_ENV_FILE: deploy/hostinger/.env.hostinger.example
+        run: |
+          docker compose --env-file deploy/hostinger/.env.hostinger.example -f compose.production.yml config --quiet
+          bash -n deploy/hostinger/bootstrap-ubuntu.sh deploy/hostinger/deploy.sh deploy/hostinger/verify-backups.sh
+          sh -n deploy/minio/init-minio.sh deploy/backup/postgres-backup.sh deploy/backup/object-backup.sh
