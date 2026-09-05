@@ -34,11 +34,18 @@ import { auditRoutes } from './routes/audit.routes.js';
 import { prisma } from './config/db.js';
 import { HttpError } from './utils/http-error.js';
 import { fileStorageService } from './services/file-storage.service.js';
+import { cacheService } from './services/cache.service.js';
+import { metricsService } from './services/metrics.service.js';
 
 export const app = express();
 
 app.set('trust proxy', env.TRUST_PROXY_HOPS);
 app.use(requestContext);
+app.use((req, res, next) => {
+  const startedAt = performance.now();
+  res.on('finish', () => metricsService.observeHttp(req.method, req.route?.path ?? 'unmatched', res.statusCode, performance.now() - startedAt));
+  next();
+});
 app.use(helmet());
 app.use(
   cors({
@@ -57,7 +64,8 @@ app.use(
   express.json({
     limit: '15mb',
     verify: (req, _res, buffer) => {
-      (req as express.Request).rawBody = Buffer.from(buffer);
+      const request = req as express.Request;
+      if (request.originalUrl.startsWith('/api/integrations/')) request.rawBody = Buffer.from(buffer);
     },
   }),
 );
@@ -85,14 +93,21 @@ app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 240, keyPrefix: 'api' }));
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'revive-crm-backend' });
 });
+app.get('/metrics', async (req, res, next) => {
+  if (!env.METRICS_SECRET || req.header('authorization') !== `Bearer ${env.METRICS_SECRET}`) return next(new HttpError(404, 'Route not found'));
+  res.setHeader('Content-Type', metricsService.contentType);
+  return res.send(await metricsService.render());
+});
 app.get('/api/health', async (_req, res) => {
   try {
-    const [, storage] = await Promise.all([prisma.$queryRaw`SELECT 1`, fileStorageService.healthCheck()]);
+    const [, storage, redis] = await Promise.all([prisma.$queryRaw`SELECT 1`, fileStorageService.healthCheck(), cacheService.healthCheck()]);
+    if (redis.configured && !redis.ready) throw new Error('Redis is unavailable');
     res.json({
       status: 'ok',
       service: 'revive-crm-backend',
       database: 'ready',
       storage: storage.provider,
+      redis: redis.configured ? 'ready' : 'disabled',
       timestamp: new Date().toISOString(),
     });
   } catch {

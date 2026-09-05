@@ -7,7 +7,8 @@ const globalRoles: Role[] = [RoleEnum.ADMIN];
 
 export const accessService = {
   async assertBranchAccess(userId: string, role: Role, branchId?: string) {
-    if (!branchId || globalRoles.includes(role)) return;
+    if (globalRoles.includes(role)) return;
+    if (!branchId) throw new HttpError(400, 'Select a branch to continue');
 
     const assignment = await prisma.userBranch.findUnique({
       where: { userId_branchId: { userId, branchId } },

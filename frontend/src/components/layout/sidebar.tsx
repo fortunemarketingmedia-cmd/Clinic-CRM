@@ -64,7 +64,7 @@ export const navigationSections = [
   {
     label: 'Administration',
     items: [
-      { label: 'Master Records', icon: ClipboardCheck, href: '/clients', roles: doctorReviveRoles },
+      { label: 'Master Records', icon: ClipboardCheck, href: '/clients', roles: allOperational },
       { label: 'Settings', icon: Settings, href: '/settings', roles: doctorReviveRoles },
     ],
   },

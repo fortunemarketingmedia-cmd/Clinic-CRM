@@ -16,6 +16,7 @@ import { useSessionStore } from '@/store/session-store';
 import type { AdLead, AdPlatform } from '@/types/ad-lead';
 import type { Branch } from '@/types/branch';
 import type { Lead, LeadStatus, TimelineEvent } from '@/types/lead';
+import { PaginationControls, type PaginationMeta } from '@/components/ui/pagination-controls';
 
 const leadStatuses: Array<{ label: string; value: LeadStatus }> = [
   { label: 'New enquiry', value: 'ASSIGNED' },
@@ -102,6 +103,7 @@ export function LeadsView() {
   const [archiveOwner, setArchiveOwner] = useState('');
   const [archiveTreatment, setArchiveTreatment] = useState('');
   const [archiveLostReason, setArchiveLostReason] = useState('');
+  const [page, setPage] = useState(1);
 
   const isAdmin = session?.user.role === 'ADMIN';
 
@@ -166,12 +168,23 @@ export function LeadsView() {
     }
 
     params.set('includeClosed', 'true');
+    params.set('view', activeTab === 'ARCHIVED' ? 'ARCHIVED' : activeTab === 'MANUAL' ? 'MANUAL' : 'ACTIVE');
+    if (archiveOutcome && activeTab === 'ARCHIVED') params.set('archiveOutcome', archiveOutcome);
+    if (archiveOwner && activeTab === 'ARCHIVED') params.set('ownerId', archiveOwner);
+    if (archiveTreatment && activeTab === 'ARCHIVED') params.set('interestedTreatment', archiveTreatment);
+    if (archiveLostReason && activeTab === 'ARCHIVED') params.set('lostReason', archiveLostReason);
+    if (createdFrom && activeTab === 'ARCHIVED') params.set('closedFrom', new Date(createdFrom).toISOString());
+    if (createdTo && activeTab === 'ARCHIVED') params.set('closedTo', new Date(createdTo).toISOString());
+    params.set('page', String(page));
+    params.set('pageSize', '50');
     return params.toString();
-  }, [activeBranchId, activeTab, createdFrom, createdTo, isAdmin, search, source, status]);
+  }, [activeBranchId, activeTab, archiveLostReason, archiveOutcome, archiveOwner, archiveTreatment, createdFrom, createdTo, isAdmin, page, search, source, status]);
+
+  useEffect(() => { setPage(1); }, [activeBranchId, activeTab, archiveLostReason, archiveOutcome, archiveOwner, archiveTreatment, createdFrom, createdTo, search, source, status]);
 
   const leadsQuery = useQuery({
     queryKey: ['leads', queryString],
-    queryFn: () => apiRequest<{ data: Lead[] }>(`/leads?${queryString}`),
+    queryFn: () => apiRequest<{ data: Lead[]; meta: PaginationMeta }>(`/leads?${queryString}`),
     enabled: hasHydrated && Boolean(session) && Boolean(isAdmin || activeBranchId),
   });
 
@@ -764,6 +777,7 @@ export function LeadsView() {
               </tbody>
             </table>
           </div>
+          <PaginationControls meta={leadsQuery.data?.meta} onPageChange={setPage} />
         </Card>
       </div>
 

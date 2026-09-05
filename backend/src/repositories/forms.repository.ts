@@ -71,6 +71,15 @@ export const formsRepository = {
   updateMarketingConsent(patientId: string, allowed: boolean) { return prisma.person.updateMany({ where: { patient: { id: patientId } }, data: { marketingConsent: allowed } }); },
 
   createFile(data: Prisma.PatientFileUncheckedCreateInput) { return prisma.patientFile.create({ data, include: { uploadedBy: { select: { id: true, name: true } } } }); },
+  findFileByIdempotencyKey(uploadIdempotencyKey: string) { return prisma.patientFile.findUnique({ where: { uploadIdempotencyKey }, include: { uploadedBy: { select: { id: true, name: true } }, derivedFiles: true } }); },
+  upsertDerivedFile(data: Prisma.PatientFileUncheckedCreateInput & { originalFileId: string; variant: string }) {
+    return prisma.patientFile.upsert({
+      where: { originalFileId_variant: { originalFileId: data.originalFileId, variant: data.variant } },
+      create: data,
+      update: { storageKey: data.storageKey, url: data.url, mimeType: data.mimeType, sizeBytes: data.sizeBytes, checksum: data.checksum, width: data.width, height: data.height, optimizationStatus: 'READY' },
+    });
+  },
+  updateFileOptimization(id: string, optimizationStatus: string, dimensions?: { width?: number; height?: number }) { return prisma.patientFile.update({ where: { id }, data: { optimizationStatus, ...dimensions } }); },
   findFile(id: string) { return prisma.patientFile.findUnique({ where: { id }, include: { patient: { select: { id: true, branchId: true } }, uploadedBy: { select: { id: true, name: true } } } }); },
-  listFiles(filters: { patientId?: string; fileType?: PatientFileType; gallery?: boolean }) { return prisma.patientFile.findMany({ where: { patientId: filters.patientId, fileType: filters.gallery ? { in: ['CLINICAL_PHOTOGRAPH', 'BEFORE_IMAGE', 'AFTER_IMAGE'] } : filters.fileType }, include: { uploadedBy: { select: { id: true, name: true } }, procedureSession: { select: { id: true, procedureName: true } } }, orderBy: [{ visitDate: 'desc' }, { createdAt: 'desc' }] }); },
+  listFiles(filters: { patientId?: string; fileType?: PatientFileType; gallery?: boolean }) { return prisma.patientFile.findMany({ where: { patientId: filters.patientId, originalFileId: null, fileType: filters.gallery ? { in: ['CLINICAL_PHOTOGRAPH', 'BEFORE_IMAGE', 'AFTER_IMAGE'] } : filters.fileType }, include: { uploadedBy: { select: { id: true, name: true } }, procedureSession: { select: { id: true, procedureName: true } }, derivedFiles: true }, orderBy: [{ visitDate: 'desc' }, { createdAt: 'desc' }] }); },
 };

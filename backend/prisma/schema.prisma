@@ -706,6 +706,7 @@ enum DurableJobType {
   INTEGRATION_SYNC
   CONVERSION_UPLOAD
   AUTOMATION_EXECUTION
+  FILE_OPTIMIZATION
 }
 
 enum DurableJobStatus {
@@ -2807,6 +2808,11 @@ model PatientFile {
   visitDate             DateTime?
   annotation            Json?
   originalFileId        String?
+  variant               String             @default("ORIGINAL")
+  width                 Int?
+  height                Int?
+  optimizationStatus    String             @default("NOT_REQUIRED")
+  uploadIdempotencyKey  String?            @unique
   createdAt             DateTime           @default(now())
   patient               Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
   session               Session?           @relation(fields: [sessionId], references: [id])
@@ -2826,6 +2832,7 @@ model PatientFile {
   @@index([appointmentId])
   @@index([patientId, fileType, createdAt])
   @@index([originalFileId])
+  @@unique([originalFileId, variant])
 }
 
 model WhatsAppAccount {

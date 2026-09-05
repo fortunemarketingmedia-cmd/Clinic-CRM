@@ -21,10 +21,10 @@ export const followUpRepository = {
       data: { nextAction, nextActionDueAt: dueAt, nextFollowupAt: dueAt },
     });
   },
-  list(filters: { branchId?: string; assignedUserId?: string; status?: WorkStatus; dueFrom?: Date; dueTo?: Date }) {
+  list(filters: { branchId?: string; assignedUserId?: string; status?: WorkStatus; dueFrom?: Date; dueTo?: Date; scope?: 'ACTIVE_LEADS' | 'ALL' }) {
     return prisma.followUp.findMany({
       where: { branchId: filters.branchId, assignedUserId: filters.assignedUserId, status: filters.status,
-        OR: [{ leadId: null }, { lead: { status: { notIn: clientPipelineLeadStatuses } } }],
+        OR: filters.scope === 'ALL' ? undefined : [{ leadId: null }, { lead: { status: { notIn: clientPipelineLeadStatuses } } }],
         dueAt: filters.dueFrom || filters.dueTo ? { gte: filters.dueFrom, lte: filters.dueTo } : undefined },
       include: { person: true, lead: true, patient: true, assignedUser: { select: { id: true, name: true } }, branch: true },
       orderBy: { dueAt: 'asc' },
@@ -46,4 +46,3 @@ export const followUpRepository = {
     return prisma.followUp.update({ where: { id }, data: { ...data, status: 'COMPLETED', completedAt: new Date() }, include: { lead: true, person: true } });
   },
 };
-

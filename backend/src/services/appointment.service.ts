@@ -87,6 +87,8 @@ export const appointmentService = {
     search?: string;
     role: Role;
     userId: string;
+    page: number;
+    pageSize: number;
   }) {
     requireBranchForReceptionist(filters.role, filters.branchId);
     await ensureBranchExists(filters.branchId);

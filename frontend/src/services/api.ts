@@ -188,3 +188,45 @@ export async function apiBlob(path: string): Promise<Blob> {
     );
   return response.blob();
 }
+
+export async function apiUpload<T>(
+  path: string,
+  file: File,
+  metadata: Record<string, unknown>,
+  onProgress?: (percent: number) => void,
+): Promise<T> {
+  const send = (accessToken: string | null) => new Promise<{ status: number; body: unknown; correlationId?: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_URL}${path}`);
+    xhr.withCredentials = true;
+    if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onerror = () => reject(new ApiError('Unable to upload the file. Check your connection and try again.', 503));
+    xhr.ontimeout = () => reject(new ApiError('The upload took too long. Please try again.', 408));
+    xhr.onload = () => {
+      let body: unknown = undefined;
+      try { body = xhr.responseText ? JSON.parse(xhr.responseText) : undefined; } catch { body = undefined; }
+      resolve({ status: xhr.status, body, correlationId: xhr.getResponseHeader('x-correlation-id') ?? undefined });
+    };
+    xhr.timeout = 120_000;
+    const form = new FormData();
+    form.append('metadata', JSON.stringify(metadata));
+    form.append('file', file, file.name);
+    xhr.send(form);
+  });
+
+  let response = await send(getAccessToken());
+  if (response.status === 401) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) response = await send(refreshedToken);
+  }
+  if (response.status < 200 || response.status >= 300) {
+    const error = response.body as { message?: string; issues?: unknown } | undefined;
+    throw new ApiError(userSafeApiMessage(error?.message), response.status, response.correlationId, error?.issues);
+  }
+  onProgress?.(100);
+  notifyDataChanged(path, 'POST');
+  return response.body as T;
+}

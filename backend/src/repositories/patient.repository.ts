@@ -1,4 +1,4 @@
-import type { Sex } from '@prisma/client';
+import type { EnquirySource, LeadStatus, Prisma, Sex } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
 
@@ -23,10 +23,10 @@ export type MedicalProfileData = Partial<{
 }>;
 
 export const patientRepository = {
-  list(filters: { branchId?: string; search?: string }) {
-    return prisma.patient.findMany({
-      where: {
+  async list(filters: { branchId?: string; search?: string; leadStatus?: LeadStatus; leadSource?: EnquirySource; page: number; pageSize: number }) {
+    const where: Prisma.PatientWhereInput = {
         branchId: filters.branchId,
+        lead: filters.leadStatus || filters.leadSource ? { status: filters.leadStatus, source: filters.leadSource } : undefined,
         OR: filters.search
           ? [
               { fullName: { contains: filters.search, mode: 'insensitive' } },
@@ -35,10 +35,16 @@ export const patientRepository = {
               { patientNo: { contains: filters.search, mode: 'insensitive' } },
             ]
           : undefined,
-      },
-      include: { branch: true, lead: true, medicalProfile: true },
+      };
+    const [items, total] = await prisma.$transaction([
+      prisma.patient.findMany({ where, select: { id: true, patientNo: true, fullName: true, mobile: true, email: true, age: true, sex: true, status: true, branchId: true, createdAt: true, updatedAt: true, branch: true, lead: { select: { id: true, status: true, source: true, appointmentAt: true } } },
       orderBy: { createdAt: 'desc' },
-    });
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+      }),
+      prisma.patient.count({ where }),
+    ]);
+    return { items, total, page: filters.page, pageSize: filters.pageSize };
   },
 
   findById(id: string) {
@@ -75,8 +81,9 @@ export const patientRepository = {
   },
 
   async nextPatientNo() {
-    const count = await prisma.patient.count();
-    return `REV-P-${String(count + 1).padStart(5, '0')}`;
+    const [row] = await prisma.$queryRaw<Array<{ value: bigint }>>`SELECT nextval('"PatientNumberSeq"') AS value`;
+    if (!row) throw new Error('Patient number sequence did not return a value');
+    return `REV-P-${String(row.value).padStart(5, '0')}`;
   },
 
   createQrToken() {

@@ -3,18 +3,22 @@ import { env } from '../config/env.js';
 import { integrationRepository } from '../repositories/integration.repository.js';
 import { integrationService } from './integration.service.js';
 import { automationService } from './automation.service.js';
+import { imageOptimizationService } from './image-optimization.service.js';
+import { metricsService } from './metrics.service.js';
 
 type Payload = {
   eventId?: string;
   syncRunId?: string;
   conversionId?: string;
   executionId?: string;
+  fileId?: string;
 };
 const types = [
   'INTEGRATION_EVENT_PROCESS',
   'INTEGRATION_SYNC',
   'CONVERSION_UPLOAD',
   'AUTOMATION_EXECUTION',
+  'FILE_OPTIMIZATION',
 ] as const;
 async function execute(job: DurableJob) {
   const payload = job.payload as Payload;
@@ -26,6 +30,8 @@ async function execute(job: DurableJob) {
     return integrationService.uploadConversion(payload.conversionId);
   if (job.type === 'AUTOMATION_EXECUTION' && payload.executionId)
     return automationService.execute(payload.executionId);
+  if (job.type === 'FILE_OPTIMIZATION' && payload.fileId)
+    return imageOptimizationService.optimize(payload.fileId);
 }
 let processing = false;
 export const integrationJobService = {
@@ -38,11 +44,17 @@ export const integrationJobService = {
         const job = await integrationRepository.claimJob(env.INTEGRATION_WORKER_ID, [...types]);
         if (!job) break;
         try {
+          metricsService.setWorkerActive(true);
           await execute(job);
           await integrationRepository.completeJob(job.id);
+          metricsService.job(job.type, 'completed');
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Integration job failed';
-          await integrationRepository.retryJob(job.id, message, job.attempts >= job.maxAttempts);
+          const dead = job.attempts >= job.maxAttempts;
+          await integrationRepository.retryJob(job.id, message, dead);
+          metricsService.job(job.type, dead ? 'dead' : 'retry');
+        } finally {
+          metricsService.setWorkerActive(false);
         }
         processed += 1;
       }
@@ -51,7 +63,7 @@ export const integrationJobService = {
       processing = false;
     }
   },
-  start() {
+  start(options: { unref?: boolean } = {}) {
     const reportError = (error: unknown) =>
       console.error(
         JSON.stringify({
@@ -63,7 +75,7 @@ export const integrationJobService = {
     const timer = setInterval(() => {
       void this.processDueJobs().catch(reportError);
     }, env.INTEGRATION_JOB_POLL_MS);
-    timer.unref();
+    if (options.unref !== false) timer.unref();
     void this.processDueJobs().catch(reportError);
     return timer;
   },

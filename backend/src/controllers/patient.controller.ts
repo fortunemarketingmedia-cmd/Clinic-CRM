@@ -19,7 +19,7 @@ export const patientController = {
     const query = patientQuerySchema.parse(req.query);
     await accessService.assertBranchAccess(req.user.id, req.user.role, query.branchId);
     const patients = await patientService.listPatients({ ...query, role: req.user.role });
-    return res.json({ data: patients });
+    return res.json({ data: patients.items, meta: { total: patients.total, page: patients.page, pageSize: patients.pageSize, totalPages: Math.ceil(patients.total / patients.pageSize) } });
   },
 
   async get(req: Request, res: Response) {

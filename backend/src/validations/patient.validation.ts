@@ -1,4 +1,4 @@
-import { Sex } from '@prisma/client';
+import { EnquirySource, LeadStatus, Sex } from '@prisma/client';
 import { z } from 'zod';
 
 export const convertLeadSchema = z.object({
@@ -78,6 +78,10 @@ export const medicalProfileSchema = z.object({
 export const patientQuerySchema = z.object({
   branchId: z.string().optional(),
   search: z.string().optional(),
+  leadStatus: z.nativeEnum(LeadStatus).optional(),
+  leadSource: z.nativeEnum(EnquirySource).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 export const importPatientsSchema = z.object({

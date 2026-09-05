@@ -324,6 +324,8 @@ export function AppointmentsView() {
     if (search.trim()) params.set('search', search.trim());
     params.set('dateFrom', new Date(`${localDateKey(range.start)}T00:00:00`).toISOString());
     params.set('dateTo', new Date(`${localDateKey(range.end)}T23:59:59`).toISOString());
+    // The calendar needs the complete visible date range in one response.
+    params.set('pageSize', '500');
     return params.toString();
   }, [activeBranchId, isAdmin, range.end, range.start, search, status]);
 

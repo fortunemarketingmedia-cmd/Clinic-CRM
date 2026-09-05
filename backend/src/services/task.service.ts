@@ -9,6 +9,7 @@ import type {
 } from '../validations/work.validation.js';
 import { accessService } from './access.service.js';
 import { auditService, type AuditContext } from './audit.service.js';
+import { defaultReminderAt } from './work-reminder.js';
 
 type Query = z.infer<typeof workQuerySchema>;
 type Create = z.infer<typeof createTaskSchema>;
@@ -25,7 +26,10 @@ export const taskService = {
     if (!assignee) throw new HttpError(400, 'Select an active team member from this branch');
     const { role: _authorizationRole, ...taskData } = input;
     void _authorizationRole;
-    const task = await taskRepository.create(taskData);
+    const task = await taskRepository.create({
+      ...taskData,
+      reminderAt: taskData.reminderAt ?? defaultReminderAt(taskData.dueAt),
+    });
     await auditService.record(
       { ...audit, branchId: input.branchId },
       { action: 'TASK_CREATED', entity: 'Task', entityId: task.id },
@@ -46,6 +50,7 @@ export const taskService = {
       throw new HttpError(400, 'Completion notes are required');
     const task = await taskRepository.update(id, {
       ...input,
+      reminderAt: input.reminderAt ?? (input.dueAt ? defaultReminderAt(input.dueAt) : undefined),
       completedById: input.status === 'COMPLETED' ? userId : undefined,
       completedAt: input.status === 'COMPLETED' ? new Date() : undefined,
     });

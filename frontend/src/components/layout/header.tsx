@@ -16,6 +16,7 @@ export function Header() {
   const reminderParams = new URLSearchParams();
   if (selectedBranchId) reminderParams.set('branchId', selectedBranchId);
   if (session?.user.role === 'RECEPTIONIST') reminderParams.set('assignedUserId', session.user.id);
+  reminderParams.set('scope', 'ALL');
   const reminderQuery = useQuery({
     queryKey: ['header-reminders', selectedBranchId, session?.user.id],
     queryFn: async () => {
@@ -45,6 +46,8 @@ export function Header() {
     },
     enabled: Boolean(session && (session.user.role === 'ADMIN' || selectedBranchId)),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   useEffect(() => {

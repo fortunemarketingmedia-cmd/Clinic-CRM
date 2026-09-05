@@ -278,6 +278,7 @@ export const automationService = {
       const assignedUserId = String(
         config.assignedUserId ?? admin?.id ?? lead.ownerId ?? lead.createdById,
       );
+      const dueAt = new Date(Date.now() + Number(config.dueMinutes ?? 60) * 60_000);
       await prisma.task.create({
         data: {
           title: String(
@@ -291,7 +292,8 @@ export const automationService = {
           branchId: lead.branchId,
           personId: lead.personId,
           leadId: lead.id,
-          dueAt: new Date(Date.now() + Number(config.dueMinutes ?? 60) * 60_000),
+          dueAt,
+          reminderAt: new Date(Math.max(Date.now(), dueAt.getTime() - 15 * 60_000)),
           automaticallyCreated: true,
           createdById: execution.automation.createdById,
         },

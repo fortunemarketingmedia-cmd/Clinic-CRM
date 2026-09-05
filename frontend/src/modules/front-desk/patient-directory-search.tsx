@@ -23,6 +23,7 @@ export function PatientDirectorySearch({ branchId, title, description }: Patient
     queryKey: ['patient-directory-search', branchId, term.trim()],
     queryFn: () => {
       const params = new URLSearchParams({ search: term.trim() });
+      params.set('pageSize', '50');
       if (branchId) params.set('branchId', branchId);
       return apiRequest<{ data: Patient[] }>(`/patients?${params.toString()}`);
     },

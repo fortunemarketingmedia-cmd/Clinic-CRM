@@ -33,6 +33,15 @@ const envSchema = z.object({
   S3_KMS_KEY_ID: optional(z.string().min(1)),
   FILE_ENCRYPTION_KEY: optional(z.string().min(43)),
   FILE_ACCESS_SECRET: optional(z.string().min(16)),
+  MAX_UPLOAD_BYTES: z.coerce.number().int().min(1_048_576).max(52_428_800).default(10_485_760),
+  MAX_IMAGE_PIXELS: z.coerce.number().int().min(1_000_000).max(100_000_000).default(64_000_000),
+  REDIS_URL: optional(z.string().url()),
+  REDIS_KEY_PREFIX: z.string().min(1).default('revive:'),
+  RUN_BACKGROUND_WORKER: z.enum(['true', 'false']).default('true'),
+  METRICS_SECRET: optional(z.string().min(24)),
+  CLAMAV_HOST: optional(z.string().min(1)),
+  CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+  FILE_SCAN_REQUIRED: z.enum(['true', 'false']).default('false'),
   GOOGLE_ADS_INGEST_SECRET: optional(z.string().min(24)),
   META_ADS_INGEST_SECRET: optional(z.string().min(24)),
   PAYMENT_GATEWAY_SECRET: optional(z.string().min(16)),
@@ -72,6 +81,7 @@ if (parsedEnv.NODE_ENV === 'production') {
     FILE_ACCESS_SECRET: parsedEnv.FILE_ACCESS_SECRET,
     GOOGLE_ADS_INGEST_SECRET: parsedEnv.GOOGLE_ADS_INGEST_SECRET,
     META_ADS_INGEST_SECRET: parsedEnv.META_ADS_INGEST_SECRET,
+    METRICS_SECRET: parsedEnv.METRICS_SECRET,
   };
   const invalid = Object.entries(requiredSecrets)
     .filter(([key, value]) => unsafeValue(value) || value!.length < (key === 'INTEGRATION_ENCRYPTION_KEY' ? 32 : 48))
@@ -103,6 +113,7 @@ if (parsedEnv.NODE_ENV === 'production') {
   if (parsedEnv.FILE_STORAGE_PROVIDER !== 's3') {
     throw new Error('Production file storage must use the private S3-compatible provider');
   }
+  if (!parsedEnv.REDIS_URL) throw new Error('REDIS_URL is required in production');
   if (parsedEnv.TRUST_PROXY_HOPS < 1) {
     throw new Error('TRUST_PROXY_HOPS must be at least 1 behind the production reverse proxy');
   }

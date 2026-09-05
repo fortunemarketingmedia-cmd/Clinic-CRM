@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { formsController } from '../controllers/forms.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { patientFileUpload } from '../middleware/file-upload.js';
 
 export const formRoutes = Router();
 formRoutes.use(requireAuth);
@@ -24,4 +25,4 @@ export const fileRoutes = Router();
 fileRoutes.get('/:id/content', (req, res, next) => { formsController.fileContent(req, res).catch(next); });
 fileRoutes.use(requireAuth);
 fileRoutes.get('/', (req, res, next) => { formsController.listFiles(req, res).catch(next); });
-fileRoutes.post('/', (req, res, next) => { formsController.uploadFile(req, res).catch(next); });
+fileRoutes.post('/', patientFileUpload.single('file'), (req, res, next) => { formsController.uploadFile(req, res).catch(next); });

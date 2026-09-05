@@ -3,6 +3,7 @@ import { app } from './app.js';
 import { integrationJobService } from './services/integration-job.service.js';
 import { prisma } from './config/db.js';
 import { fileStorageService } from './services/file-storage.service.js';
+import { cacheService } from './services/cache.service.js';
 
 async function verifyDependencies() {
   await prisma.$queryRaw`SELECT 1`;
@@ -32,14 +33,14 @@ server.on('error', (error: NodeJS.ErrnoException) => {
   throw error;
 });
 
-const integrationTimer = integrationJobService.start();
+const integrationTimer = env.RUN_BACKGROUND_WORKER === 'true' ? integrationJobService.start() : null;
 let shuttingDown = false;
 
 async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   console.log(JSON.stringify({ level: 'info', message: 'Graceful shutdown started', signal }));
-  integrationJobService.stop(integrationTimer);
+  if (integrationTimer) integrationJobService.stop(integrationTimer);
 
   const forceTimer = setTimeout(() => {
     console.error(
@@ -59,6 +60,7 @@ async function shutdown(signal: string) {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       await prisma.$disconnect();
+      await cacheService.disconnect();
     } finally {
       clearTimeout(forceTimer);
       process.exit(error ? 1 : 0);

@@ -185,11 +185,12 @@ export function SettingsView() {
   });
 
   async function exportPatients() {
-    const response = await apiRequest<{ data: Patient[] }>('/patients');
-    await apiRequest('/security/exports', { method: 'POST', body: JSON.stringify({ resourceType: 'PATIENTS', format: 'CSV', rowCount: response.data.length, status: 'COMPLETED', purpose: 'Administrator requested clinic data export' }) });
+    const rows: Patient[] = []; let page = 1; let totalPages = 1;
+    do { const response = await apiRequest<{ data: Patient[]; meta: { totalPages: number } }>(`/patients?page=${page}&pageSize=100`); rows.push(...response.data); totalPages = response.meta.totalPages; page += 1; } while (page <= totalPages);
+    await apiRequest('/security/exports', { method: 'POST', body: JSON.stringify({ resourceType: 'PATIENTS', format: 'CSV', rowCount: rows.length, status: 'COMPLETED', purpose: 'Administrator requested clinic data export' }) });
     downloadCsv(
       'revive-patients.csv',
-      response.data.map((patient) => ({
+      rows.map((patient) => ({
         patientNo: patient.patientNo,
         name: patient.fullName,
         mobile: patient.mobile,
@@ -200,11 +201,12 @@ export function SettingsView() {
   }
 
   async function exportLeads() {
-    const response = await apiRequest<{ data: Lead[] }>('/leads');
-    await apiRequest('/security/exports', { method: 'POST', body: JSON.stringify({ resourceType: 'LEADS', format: 'CSV', rowCount: response.data.length, status: 'COMPLETED', purpose: 'Administrator requested clinic data export' }) });
+    const rows: Lead[] = []; let page = 1; let totalPages = 1;
+    do { const response = await apiRequest<{ data: Lead[]; meta: { totalPages: number } }>(`/leads?page=${page}&pageSize=100&includeClosed=true`); rows.push(...response.data); totalPages = response.meta.totalPages; page += 1; } while (page <= totalPages);
+    await apiRequest('/security/exports', { method: 'POST', body: JSON.stringify({ resourceType: 'LEADS', format: 'CSV', rowCount: rows.length, status: 'COMPLETED', purpose: 'Administrator requested clinic data export' }) });
     downloadCsv(
       'revive-leads.csv',
-      response.data.map((lead) => ({
+      rows.map((lead) => ({
         name: lead.name,
         mobile: lead.mobile,
         source: lead.source,

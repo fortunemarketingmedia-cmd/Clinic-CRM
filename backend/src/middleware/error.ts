@@ -3,8 +3,13 @@ import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
 import { env } from '../config/env.js';
 import { HttpError } from '../utils/http-error.js';
+import multer from 'multer';
 
 export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction) {
+  if (error instanceof multer.MulterError) {
+    const message = error.code === 'LIMIT_FILE_SIZE' ? 'File exceeds the configured upload limit' : 'Invalid file upload';
+    return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ message, correlationId: req.correlationId });
+  }
   if (error instanceof ZodError) {
     return res.status(400).json({
       message: 'Validation failed',

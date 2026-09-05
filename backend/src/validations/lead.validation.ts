@@ -56,6 +56,15 @@ export const leadQuerySchema = z.object({
   createdFrom: z.coerce.date().optional(),
   createdTo: z.coerce.date().optional(),
   includeClosed: z.coerce.boolean().optional(),
+  view: z.enum(['ACTIVE', 'ARCHIVED', 'MANUAL']).optional(),
+  archiveOutcome: z.enum(['WON', 'LOST']).optional(),
+  ownerId: z.string().optional(),
+  interestedTreatment: z.string().trim().optional(),
+  lostReason: z.string().trim().optional(),
+  closedFrom: z.coerce.date().optional(),
+  closedTo: z.coerce.date().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 export const duplicateLeadQuerySchema = z.object({

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import { GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { inflateSync } from 'node:zlib';
 import { env } from '../config/env.js';
@@ -20,11 +20,11 @@ const s3 = storageProvider === 's3' ? new S3Client({
     secretAccessKey: env.S3_SECRET_ACCESS_KEY,
   } : undefined,
 }) : null;
-const maxFileBytes = 10 * 1024 * 1024;
-const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv']);
+const maxFileBytes = env.MAX_UPLOAD_BYTES;
+export const allowedFileMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/csv']);
 
 function extensionFor(mimeType: string) {
-  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'text/plain': 'txt', 'text/csv': 'csv' } as Record<string, string>)[mimeType] ?? 'bin';
+  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif', 'application/pdf': 'pdf', 'application/msword': 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx', 'application/vnd.ms-excel': 'xls', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx', 'text/plain': 'txt', 'text/csv': 'csv' } as Record<string, string>)[mimeType] ?? 'bin';
 }
 
 function resolveStorageKey(storageKey: string) {
@@ -101,7 +101,7 @@ function decodeBase64(contentBase64: string, mimeType: string) {
   const buffer = Buffer.from(encoded, 'base64');
   if (!buffer.length) throw new HttpError(400, 'File content is empty');
   if (buffer.length > maxFileBytes) throw new HttpError(413, 'File must be 10 MB or smaller');
-  if (!allowedMimeTypes.has(mimeType)) throw new HttpError(400, 'Unsupported document type');
+  if (!allowedFileMimeTypes.has(mimeType)) throw new HttpError(400, 'Unsupported document type');
   validateFileContent(buffer, mimeType);
   return buffer;
 }
@@ -109,6 +109,7 @@ function decodeBase64(contentBase64: string, mimeType: string) {
 function validateFileContent(buffer: Buffer, mimeType: string) {
   if (mimeType === 'image/jpeg' && !(buffer.length > 4 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer.at(-2) === 0xff && buffer.at(-1) === 0xd9)) throw new HttpError(400, 'JPEG content is invalid');
   if (mimeType === 'image/webp' && !(buffer.length > 12 && buffer.subarray(0, 4).toString() === 'RIFF' && buffer.subarray(8, 12).toString() === 'WEBP')) throw new HttpError(400, 'WebP content is invalid');
+  if (['image/heic', 'image/heif'].includes(mimeType) && !buffer.subarray(4, 12).toString('ascii').includes('ftyp')) throw new HttpError(400, 'HEIF content is invalid');
   if (mimeType === 'application/pdf' && buffer.subarray(0, 5).toString() !== '%PDF-') throw new HttpError(400, 'PDF content is invalid');
   if (['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(mimeType) && buffer.subarray(0, 2).toString() !== 'PK') throw new HttpError(400, 'Office document content is invalid');
   if (['application/msword', 'application/vnd.ms-excel'].includes(mimeType) && !buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))) throw new HttpError(400, 'Office document content is invalid');
@@ -147,12 +148,23 @@ export const fileStorageService = {
   },
   async writeBuffer(patientId: string, buffer: Buffer, mimeType: string) {
     if (buffer.length > maxFileBytes) throw new HttpError(413, 'File must be 10 MB or smaller');
-    if (!allowedMimeTypes.has(mimeType)) throw new HttpError(400, 'Unsupported file type');
+    if (!allowedFileMimeTypes.has(mimeType)) throw new HttpError(400, 'Unsupported file type');
+    validateFileContent(buffer, mimeType);
     const storageKey = path.posix.join(patientId, `${crypto.randomUUID()}.${extensionFor(mimeType)}`);
     await writeStoredFile(storageKey, buffer, mimeType);
     return { storageKey, sizeBytes: buffer.length, checksum: crypto.createHash('sha256').update(buffer).digest('hex') };
   },
   read(storageKey: string) { return readStoredFile(storageKey); },
+  async delete(storageKey: string) {
+    if (storageProvider === 's3') {
+      if (!s3 || !env.S3_BUCKET) throw new Error('S3-compatible storage is not configured');
+      await s3.send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET, Key: objectKey(storageKey) }));
+      return;
+    }
+    await unlink(resolveStorageKey(storageKey)).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== 'ENOENT') throw error;
+    });
+  },
   decodeLegacyDataUrl(url: string) {
     const match = /^data:([^;,]+);base64,(.+)$/s.exec(url);
     if (!match) throw new HttpError(409, 'Legacy external file requires a controlled storage migration before it can be opened');

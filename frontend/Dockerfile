@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS build
+FROM node:22.19.0-bookworm-slim AS build
 ENV HUSKY=0
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
@@ -10,7 +10,7 @@ RUN npm ci
 COPY frontend frontend
 RUN npm run build -w frontend
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:22.19.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0

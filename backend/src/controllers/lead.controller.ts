@@ -13,7 +13,7 @@ export const leadController = {
 
     const query = leadQuerySchema.parse(req.query);
     const leads = await leadService.listLeads({ ...query, role: req.user.role, userId: req.user.id });
-    return res.json({ data: leads });
+    return res.json({ data: leads.items, meta: { total: leads.total, page: leads.page, pageSize: leads.pageSize, totalPages: Math.ceil(leads.total / leads.pageSize) } });
   },
 
   async get(req: Request, res: Response) {

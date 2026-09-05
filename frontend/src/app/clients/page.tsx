@@ -6,7 +6,7 @@ import { ClientsView } from '@/modules/clients/clients-view';
 export default function ClientsPage() {
   return (
     <AuthGate>
-      <RoleGate allowed={['ADMIN']}>
+      <RoleGate allowed={['ADMIN', 'RECEPTIONIST']}>
         <AppShell>
           <ClientsView />
         </AppShell>

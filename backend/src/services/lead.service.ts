@@ -121,8 +121,17 @@ export const leadService = {
     createdFrom?: Date;
     createdTo?: Date;
     includeClosed?: boolean;
+    view?: 'ACTIVE' | 'ARCHIVED' | 'MANUAL';
+    archiveOutcome?: 'WON' | 'LOST';
+    ownerId?: string;
+    interestedTreatment?: string;
+    lostReason?: string;
+    closedFrom?: Date;
+    closedTo?: Date;
     role: Role;
     userId: string;
+    page: number;
+    pageSize: number;
   }) {
     requireBranchForReceptionist(filters.role, filters.branchId);
     await ensureBranchExists(filters.branchId);

@@ -1,4 +1,4 @@
-import type { AppointmentResource, AppointmentStatus, AppointmentType, EnquirySource } from '@prisma/client';
+import type { AppointmentResource, AppointmentStatus, AppointmentType, EnquirySource, Prisma } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
 
@@ -8,12 +8,13 @@ type AppointmentFilters = {
   dateFrom?: Date;
   dateTo?: Date;
   search?: string;
+  page: number;
+  pageSize: number;
 };
 
 export const appointmentRepository = {
   async list(filters: AppointmentFilters) {
-    return prisma.appointment.findMany({
-      where: {
+    const where: Prisma.AppointmentWhereInput = {
         branchId: filters.branchId,
         status: filters.status,
         appointmentAt:
@@ -31,8 +32,9 @@ export const appointmentRepository = {
               ],
             }
           : undefined,
-      },
-      include: {
+      };
+    const [items, total] = await prisma.$transaction([
+      prisma.appointment.findMany({ where, include: {
         branch: true,
         lead: { include: { patient: true } },
         service: true,
@@ -42,7 +44,12 @@ export const appointmentRepository = {
         equipment: true,
       },
       orderBy: { appointmentAt: 'asc' },
-    });
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+      }),
+      prisma.appointment.count({ where }),
+    ]);
+    return { items, total, page: filters.page, pageSize: filters.pageSize };
   },
 
   findById(id: string) {

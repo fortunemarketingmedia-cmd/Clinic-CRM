@@ -15,6 +15,7 @@ import { useSessionStore } from '@/store/session-store';
 import { QrRegistrationForm } from '@/modules/qr/qr-registration-form';
 import type { Patient } from '@/types/patient';
 import type { Lead } from '@/types/lead';
+import { PaginationControls, type PaginationMeta } from '@/components/ui/pagination-controls';
 
 type AnalyticsOverview = {
   totals: {
@@ -43,30 +44,40 @@ export function ClientsView() {
   const [dateTo, setDateTo] = useState('');
   const [recordTab, setRecordTab] = useState<'PATIENTS' | 'LEADS'>('PATIENTS');
   const [showCreatePatient, setShowCreatePatient] = useState(false);
-  const { selectedBranchId } = useSessionStore();
+  const [patientPage, setPatientPage] = useState(1);
+  const [leadPage, setLeadPage] = useState(1);
+  const { selectedBranchId, session, hasHydrated } = useSessionStore();
   const branchId = selectedBranchId ?? '';
+  const branchReady = hasHydrated && Boolean(session) && (session?.user.role === 'ADMIN' || Boolean(branchId));
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 250);
     return () => window.clearTimeout(timeout);
   }, [search]);
+  useEffect(() => { setPatientPage(1); setLeadPage(1); }, [branchId, debouncedSearch, status, source, dateFrom, dateTo]);
 
   const analyticsQuery = useQuery({
     queryKey: ['clients-analytics', branchId],
     queryFn: () => apiRequest<{ data: AnalyticsOverview }>(`/analytics${branchId ? `?branchId=${branchId}` : ''}`),
+    enabled: branchReady,
   });
 
   const patientQueryString = useMemo(() => {
     const params = new URLSearchParams();
     if (branchId) params.set('branchId', branchId);
     if (debouncedSearch) params.set('search', debouncedSearch);
+    if (status) params.set('leadStatus', status);
+    if (source) params.set('leadSource', source);
+    params.set('page', String(patientPage));
+    params.set('pageSize', '50');
     return params.toString();
-  }, [branchId, debouncedSearch]);
+  }, [branchId, debouncedSearch, patientPage, source, status]);
 
   const patientsQuery = useQuery({
     queryKey: ['clients-patients', patientQueryString],
-    queryFn: () => apiRequest<{ data: Patient[] }>(`/patients?${patientQueryString}`),
+    queryFn: () => apiRequest<{ data: Patient[]; meta: PaginationMeta }>(`/patients?${patientQueryString}`),
     placeholderData: keepPreviousData,
+    enabled: branchReady,
   });
 
   const leadsQueryString = useMemo(() => {
@@ -78,9 +89,11 @@ export function ClientsView() {
     if (dateFrom) params.set('createdFrom', new Date(`${dateFrom}T00:00:00`).toISOString());
     if (dateTo) params.set('createdTo', new Date(`${dateTo}T23:59:59`).toISOString());
     params.set('includeClosed', 'true');
+    params.set('page', String(leadPage));
+    params.set('pageSize', '50');
     return params.toString();
-  }, [branchId, dateFrom, dateTo, debouncedSearch, source, status]);
-  const leadsQuery = useQuery({ queryKey: ['master-leads', leadsQueryString], queryFn: () => apiRequest<{ data: Lead[] }>(`/leads?${leadsQueryString}`), placeholderData: keepPreviousData });
+  }, [branchId, dateFrom, dateTo, debouncedSearch, leadPage, source, status]);
+  const leadsQuery = useQuery({ queryKey: ['master-leads', leadsQueryString], queryFn: () => apiRequest<{ data: Lead[]; meta: PaginationMeta }>(`/leads?${leadsQueryString}`), placeholderData: keepPreviousData, enabled: branchReady });
   const uniquePatients = useMemo(() => {
     const seen = new Set<string>();
     return (patientsQuery.data?.data ?? []).filter((patient) => {
@@ -183,6 +196,7 @@ export function ClientsView() {
             </tbody>
           </table>
         </div>
+        <PaginationControls meta={patientsQuery.data?.meta} onPageChange={setPatientPage} />
       </Card>
       ) : null}
 
@@ -227,6 +241,7 @@ export function ClientsView() {
             </tbody>
           </table>
         </div>
+        <PaginationControls meta={leadsQuery.data?.meta} onPageChange={setLeadPage} />
       </Card>
       ) : null}
     </section>

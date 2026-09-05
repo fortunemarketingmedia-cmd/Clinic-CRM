@@ -6,26 +6,22 @@ import { AuthGuard } from '@/modules/auth/auth-guard';
 import { SessionProvider } from '@/store/session-store';
 import { ApiError, DATA_CHANGED_EVENT, type DataChangeDetail } from '@/services/api';
 
-const allOperationalQueries = [
-  ['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports'], ['clients-analytics'],
-  ['leads'], ['master-leads'], ['lead-profile'], ['lead-timeline'], ['lead-duplicates'], ['ad-leads-summary'],
-  ['sales-pipeline'], ['pipeline-staff'], ['pipeline-services'], ['pipeline-resources'],
-  ['appointments'], ['appointment-services'], ['appointment-resources'], ['appointment-staff'],
-  ['today-queue'], ['daily-client-queue'], ['waitlist'], ['front-desk-schedules'], ['schedule-staff'], ['schedule-resources'], ['schedule-appointments'],
-  ['patients'], ['clients-patients'], ['patient-360'], ['patient-sessions'], ['patient-visits'], ['patient-files'],
-  ['patient-form-templates'], ['patient-form-submissions'], ['patient-consent-templates'], ['patient-consents'], ['patient-gallery'], ['secure-patient-files'],
-  ['clinical-staff'], ['clinical-resources'], ['follow-ups'], ['tasks'], ['task-assignees'],
-];
+const dashboardQueries = [['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports'], ['clients-analytics']];
+const leadQueries = [['leads'], ['master-leads'], ['lead-profile'], ['lead-timeline'], ['lead-duplicates'], ['ad-leads-summary'], ['sales-pipeline']];
+const appointmentQueries = [['appointments'], ['today-queue'], ['daily-client-queue'], ['waitlist'], ['schedule-appointments']];
+const patientQueries = [['patients'], ['clients-patients'], ['patient-360'], ['patient-sessions'], ['patient-visits']];
+const patientFileQueries = [['patient-files'], ['patient-gallery'], ['secure-patient-files'], ['patient-form-submissions'], ['patient-consents']];
 
 function relatedQueries(path: string) {
   const resource = path.split('?')[0];
 
-  if (resource.startsWith('/leads') || resource.startsWith('/ad-leads')) return allOperationalQueries;
-  if (resource.startsWith('/appointments') || resource.startsWith('/waitlist') || resource.startsWith('/front-desk/')) return allOperationalQueries;
-  if (resource.startsWith('/patients') || resource.startsWith('/clinical/') || resource.startsWith('/forms/') || resource.startsWith('/consents/') || resource.startsWith('/files')) return allOperationalQueries;
-  if (resource.startsWith('/follow-ups') || resource.startsWith('/tasks')) return allOperationalQueries;
+  if (resource.startsWith('/leads') || resource.startsWith('/ad-leads')) return [...leadQueries, ...dashboardQueries];
+  if (resource.startsWith('/appointments') || resource.startsWith('/waitlist') || resource.startsWith('/front-desk/')) return [...appointmentQueries, ...leadQueries, ...dashboardQueries];
+  if (resource.startsWith('/files') || resource.startsWith('/forms/') || resource.startsWith('/consents/')) return [...patientFileQueries, ['patient-360']];
+  if (resource.startsWith('/patients') || resource.startsWith('/clinical/')) return [...patientQueries, ...patientFileQueries, ...appointmentQueries, ...dashboardQueries];
+  if (resource.startsWith('/follow-ups') || resource.startsWith('/tasks')) return [['follow-ups'], ['tasks'], ['notification-follow-ups'], ['notification-tasks'], ['follow-up-worklist'], ['header-reminders'], ['lead-profile'], ['lead-timeline'], ['dashboard-overview']];
   if (resource.startsWith('/settings')) return [['settings'], ['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports']];
-  if (resource.startsWith('/branches') || resource.startsWith('/users')) return [['branches'], ...allOperationalQueries];
+  if (resource.startsWith('/branches') || resource.startsWith('/users')) return [['branches'], ['appointment-staff'], ['clinical-staff'], ['schedule-staff'], ['task-assignees']];
   if (resource.startsWith('/automations')) return [['automations'], ['dashboard-overview'], ['analytics']];
   if (resource.startsWith('/lead-scoring')) return [['lead-scoring-rules'], ['leads'], ['master-leads'], ['lead-profile'], ['dashboard-overview'], ['analytics']];
 
@@ -38,7 +34,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
+            staleTime: (query) => {
+              const root = String(query.queryKey[0] ?? '');
+              if (['today-queue', 'daily-client-queue', 'appointments', 'schedule-appointments'].includes(root)) return 10_000;
+              if (['branches', 'settings', 'appointment-services', 'appointment-resources', 'patient-form-templates', 'patient-consent-templates'].includes(root)) return 10 * 60_000;
+              return 30_000;
+            },
+            gcTime: 15 * 60_000,
             refetchOnWindowFocus: false,
             retry: (failureCount, error) =>
               error instanceof ApiError

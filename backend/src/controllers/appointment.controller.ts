@@ -30,7 +30,7 @@ export const appointmentController = {
 
     const query = appointmentQuerySchema.parse(req.query);
     const appointments = await appointmentService.listAppointments({ ...query, role: req.user.role, userId: req.user.id });
-    return res.json({ data: appointments });
+    return res.json({ data: appointments.items, meta: { total: appointments.total, page: appointments.page, pageSize: appointments.pageSize, totalPages: Math.ceil(appointments.total / appointments.pageSize) } });
   },
 
   async get(req: Request, res: Response) {

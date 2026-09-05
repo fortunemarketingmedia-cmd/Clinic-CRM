@@ -1,4 +1,4 @@
-import type { AppointmentType, EnquirySource, LeadPriority, LeadStatus, Role } from '@prisma/client';
+import type { AppointmentType, EnquirySource, LeadPriority, LeadStatus, Prisma, Role } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
 
@@ -10,7 +10,16 @@ type LeadFilters = {
   createdFrom?: Date;
   createdTo?: Date;
   includeClosed?: boolean;
+  view?: 'ACTIVE' | 'ARCHIVED' | 'MANUAL';
+  archiveOutcome?: 'WON' | 'LOST';
+  ownerId?: string;
+  interestedTreatment?: string;
+  lostReason?: string;
+  closedFrom?: Date;
+  closedTo?: Date;
   role: Role;
+  page: number;
+  pageSize: number;
 };
 
 const clientPipelineStatuses: LeadStatus[] = [
@@ -26,12 +35,18 @@ export const leadRepository = {
     return crypto.randomBytes(24).toString('hex');
   },
 
-  list(filters: LeadFilters) {
-    return prisma.lead.findMany({
-      where: {
+  async list(filters: LeadFilters) {
+    const archivedStatuses: LeadStatus[] = ['APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED', 'CONVERTED', 'LOST', 'DISQUALIFIED'];
+    const archiveStatusFilter = filters.archiveOutcome === 'WON' ? { in: archivedStatuses.slice(0, 4) } : filters.archiveOutcome === 'LOST' ? { in: archivedStatuses.slice(4) } : { in: archivedStatuses };
+    const closedRange = { gte: filters.closedFrom, lte: filters.closedTo };
+    const where: Prisma.LeadWhereInput = {
         branchId: filters.branchId,
-        source: filters.source,
-        status: filters.status ?? (filters.includeClosed ? undefined : { notIn: clientPipelineStatuses }),
+        source: filters.source ?? (filters.view === 'MANUAL' ? { notIn: ['GOOGLE_ADS', 'META_ADS'] } : undefined),
+        status: filters.status ?? (filters.view === 'ARCHIVED' ? archiveStatusFilter : filters.view === 'ACTIVE' || filters.view === 'MANUAL' ? { notIn: archivedStatuses } : filters.includeClosed ? undefined : { notIn: clientPipelineStatuses }),
+        ownerId: filters.ownerId,
+        interestedTreatment: filters.interestedTreatment ? { contains: filters.interestedTreatment, mode: 'insensitive' } : undefined,
+        lostReason: filters.lostReason ? { contains: filters.lostReason, mode: 'insensitive' } : undefined,
+        AND: filters.closedFrom || filters.closedTo ? [{ OR: [{ closedAt: closedRange }, { closedAt: null, convertedAt: closedRange }, { closedAt: null, convertedAt: null, updatedAt: closedRange }] }] : undefined,
         createdAt: filters.createdFrom || filters.createdTo
           ? {
               gte: filters.createdFrom,
@@ -45,10 +60,16 @@ export const leadRepository = {
               { email: { contains: filters.search, mode: 'insensitive' } },
             ]
           : undefined,
-      },
-      include: { branch: true, adLeads: true, patient: true, person: true, owner: { select: { id: true, name: true } } },
+      };
+    const [items, total] = await prisma.$transaction([
+      prisma.lead.findMany({ where, select: { id: true, qrToken: true, name: true, mobile: true, email: true, address: true, source: true, status: true, priority: true, nextFollowupAt: true, lastContactedAt: true, followupNotes: true, interestedTreatment: true, appointmentType: true, appointmentAt: true, convertedAt: true, closedAt: true, branchId: true, personId: true, ownerId: true, nextAction: true, nextActionDueAt: true, qualificationStatus: true, qualificationNotes: true, leadScore: true, scoreCategory: true, lostReason: true, lostNotes: true, disqualificationReason: true, createdAt: true, updatedAt: true, branch: true, patient: true, person: true, owner: { select: { id: true, name: true } }, adLeads: { select: { id: true, platform: true, campaignName: true } } },
       orderBy: { createdAt: 'desc' },
-    });
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+      }),
+      prisma.lead.count({ where }),
+    ]);
+    return { items, total, page: filters.page, pageSize: filters.pageSize };
   },
 
   findById(id: string) {

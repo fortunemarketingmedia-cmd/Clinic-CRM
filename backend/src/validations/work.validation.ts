@@ -7,6 +7,7 @@ export const workQuerySchema = z.object({
   status: z.nativeEnum(WorkStatus).optional(),
   dueFrom: z.coerce.date().optional(),
   dueTo: z.coerce.date().optional(),
+  scope: z.enum(['ACTIVE_LEADS', 'ALL']).default('ACTIVE_LEADS'),
 });
 
 export const createFollowUpSchema = z.object({
@@ -40,4 +41,3 @@ export const updateTaskSchema = z.object({
   assignedUserId: z.string().optional(), dueAt: z.coerce.date().optional(), reminderAt: z.coerce.date().optional(),
   status: z.nativeEnum(WorkStatus).optional(), completionNotes: z.string().optional(),
 }).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
-

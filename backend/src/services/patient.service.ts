@@ -1,4 +1,4 @@
-import type { Prisma, Role, Sex } from '@prisma/client';
+import type { EnquirySource, LeadStatus as LeadStatusType, Prisma, Role, Sex } from '@prisma/client';
 import { LeadStatus, Role as RoleEnum } from '@prisma/client';
 import { branchRepository } from '../repositories/branch.repository.js';
 import { leadRepository } from '../repositories/lead.repository.js';
@@ -35,7 +35,7 @@ async function recordRegistrationSubmission(patientId: string, branchId: string 
 }
 
 export const patientService = {
-  async listPatients(filters: { branchId?: string; search?: string; role: Role }) {
+  async listPatients(filters: { branchId?: string; search?: string; leadStatus?: LeadStatusType; leadSource?: EnquirySource; page: number; pageSize: number; role: Role }) {
     requireBranchForReceptionist(filters.role, filters.branchId);
     await ensureBranchExists(filters.branchId);
     return patientRepository.list(filters);

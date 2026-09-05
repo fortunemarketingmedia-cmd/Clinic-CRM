@@ -4,12 +4,16 @@ import PDFDocument from 'pdfkit';
 import type { z } from 'zod';
 import { formsRepository } from '../repositories/forms.repository.js';
 import { HttpError } from '../utils/http-error.js';
-import type { consentSignSchema, consentTemplateSchema, consentTemplateUpdateSchema, fileQuerySchema, formSubmissionSchema, formTemplateQuerySchema, formTemplateSchema, formTemplateUpdateSchema, secureFileSchema } from '../validations/forms.validation.js';
+import type { consentSignSchema, consentTemplateSchema, consentTemplateUpdateSchema, fileQuerySchema, formSubmissionSchema, formTemplateQuerySchema, formTemplateSchema, formTemplateUpdateSchema, secureFileMetadataSchema } from '../validations/forms.validation.js';
 import { accessService } from './access.service.js';
 import { auditService, type AuditContext } from './audit.service.js';
 import { fileStorageService } from './file-storage.service.js';
 import { canAccessFile, validateSubmission, type SnapshotField } from './form-policy.js';
 import { timelineRepository } from '../repositories/timeline.repository.js';
+import { integrationRepository } from '../repositories/integration.repository.js';
+import { imageOptimizationService } from './image-optimization.service.js';
+import { metricsService } from './metrics.service.js';
+import { malwareScannerService } from './malware-scanner.service.js';
 
 type Actor = AuditContext & { id: string; role: Role };
 const administratorRoles: Role[] = [RoleEnum.ADMIN];
@@ -70,8 +74,59 @@ export const formsService = {
   async withdrawConsent(id: string, reason: string, actor: Actor) { requireCareRole(actor); const existing = await formsRepository.findConsentRecord(id); if (!existing) throw new HttpError(404, 'Consent record not found'); await requirePatient(existing.patientId, actor); if (existing.status === 'SIGNED' && existing.expiresAt && existing.expiresAt <= new Date()) { await formsRepository.markConsentExpired(id); throw new HttpError(409, 'Expired consent cannot be withdrawn'); } if (existing.status !== 'SIGNED') throw new HttpError(409, 'Only active signed consent can be withdrawn'); const record = await formsRepository.withdrawConsent(id, reason); if (record.template.type === 'MARKETING_USE_CONSENT') await formsRepository.updateMarketingConsent(record.patientId, false); await audit(actor, { action: 'CONSENT_WITHDRAWN', entity: 'ConsentRecord', entityId: id, previousValue: { status: existing.status }, newValue: { status: 'WITHDRAWN', reason } }); return record; },
   async consentPdf(id: string, actor: Actor) { requireCareRole(actor); const record = await formsRepository.findConsentRecord(id); if (!record) throw new HttpError(404, 'Consent record not found'); await requirePatient(record.patientId, actor); await audit(actor, { action: 'CONSENT_PDF_VIEWED', entity: 'ConsentRecord', entityId: id }); return fileStorageService.read(record.signedPdfStorageKey); },
 
-  async uploadFile(input: z.infer<typeof secureFileSchema>, actor: Actor) { requireCareRole(actor); const patient = await requirePatient(input.patientId, actor); if (input.marketingPermission && !(await formsRepository.hasActiveMarketingConsent(patient.id))) throw new HttpError(409, 'Marketing permission requires an active signed marketing consent'); const stored = await fileStorageService.writeBase64(patient.id, input.contentBase64, input.mimeType); const category = input.fileType === 'INVOICE' ? 'INVOICE' : input.fileType === 'PRESCRIPTION' ? 'PRESCRIPTION' : input.fileType === 'MEDICAL_REPORT' ? 'REPORT' : ['CLINICAL_PHOTOGRAPH', 'BEFORE_IMAGE', 'AFTER_IMAGE'].includes(input.fileType) ? 'IMAGE' : 'OTHER'; const { contentBase64: _content, ...metadata } = input; void _content; const file = await formsRepository.createFile({ ...metadata, annotation: metadata.annotation as Prisma.InputJsonValue | undefined, ...stored, category, name: input.originalFilename, url: `secure://${stored.storageKey}`, uploadedById: actor.id }); await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId, patientId: patient.id, createdById: actor.id, type: 'FILE_UPLOADED', title: `${input.fileType.replaceAll('_', ' ')} uploaded`, description: input.originalFilename }); await audit(actor, { action: 'PATIENT_FILE_UPLOADED', entity: 'PatientFile', entityId: file.id, newValue: { fileType: file.fileType, visibility: file.visibility, marketingPermission: file.marketingPermission } }); return this.withAccessUrl(file); },
+  async uploadFile(input: z.infer<typeof secureFileMetadataSchema> & { contentBase64?: string }, actor: Actor, binary?: Buffer) {
+    requireCareRole(actor);
+    const patient = await requirePatient(input.patientId, actor);
+    if (input.marketingPermission && !(await formsRepository.hasActiveMarketingConsent(patient.id))) throw new HttpError(409, 'Marketing permission requires an active signed marketing consent');
+    if (input.idempotencyKey) {
+      const existing = await formsRepository.findFileByIdempotencyKey(input.idempotencyKey);
+      if (existing) {
+        if (existing.patientId !== patient.id) throw new HttpError(409, 'Upload idempotency key is already in use');
+        return this.withAccessUrl(existing);
+      }
+    }
+    if (!binary && !input.contentBase64) throw new HttpError(400, 'A file is required');
+    let dimensions: { width: number; height: number } | undefined;
+    if (binary && imageOptimizationService.isImage(input.mimeType)) {
+      try { dimensions = await imageOptimizationService.inspect(binary); }
+      catch { throw new HttpError(400, 'Image is malformed or exceeds the permitted dimensions'); }
+    }
+    if (binary && !imageOptimizationService.isImage(input.mimeType)) await malwareScannerService.scan(binary);
+    let stored;
+    try {
+      stored = binary
+        ? await fileStorageService.writeBuffer(patient.id, binary, input.mimeType)
+        : await fileStorageService.writeBase64(patient.id, input.contentBase64!, input.mimeType);
+    } catch (error) {
+      metricsService.upload(input.mimeType, 'failure');
+      throw error;
+    }
+    const category = input.fileType === 'INVOICE' ? 'INVOICE' : input.fileType === 'PRESCRIPTION' ? 'PRESCRIPTION' : input.fileType === 'MEDICAL_REPORT' ? 'REPORT' : ['CLINICAL_PHOTOGRAPH', 'BEFORE_IMAGE', 'AFTER_IMAGE'].includes(input.fileType) ? 'IMAGE' : 'OTHER';
+    const { contentBase64: _content, idempotencyKey, ...metadata } = input; void _content;
+    let file;
+    try {
+      file = await formsRepository.createFile({ ...metadata, annotation: metadata.annotation as Prisma.InputJsonValue | undefined, ...stored, category, name: input.originalFilename, url: `secure://${stored.storageKey}`, uploadedById: actor.id, uploadIdempotencyKey: idempotencyKey, width: dimensions?.width, height: dimensions?.height, optimizationStatus: imageOptimizationService.isImage(input.mimeType) ? 'QUEUED' : 'NOT_REQUIRED' });
+    } catch (error) {
+      await fileStorageService.delete(stored.storageKey).catch(() => undefined);
+      if (idempotencyKey) {
+        const existing = await formsRepository.findFileByIdempotencyKey(idempotencyKey);
+        if (existing?.patientId === patient.id) return this.withAccessUrl(existing);
+      }
+      throw error;
+    }
+    if (imageOptimizationService.isImage(input.mimeType)) {
+      try { await integrationRepository.createJob({ type: 'FILE_OPTIMIZATION', idempotencyKey: `file-optimize:${file.id}`, payload: { fileId: file.id } }); }
+      catch (error) {
+        await formsRepository.updateFileOptimization(file.id, 'FAILED');
+        console.error(JSON.stringify({ level: 'error', component: 'file-upload', fileId: file.id, message: error instanceof Error ? error.message : String(error) }));
+      }
+    }
+    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId, patientId: patient.id, createdById: actor.id, type: 'FILE_UPLOADED', title: `${input.fileType.replaceAll('_', ' ')} uploaded`, description: input.originalFilename });
+    await audit(actor, { action: 'PATIENT_FILE_UPLOADED', entity: 'PatientFile', entityId: file.id, newValue: { fileType: file.fileType, visibility: file.visibility, marketingPermission: file.marketingPermission } });
+    metricsService.upload(input.mimeType, 'success');
+    return this.withAccessUrl(file);
+  },
   async listFiles(query: z.infer<typeof fileQuerySchema>, actor: Actor) { requireCareRole(actor); await requirePatient(query.patientId, actor); const files = await formsRepository.listFiles(query); return files.filter((file) => canAccessFile(actor.role, file.visibility)).map((file) => this.withAccessUrl(file)); },
-  withAccessUrl<T extends { id: string; storageKey: string | null; url: string }>(file: T) { const expiresAt = Date.now() + 5 * 60_000; const token = fileStorageService.createAccessToken(file.id, expiresAt); const { storageKey: _storageKey, url: _url, ...safe } = file; void _storageKey; void _url; return { ...safe, accessUrl: `/files/${file.id}/content?token=${encodeURIComponent(token)}`, accessExpiresAt: new Date(expiresAt).toISOString() }; },
-  async fileContent(id: string, token: string) { if (!fileStorageService.verifyAccessToken(id, token)) throw new HttpError(403, 'File link is invalid or expired'); const file = await formsRepository.findFile(id); if (!file) throw new HttpError(404, 'File not found'); if (file.storageKey?.startsWith('legacy/')) return { ...fileStorageService.decodeLegacyDataUrl(file.url), filename: file.originalFilename ?? file.name }; if (!file.storageKey) throw new HttpError(409, 'File has not been migrated to secure storage'); return { buffer: await fileStorageService.read(file.storageKey), mimeType: file.mimeType ?? 'application/octet-stream', filename: file.originalFilename ?? file.name }; },
+  withAccessUrl<T extends { id: string; storageKey: string | null; url: string; derivedFiles?: Array<{ id: string; storageKey: string | null; url: string; variant: string }> }>(file: T) { const expiresAt = Date.now() + 5 * 60_000; const token = fileStorageService.createAccessToken(file.id, expiresAt); const { storageKey: _storageKey, url: _url, derivedFiles, ...safe } = file; void _storageKey; void _url; const derivativeUrls = Object.fromEntries((derivedFiles ?? []).map((derived) => { const derivedToken = fileStorageService.createAccessToken(derived.id, expiresAt); return [derived.variant.toLowerCase(), `/files/${derived.id}/content?token=${encodeURIComponent(derivedToken)}`]; })); return { ...safe, accessUrl: `/files/${file.id}/content?token=${encodeURIComponent(token)}`, derivativeUrls, accessExpiresAt: new Date(expiresAt).toISOString() }; },
+  async fileContent(id: string, token: string) { if (!fileStorageService.verifyAccessToken(id, token)) throw new HttpError(403, 'File link is invalid or expired'); const file = await formsRepository.findFile(id); if (!file) throw new HttpError(404, 'File not found'); if (file.storageKey?.startsWith('legacy/')) { const legacy = fileStorageService.decodeLegacyDataUrl(file.url); return { ...legacy, filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id, cacheable: false }; } if (!file.storageKey) throw new HttpError(409, 'File has not been migrated to secure storage'); return { buffer: await fileStorageService.read(file.storageKey), mimeType: file.mimeType ?? 'application/octet-stream', filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id, cacheable: file.variant !== 'ORIGINAL' && file.fileType !== 'IDENTITY_DOCUMENT' }; },
 };

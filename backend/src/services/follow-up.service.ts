@@ -10,6 +10,7 @@ import type {
   createFollowUpSchema,
   workQuerySchema,
 } from '../validations/work.validation.js';
+import { defaultReminderAt } from './work-reminder.js';
 
 type CreateInput = z.infer<typeof createFollowUpSchema>;
 type CompleteInput = z.infer<typeof completeFollowUpSchema>;
@@ -32,7 +33,10 @@ export const followUpService = {
     if (!assignee) throw new HttpError(400, 'Select an active team member from this branch');
     const { role: _authorizationRole, ...followUpData } = input;
     void _authorizationRole;
-    const followUp = await followUpRepository.create(followUpData);
+    const followUp = await followUpRepository.create({
+      ...followUpData,
+      reminderAt: followUpData.reminderAt ?? defaultReminderAt(followUpData.dueAt),
+    });
     if (input.leadId) {
       await followUpRepository.updateLeadNextAction(input.leadId, input.activityType, input.dueAt);
     }

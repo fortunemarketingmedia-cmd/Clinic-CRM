@@ -43,18 +43,23 @@ export function NotificationsView() {
   const params = new URLSearchParams();
   if (selectedBranchId) params.set('branchId', selectedBranchId);
   if (session?.user.role === 'RECEPTIONIST') params.set('assignedUserId', session.user.id);
+  params.set('scope', 'ALL');
 
   const followUps = useQuery({
     queryKey: ['notification-follow-ups', selectedBranchId, session?.user.id],
     queryFn: () => apiRequest<{ data: FollowUp[] }>(`/follow-ups?${params}`),
     enabled: Boolean(session && (session.user.role === 'ADMIN' || selectedBranchId)),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   const tasks = useQuery({
     queryKey: ['notification-tasks', selectedBranchId, session?.user.id],
     queryFn: () => apiRequest<{ data: Task[] }>(`/tasks?${params}`),
     enabled: Boolean(session && (session.user.role === 'ADMIN' || selectedBranchId)),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const rows = useMemo<ReminderRow[]>(() => [

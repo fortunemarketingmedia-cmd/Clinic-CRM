@@ -39,11 +39,14 @@ export function FollowUpWorklistView() {
   const [outcome, setOutcome] = useState('');
   const params = new URLSearchParams();
   if (selectedBranchId) params.set('branchId', selectedBranchId);
+  params.set('scope', 'ALL');
   const query = useQuery({
     queryKey: ['follow-up-worklist', selectedBranchId],
     queryFn: () => apiRequest<{ data: FollowUp[] }>(`/follow-ups?${params}`),
     enabled: Boolean(session && (session.user.role === 'ADMIN' || selectedBranchId)),
     refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
   const items = useMemo(() => query.data?.data ?? [], [query.data]);
   const assignees = useMemo(() => Array.from(new Map(items.map((item) => [item.assignedUser.id, item.assignedUser])).values()), [items]);
