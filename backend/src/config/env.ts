@@ -69,6 +69,12 @@ const envSchema = z.object({
   PROVIDER_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(20000),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(10000),
   MFA_ISSUER: z.string().default('Revive Clinic CRM'),
+  SMTP_HOST: optional(z.string().min(1)),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z.enum(['true', 'false']).default('false'),
+  SMTP_USER: optional(z.string().min(1)),
+  SMTP_PASS: optional(z.string().min(1)),
+  SMTP_FROM: optional(z.string().min(1)),
 });
 
 const parsedEnv = envSchema.parse(process.env);
@@ -112,6 +118,9 @@ if (parsedEnv.NODE_ENV === 'production') {
   }
   if (parsedEnv.FILE_STORAGE_PROVIDER !== 's3') {
     throw new Error('Production file storage must use the private S3-compatible provider');
+  }
+  if (!parsedEnv.CLAMAV_HOST || parsedEnv.FILE_SCAN_REQUIRED !== 'true') {
+    throw new Error('Production uploads require a reachable ClamAV service and FILE_SCAN_REQUIRED=true');
   }
   if (!parsedEnv.REDIS_URL) throw new Error('REDIS_URL is required in production');
   if (parsedEnv.TRUST_PROXY_HOPS < 1) {

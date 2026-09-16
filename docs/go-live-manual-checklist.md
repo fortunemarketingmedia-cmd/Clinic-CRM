@@ -23,6 +23,7 @@ These actions require infrastructure access, clinic policy decisions, or secret 
 - Confirm Compose exposes only 80/443; PostgreSQL, MinIO, backend, and frontend must have no public host port.
 - Baseline the existing database's Prisma migration history before relying on `prisma migrate deploy`; the current local database predates the recorded migration chain.
 - Run the included private MinIO storage with application-level AES-256-GCM file encryption, run `npm run storage:migrate:s3` for old files, and verify signed-link access before switching traffic.
+- Keep the bundled ClamAV service enabled and set `CLAMAV_HOST=clamav` plus `FILE_SCAN_REQUIRED=true`; every patient upload, including images, must be scanned before storage.
 - Replicate `/srv/revive-crm/backups` to a different provider/account. Complete and document a disposable PostgreSQL plus object-file restore before launch.
 - Keep the current in-memory rate limiter only for a single backend process. Before adding a second replica, deploy Redis-backed shared rate limiting.
 

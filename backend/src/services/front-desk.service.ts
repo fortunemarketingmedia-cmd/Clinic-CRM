@@ -37,8 +37,9 @@ export const frontDeskService = {
       const existingEnd = addMinutes(appointment.endAt ?? addMinutes(appointment.appointmentAt, appointment.durationMinutes), appointment.bufferMinutes);
       const shared = [appointment.doctorId, appointment.therapistId, appointment.resourceId, appointment.equipmentId].some((id) => id && requestedIds.has(id));
       const legacyRoom = Boolean(input.roomNumber && appointment.roomNumber === input.roomNumber);
-      const consultancyOverlap = input.resourceType === 'CONSULTATION' && appointment.resourceType === 'CONSULTATION';
-      return (consultancyOverlap || shared || legacyRoom) && intervalsOverlap({ start: input.startsAt, end }, { start: existingStart, end: existingEnd });
+      // A consultation category is not a shared resource. Unassigned intake
+      // bookings may overlap; only an actual staff/resource assignment blocks time.
+      return (shared || legacyRoom) && intervalsOverlap({ start: input.startsAt, end }, { start: existingStart, end: existingEnd });
     });
     const clock = clinicClock(input.startsAt);
     const outsideSchedule = schedules.some((userSchedules) => userSchedules.length > 0 && !userSchedules.some((schedule) => schedule.weekday === clock.weekday && clock.minutes >= schedule.startMinutes && clock.minutes + input.durationMinutes <= schedule.endMinutes));

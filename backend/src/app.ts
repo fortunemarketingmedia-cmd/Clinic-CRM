@@ -36,6 +36,8 @@ import { HttpError } from './utils/http-error.js';
 import { fileStorageService } from './services/file-storage.service.js';
 import { cacheService } from './services/cache.service.js';
 import { metricsService } from './services/metrics.service.js';
+import { realtimeService } from './services/realtime.service.js';
+import { realtimeRoutes } from './routes/realtime.routes.js';
 
 export const app = express();
 
@@ -89,6 +91,17 @@ else app.use((req, res, next) => {
   next();
 });
 app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 240, keyPrefix: 'api' }));
+app.use('/api', (req, res, next) => {
+  res.on('finish', () => {
+    if (req.method === 'GET' || req.method === 'HEAD') return;
+    const path = req.originalUrl.split('?')[0].replace(/^\/api/, '');
+    if (path.startsWith('/auth') || path.startsWith('/realtime')) return;
+    if (res.statusCode < 200 || res.statusCode >= 300) return;
+    realtimeService.publish({ path, method: req.method });
+  });
+  next();
+});
+app.use('/api/realtime', realtimeRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'revive-crm-backend' });

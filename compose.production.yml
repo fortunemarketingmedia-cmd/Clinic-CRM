@@ -58,7 +58,6 @@ services:
 
   clamav:
     image: clamav/clamav:1.4
-    profiles: ["malware-scan"]
     restart: unless-stopped
     networks:
       - data
@@ -149,6 +148,8 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
     networks:
       - edge
       - data

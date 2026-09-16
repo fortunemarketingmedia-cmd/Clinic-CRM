@@ -119,11 +119,11 @@ function appointmentProblem(error: unknown) {
   const status = error instanceof ApiError ? error.status : undefined;
   const lower = message.toLowerCase();
 
-  if (status === 409 || lower.includes('not available') || lower.includes('interval')) {
+  if (lower.includes('not available for this interval')) {
     return {
       title: 'Selected slot is not available',
-      reason: 'Another booking, room, or resource is already using this time.',
-      guidance: 'Try a different time or select another available room.',
+      reason: 'The selected staff member or resource is booked, blocked, or outside working hours.',
+      guidance: 'Try a different time or check availability in Schedules & Rooms.',
       kind: 'availability' as const,
     };
   }
@@ -292,6 +292,9 @@ export function AppointmentsView() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'day' | 'list'>('calendar');
+  const [dateFilter, setDateFilter] = useState<'TODAY' | 'TOMORROW' | 'WEEK' | 'MONTH' | 'CUSTOM'>('MONTH');
+  const [customFrom, setCustomFrom] = useState(localDateKey(new Date()));
+  const [customTo, setCustomTo] = useState(localDateKey(new Date()));
 
   const branchesQuery = useQuery({
     queryKey: ['branches'],
@@ -317,17 +320,41 @@ export function AppointmentsView() {
   }, [branches, isAdmin, selectedBranchId, setSelectedBranchId]);
 
   const range = useMemo(() => monthRange(calendarMonth), [calendarMonth]);
+  const filterRange = useMemo(() => {
+    const today = new Date();
+    if (dateFilter === 'TODAY') return dayRange(today);
+    if (dateFilter === 'TOMORROW') {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return dayRange(tomorrow);
+    }
+    if (dateFilter === 'WEEK') {
+      const start = dayRange(today).start;
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return { start, end };
+    }
+    if (dateFilter === 'CUSTOM') {
+      return {
+        start: new Date(`${customFrom}T00:00:00`),
+        end: new Date(`${customTo}T23:59:59`),
+      };
+    }
+    return range;
+  }, [customFrom, customTo, dateFilter, range]);
+  const activeRange = viewMode === 'calendar' ? range : filterRange;
   const appointmentQueryString = useMemo(() => {
     const params = new URLSearchParams();
     if (!isAdmin || activeBranchId) params.set('branchId', activeBranchId);
     if (status) params.set('status', status);
     if (search.trim()) params.set('search', search.trim());
-    params.set('dateFrom', new Date(`${localDateKey(range.start)}T00:00:00`).toISOString());
-    params.set('dateTo', new Date(`${localDateKey(range.end)}T23:59:59`).toISOString());
+    params.set('dateFrom', new Date(`${localDateKey(activeRange.start)}T00:00:00`).toISOString());
+    params.set('dateTo', new Date(`${localDateKey(activeRange.end)}T23:59:59`).toISOString());
     // The calendar needs the complete visible date range in one response.
     params.set('pageSize', '500');
     return params.toString();
-  }, [activeBranchId, isAdmin, range.end, range.start, search, status]);
+  }, [activeBranchId, activeRange.end, activeRange.start, isAdmin, search, status]);
 
   const appointmentsQuery = useQuery({
     queryKey: ['appointments', appointmentQueryString],
@@ -537,9 +564,26 @@ export function AppointmentsView() {
     const createRequested = searchParams.get('create') === '1';
     if (!createRequested || !canBookAppointment) return;
     setShowAppointmentForm(true);
-    form.setValue('resourceType', 'CONSULTATION');
+    const resourceType = searchParams.get('resourceType') === 'TREATMENT_ROOM' ? 'TREATMENT_ROOM' : 'CONSULTATION';
+    form.setValue('resourceType', resourceType);
     const date = searchParams.get('date');
     if (date) form.setValue('appointmentAt', `${date}T10:00`);
+    const leadId = searchParams.get('leadId');
+    if (leadId) {
+      form.setValue('leadId', leadId);
+      const name = searchParams.get('name');
+      const mobile = searchParams.get('mobile');
+      const address = searchParams.get('address');
+      const source = searchParams.get('source');
+      const branchId = searchParams.get('branchId');
+      const appointmentType = searchParams.get('appointmentType');
+      if (name) form.setValue('name', name);
+      if (mobile) form.setValue('mobile', mobile);
+      if (address) form.setValue('address', address);
+      if (source) form.setValue('source', appointmentSourceFromLead(source as Lead['source']));
+      if (branchId) form.setValue('branchId', branchId);
+      if (appointmentType === 'CLINIC_VISIT' || appointmentType === 'VIDEO_CONSULTATION') form.setValue('appointmentType', appointmentType);
+    }
   }, [canBookAppointment, form, searchParams]);
 
   useEffect(() => {
@@ -927,6 +971,50 @@ export function AppointmentsView() {
           </div>
         </div>
 
+        {viewMode !== 'calendar' ? (
+          <div className="flex flex-wrap items-center gap-2 border-b border-border py-3">
+            {(
+              [
+                { value: 'TODAY', label: 'Today' },
+                { value: 'TOMORROW', label: 'Tomorrow' },
+                { value: 'WEEK', label: 'Next 7 days' },
+                { value: 'MONTH', label: 'This month' },
+                { value: 'CUSTOM', label: 'Custom range' },
+              ] as const
+            ).map((option) => (
+              <Button
+                key={option.value}
+                type="button"
+                variant={dateFilter === option.value ? 'primary' : 'secondary'}
+                onClick={() => setDateFilter(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+            {dateFilter === 'CUSTOM' ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="date"
+                  aria-label="From date"
+                  value={customFrom}
+                  onChange={(event) => setCustomFrom(event.target.value)}
+                />
+                <span className="text-sm text-muted-foreground">to</span>
+                <Input
+                  type="date"
+                  aria-label="To date"
+                  value={customTo}
+                  min={customFrom}
+                  onChange={(event) => setCustomTo(event.target.value)}
+                />
+              </div>
+            ) : null}
+            <span className="ml-auto text-xs text-muted-foreground">
+              {formatDate(localDateKey(activeRange.start))} - {formatDate(localDateKey(activeRange.end))}
+            </span>
+          </div>
+        ) : null}
+
         {viewMode === 'calendar' ? (
           <div className="mt-4 grid grid-cols-7 overflow-hidden rounded-md border border-border text-sm">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -1007,7 +1095,7 @@ export function AppointmentsView() {
 
         {viewMode === 'day' ? (
           <AppointmentList
-            appointments={selectedDayAppointments}
+            appointments={appointments}
             onSelect={setSelectedAppointment}
             onEdit={startEdit}
             onAction={(appointment, action) =>

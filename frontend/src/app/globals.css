@@ -50,6 +50,23 @@ textarea::placeholder {
   color: hsl(var(--muted-foreground) / 0.42);
 }
 
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  color: hsl(var(--muted-foreground));
+}
+
+input:not([type='checkbox']):not([type='radio']):disabled,
+select:disabled,
+textarea:disabled,
+input:not([type='checkbox']):not([type='radio'])[readonly] {
+  color: hsl(var(--muted-foreground) / 0.65);
+}
+
+label > span:first-child {
+  color: hsl(var(--foreground));
+}
+
 ::selection {
   background: hsl(var(--primary) / 0.18);
 }

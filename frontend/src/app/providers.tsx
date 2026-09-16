@@ -3,8 +3,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { AuthGuard } from '@/modules/auth/auth-guard';
-import { SessionProvider } from '@/store/session-store';
-import { ApiError, DATA_CHANGED_EVENT, type DataChangeDetail } from '@/services/api';
+import { SessionProvider, useSessionStore } from '@/store/session-store';
+import { apiAssetUrl, ApiError, DATA_CHANGED_EVENT, getAccessToken, type DataChangeDetail } from '@/services/api';
 
 const dashboardQueries = [['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports'], ['clients-analytics']];
 const leadQueries = [['leads'], ['master-leads'], ['lead-profile'], ['lead-timeline'], ['lead-duplicates'], ['ad-leads-summary'], ['sales-pipeline']];
@@ -24,6 +24,7 @@ function relatedQueries(path: string) {
   if (resource.startsWith('/branches') || resource.startsWith('/users')) return [['branches'], ['appointment-staff'], ['clinical-staff'], ['schedule-staff'], ['task-assignees']];
   if (resource.startsWith('/automations')) return [['automations'], ['dashboard-overview'], ['analytics']];
   if (resource.startsWith('/lead-scoring')) return [['lead-scoring-rules'], ['leads'], ['master-leads'], ['lead-profile'], ['dashboard-overview'], ['analytics']];
+  if (resource.startsWith('/public')) return [...leadQueries, ...patientQueries, ...appointmentQueries, ...dashboardQueries];
 
   return [];
 }
@@ -54,18 +55,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('revive-crm-data-sync');
-    const refreshRelatedQueries = (path: string) => {
-      for (const queryKey of relatedQueries(path)) {
-        void queryClient.invalidateQueries({ queryKey });
-      }
-    };
     const synchronizeConnectedViews = (event: Event) => {
       const { path } = (event as CustomEvent<DataChangeDetail>).detail;
-      refreshRelatedQueries(path);
+      refreshRelatedQueries(queryClient, path);
       channel?.postMessage({ path });
     };
     const synchronizeOtherTab = (event: MessageEvent<{ path?: string }>) => {
-      if (event.data.path) refreshRelatedQueries(event.data.path);
+      if (event.data.path) refreshRelatedQueries(queryClient, event.data.path);
     };
 
     window.addEventListener(DATA_CHANGED_EVENT, synchronizeConnectedViews);
@@ -80,8 +76,45 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
+        <RealtimeSync queryClient={queryClient} />
         <AuthGuard>{children}</AuthGuard>
       </SessionProvider>
     </QueryClientProvider>
   );
+}
+
+function refreshRelatedQueries(queryClient: QueryClient, path: string) {
+  for (const queryKey of relatedQueries(path)) {
+    void queryClient.invalidateQueries({ queryKey });
+  }
+}
+
+// Cross-device / cross-user live sync: pushes an SSE event for every mutating API
+// call so other connected staff screens refresh instantly (e.g. a QR self-registration
+// or a booking made on another device) without a manual page reload.
+function RealtimeSync({ queryClient }: { queryClient: QueryClient }) {
+  const { session } = useSessionStore();
+
+  useEffect(() => {
+    if (!session) return undefined;
+    const token = getAccessToken();
+    if (!token || typeof window === 'undefined' || typeof EventSource === 'undefined') return undefined;
+
+    const source = new EventSource(`${apiAssetUrl('/realtime/events')}?token=${encodeURIComponent(token)}`);
+    source.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data) as { path?: string };
+        if (data.path) refreshRelatedQueries(queryClient, data.path);
+      } catch {
+        // Ignore malformed or comment/heartbeat frames.
+      }
+    };
+    source.onerror = () => {
+      // EventSource retries automatically; nothing else to do here.
+    };
+
+    return () => source.close();
+  }, [queryClient, session]);
+
+  return null;
 }

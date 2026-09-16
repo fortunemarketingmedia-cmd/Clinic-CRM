@@ -91,7 +91,9 @@ export const formsService = {
       try { dimensions = await imageOptimizationService.inspect(binary); }
       catch { throw new HttpError(400, 'Image is malformed or exceeds the permitted dimensions'); }
     }
-    if (binary && !imageOptimizationService.isImage(input.mimeType)) await malwareScannerService.scan(binary);
+    // Scan every binary upload, including images. Image decoders protect the
+    // optimization pipeline, but they are not a malware control.
+    if (binary) await malwareScannerService.scan(binary);
     let stored;
     try {
       stored = binary

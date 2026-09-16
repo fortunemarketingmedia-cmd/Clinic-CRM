@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   Banknote,
@@ -8,7 +8,9 @@ import {
   CalendarDays,
   CircleDollarSign,
   Clock3,
+  Download,
   IndianRupee,
+  Mail,
   RefreshCcw,
   TrendingUp,
   UserRoundCheck,
@@ -26,7 +28,7 @@ import {
 } from '@/components/ui/data-visuals';
 import { Input } from '@/components/ui/input';
 import { PageSkeleton } from '@/components/ui/skeleton';
-import { apiRequest } from '@/services/api';
+import { apiBlob, apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 
 type Breakdown = Array<{ name: string; count: number; amount?: number }>;
@@ -260,7 +262,7 @@ export function AnalyticsView() {
         </Card>
       ) : (
         <>
-          {mode === 'FINANCE' ? <FinancialTab overview={overview} trend={trend} /> : null}
+          {mode === 'FINANCE' ? <FinancialTab overview={overview} trend={trend} queryString={queryString} /> : null}
           {mode === 'CRM' && tab === 'EXECUTIVE' ? <ExecutiveTab overview={overview} trend={trend} /> : null}
           {mode === 'CRM' && tab === 'LEADS' ? <LeadsTab overview={overview} trend={trend} /> : null}
           {mode === 'CRM' && tab === 'PATIENTS' ? <PatientsTab overview={overview} trend={trend} /> : null}
@@ -496,12 +498,122 @@ function FollowUpsTab({
   );
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+function FinanceExportCard({ queryString }: { queryString: string }) {
+  const queryClient = useQueryClient();
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [showRecipients, setShowRecipients] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const recipientsQuery = useQuery({
+    queryKey: ['finance-export-recipients', queryString],
+    queryFn: () => apiRequest<{ data: string[] }>(`/analytics/finance/export/recipients${queryString ? `?${queryString}` : ''}`),
+  });
+  const recipients = recipientsQuery.data?.data ?? [];
+
+  const download = useMutation({
+    mutationFn: (format: 'pdf' | 'csv') =>
+      apiBlob(`/analytics/finance/export?format=${format}${queryString ? `&${queryString}` : ''}`),
+    onSuccess: (blob, format) => downloadBlob(blob, `finance-analytics.${format}`),
+  });
+
+  const emailReport = useMutation({
+    mutationFn: () =>
+      apiRequest('/analytics/finance/export/email', {
+        method: 'POST',
+        body: JSON.stringify({ recipientEmail, ...Object.fromEntries(new URLSearchParams(queryString)) }),
+      }),
+    onSuccess: () => {
+      setEmailStatus({ type: 'success', message: `Report sent to ${recipientEmail}.` });
+      queryClient.invalidateQueries({ queryKey: ['finance-export-recipients'] });
+    },
+    onError: (error: Error) => setEmailStatus({ type: 'error', message: error.message }),
+  });
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="font-semibold">Export &amp; share</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Download the report for the selected period, or email it directly to your CA.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" disabled={download.isPending} onClick={() => download.mutate('pdf')}>
+            <Download className="size-4" />
+            Download PDF
+          </Button>
+          <Button type="button" variant="secondary" disabled={download.isPending} onClick={() => download.mutate('csv')}>
+            <Download className="size-4" />
+            Download CSV
+          </Button>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto] sm:items-end">
+        <FilterField label="Email report to">
+          <div className="relative">
+            <Input
+              type="email"
+              placeholder="ca@example.com"
+              value={recipientEmail}
+              onChange={(event) => setRecipientEmail(event.target.value)}
+              onFocus={() => setShowRecipients(true)}
+              onBlur={() => window.setTimeout(() => setShowRecipients(false), 150)}
+            />
+            {showRecipients && recipients.length ? (
+              <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border bg-surface shadow-sm">
+                {recipients.map((email) => (
+                  <button
+                    key={email}
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                    onMouseDown={() => setRecipientEmail(email)}
+                  >
+                    {email}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </FilterField>
+        <Button
+          type="button"
+          disabled={!recipientEmail.trim() || emailReport.isPending}
+          onClick={() => {
+            setEmailStatus(null);
+            emailReport.mutate();
+          }}
+        >
+          <Mail className="size-4" />
+          {emailReport.isPending ? 'Sending...' : 'Send email'}
+        </Button>
+      </div>
+      {emailStatus ? (
+        <p className={`mt-2 text-sm ${emailStatus.type === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>
+          {emailStatus.message}
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
 function FinancialTab({
   overview,
   trend,
+  queryString,
 }: {
   overview?: AnalyticsOverview;
   trend: Array<TrendPoint & { label: string }>;
+  queryString: string;
 }) {
   const data = overview?.analytics.financial;
   return (
@@ -513,6 +625,7 @@ function FinancialTab({
         <Metric label="Outstanding" value={money(data?.outstanding ?? 0)} icon={Activity} />
         <Metric label="Collection rate" value={`${data?.collectionRate ?? 0}%`} icon={TrendingUp} />
       </div>
+      <FinanceExportCard queryString={queryString} />
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border-primary/20 bg-primary/5"><div className="text-sm text-muted-foreground">GST invoices</div><div className="mt-2 text-2xl font-semibold">{data?.gst.invoices ?? 0}</div><div className="mt-2 text-sm">Billed {money(data?.gst.billed ?? 0)} · GST {money(data?.gst.tax ?? 0)}</div></Card>
         <Card><div className="text-sm text-muted-foreground">Non-GST invoices</div><div className="mt-2 text-2xl font-semibold">{data?.nonGst.invoices ?? 0}</div><div className="mt-2 text-sm">Billed {money(data?.nonGst.billed ?? 0)}</div></Card>
