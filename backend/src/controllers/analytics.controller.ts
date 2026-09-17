@@ -12,10 +12,12 @@ const analyticsQuerySchema = z.object({
 
 const financeExportQuerySchema = analyticsQuerySchema.extend({
   format: z.enum(['pdf', 'csv']).default('pdf'),
+  taxType: z.enum(['ALL', 'GST', 'NON_GST']).default('ALL'),
 });
 
 const financeEmailSchema = analyticsQuerySchema.extend({
   recipientEmail: z.string().email(),
+  taxType: z.enum(['ALL', 'GST', 'NON_GST']).default('ALL'),
 });
 
 export const analyticsController = {

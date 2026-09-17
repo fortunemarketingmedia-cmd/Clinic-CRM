@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, CalendarCheck2, CircleDollarSign, Download, HeartPulse, Plus, Printer, ReceiptText, Search, ShieldAlert, Stethoscope, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -13,8 +12,11 @@ import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiBlob, apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment, ClinicResource } from '@/types/appointment';
+import type { Branch } from '@/types/branch';
 import type { Patient360 } from '@/types/clinical';
 import type { StaffMember } from '@/types/front-desk';
+import { ConsultationBookingDialog } from '../appointments/consultation-booking-dialog';
+import { RoomBookingDialog } from '../front-desk/schedules-view';
 import { PatientDocumentsPanel, PatientGalleryPanel } from './patient-forms-files-panel';
 
 const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Documents'] as const;
@@ -110,23 +112,13 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
 function Metric({ title, value, warning }: { title: string; value: string; warning?: boolean }) { return <Card className="p-4"><div className="text-xs text-muted-foreground">{title}</div><div className={`mt-1 text-sm font-semibold ${warning ? 'text-red-700' : ''}`}>{value}</div></Card>; }
 function ListState({ items, empty, action }: { items: React.ReactNode[]; empty: string; action?: React.ReactNode }) { return <Card><div className="mb-3 flex justify-end">{action}</div>{items.length ? <div className="space-y-2">{items}</div> : <div className="py-8 text-center text-sm text-muted-foreground">{empty}</div>}</Card>; }
 
-function bookingUrl(patient: Patient360, resourceType: 'CONSULTATION' | 'TREATMENT_ROOM') {
-  const params = new URLSearchParams({
-    create: '1',
-    resourceType,
-    leadId: patient.lead.id,
-    name: patient.fullName,
-    mobile: patient.mobile,
-    branchId: patient.branchId,
-    appointmentType: 'CLINIC_VISIT',
-  });
-  if (patient.address) params.set('address', patient.address);
-  if (patient.lead.source) params.set('source', patient.lead.source);
-  return `/appointments?${params.toString()}`;
-}
-
 function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient360; canEdit: boolean; invalidate: () => void }) {
   const [roomEdit, setRoomEdit] = useState<Appointment | null>(null);
+  const [showConsultationBooking, setShowConsultationBooking] = useState(false);
+  const [showRoomBooking, setShowRoomBooking] = useState(false);
+  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => apiRequest<{ data: Branch[] }>('/branches'), enabled: canEdit });
+  const branches = branchesQuery.data?.data ?? [];
+  const bookingResourcesQuery = useQuery({ queryKey: ['clinical-resources', patient.branchId], queryFn: () => apiRequest<{ data: ClinicResource[] }>(`/front-desk/resources?branchId=${patient.branchId}`), enabled: Boolean(canEdit && showRoomBooking) });
   const appointments = patient.lead.appointments ?? [];
   const now = Date.now();
   const finished = (appointment: Appointment) => ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appointment.status);
@@ -138,17 +130,39 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
     <div><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{appointment.service?.name ?? label(appointment.appointmentType)}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold">{label(appointment.status)}</span></div><div className="mt-1 text-xs text-muted-foreground">{format(appointment.appointmentAt)}{appointment.doctor?.name ? ` · ${appointment.doctor.name}` : ''}{appointment.resourceType === 'TREATMENT_ROOM' ? ` · Room ${appointment.roomNumber ?? 'not assigned'}` : ''}</div>{appointment.notes ? <p className="mt-1 text-sm text-muted-foreground">{appointment.notes}</p> : null}</div>
     {canEdit && appointment.resourceType === 'TREATMENT_ROOM' && !finished(appointment) ? <Button type="button" variant="secondary" onClick={() => setRoomEdit(appointment)}>Change room</Button> : null}
   </div>;
-  const router = useRouter();
   return <div className="space-y-4">
     {canEdit ? <div className="flex flex-wrap justify-end gap-2">
-      <Button type="button" variant="secondary" onClick={() => router.push(bookingUrl(patient, 'CONSULTATION'))}><Plus className="size-4" />Book appointment</Button>
-      <Button type="button" variant="secondary" onClick={() => router.push(bookingUrl(patient, 'TREATMENT_ROOM'))}><Plus className="size-4" />Book room / schedule appointment</Button>
+      <Button type="button" variant="secondary" onClick={() => setShowConsultationBooking(true)}><Plus className="size-4" />Book appointment</Button>
+      <Button type="button" variant="secondary" onClick={() => setShowRoomBooking(true)}><Plus className="size-4" />Book room / schedule appointment</Button>
     </div> : null}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric title="Upcoming" value={String(upcoming.length)} /><Metric title="Overdue" value={String(overdue.length)} warning={overdue.length > 0} /><Metric title="Completed" value={String(completed.length)} /><Metric title="Cancelled / no-show" value={String(cancelled.length)} /></div>
     <div className="grid gap-4 xl:grid-cols-2"><AppointmentGroup title="Upcoming appointments" empty="No upcoming appointments." items={upcoming.map(renderAppointment)} /><AppointmentGroup title="Overdue appointments" empty="No overdue appointments." items={overdue.map(renderAppointment)} warning /></div>
     <AppointmentGroup title="Completed appointments" empty="No completed appointments." items={completed.map(renderAppointment)} />
     {cancelled.length ? <AppointmentGroup title="Cancelled and no-show" empty="" items={cancelled.map(renderAppointment)} /> : null}
     {roomEdit ? <ChangeAppointmentRoomModal appointment={roomEdit} onClose={() => setRoomEdit(null)} onSaved={() => { setRoomEdit(null); invalidate(); }} /> : null}
+    {showConsultationBooking ? (
+      <ConsultationBookingDialog
+        branches={branches}
+        initialBranchId={patient.branchId}
+        initialName={patient.fullName}
+        initialMobile={patient.mobile}
+        initialAddress={patient.address ?? ''}
+        onClose={() => setShowConsultationBooking(false)}
+        onBooked={() => { setShowConsultationBooking(false); invalidate(); }}
+      />
+    ) : null}
+    {showRoomBooking ? (
+      <RoomBookingDialog
+        branches={branches}
+        resources={bookingResourcesQuery.data?.data ?? []}
+        initialBranchId={patient.branchId}
+        initialDate={new Date()}
+        initialName={patient.fullName}
+        initialMobile={patient.mobile}
+        onClose={() => setShowRoomBooking(false)}
+        onBooked={() => { setShowRoomBooking(false); invalidate(); }}
+      />
+    ) : null}
   </div>;
 }
 
@@ -440,7 +454,7 @@ function MedicalProfile({ patient, canEdit, invalidate }: { patient: Patient360;
   const mutation = useMutation({ mutationFn: () => apiRequest(`/patients/${patient.id}/medical-profile`, { method: 'PUT', body: JSON.stringify(values) }), onSuccess: () => { setEditing(false); invalidate(); } });
   if (!profile) return <Card className="text-sm text-muted-foreground">Medical profile is unavailable for your role or has not been recorded.</Card>;
   const setProfileValue = (name: string, value: string) => setValues((current) => ({ ...current, [name]: value }));
-  if (editing) return <Card><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Clinical record</p><h2 className="text-xl font-semibold">Update medical profile</h2><p className="text-sm text-muted-foreground">Keep safety-critical history current before consultation or treatment.</p></div><Button variant="secondary" onClick={() => setEditing(false)}>Cancel edit</Button></div><div className="mt-5 grid gap-5 lg:grid-cols-2"><ProfileEditor title="Concerns & history"><TextField label="Skin concern" name="skinConcern" values={values} set={setProfileValue} /><TextField label="Hair concern" name="hairConcern" values={values} set={setProfileValue} /><Area label="Medical history" name="medicalHistory" values={values} set={setProfileValue} /><Area label="Surgical history" name="surgicalHistory" values={values} set={setProfileValue} /><Area label="Previous aesthetic procedures" name="previousAestheticProcedures" values={values} set={setProfileValue} /></ProfileEditor><ProfileEditor title="Medicines & allergies"><Area label="Current medicines" name="currentMedications" values={values} set={setProfileValue} /><Area label="Drug allergies" name="allergyToDrugs" values={values} set={setProfileValue} /><Area label="Product allergies" name="productAllergies" values={values} set={setProfileValue} /><Area label="Food allergies" name="foodAllergies" values={values} set={setProfileValue} /></ProfileEditor><ProfileEditor title="Lifestyle & family"><TextField label="Family history" name="familyHistory" values={values} set={setProfileValue} /><TextField label="Smoking status" name="smokingStatus" values={values} set={setProfileValue} /><TextField label="Alcohol history" name="alcoholHistory" values={values} set={setProfileValue} /><TextField label="Pregnancy status" name="pregnancyStatus" values={values} set={setProfileValue} /><TextField label="Breastfeeding status" name="breastfeedingStatus" values={values} set={setProfileValue} /></ProfileEditor><ProfileEditor title="Safety alerts" alert><Area label="Clinical alerts" name="clinicalAlerts" values={values} set={setProfileValue} /><label className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-900"><input type="checkbox" checked={values.criticalAlert} onChange={(event) => setValues((current) => ({ ...current, criticalAlert: event.target.checked }))} />Show critical alert throughout the patient record</label><TextField label="Reason for change" name="reasonForChange" values={values} set={setProfileValue} /></ProfileEditor></div>{mutation.isError ? <p className="mt-3 text-sm text-red-700">{mutation.error.message}</p> : null}<div className="mt-5 flex justify-end"><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving...' : 'Save medical profile'}</Button></div></Card>;
+  if (editing) return <Card><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Clinical record</p><h2 className="text-xl font-semibold">Update medical profile</h2><p className="text-sm text-muted-foreground">Keep safety-critical history current before consultation or treatment.</p></div><Button variant="secondary" onClick={() => setEditing(false)}>Cancel edit</Button></div><div className="mt-5 grid gap-5 lg:grid-cols-2"><ProfileEditor title="Concerns & history"><TextField label="Skin concern" name="skinConcern" values={values} set={setProfileValue} /><TextField label="Hair concern" name="hairConcern" values={values} set={setProfileValue} /><Area label="Medical history" name="medicalHistory" values={values} set={setProfileValue} /><Area label="Surgical history" name="surgicalHistory" values={values} set={setProfileValue} /><Area label="Previous aesthetic procedures" name="previousAestheticProcedures" values={values} set={setProfileValue} /></ProfileEditor><ProfileEditor title="Medicines & allergies"><YesNoOtherField wide label="Current medicines" name="currentMedications" values={values} set={setProfileValue} /><YesNoOtherField wide label="Drug allergies" name="allergyToDrugs" values={values} set={setProfileValue} /><YesNoOtherField wide label="Product allergies" name="productAllergies" values={values} set={setProfileValue} /><YesNoOtherField wide label="Food allergies" name="foodAllergies" values={values} set={setProfileValue} /></ProfileEditor><ProfileEditor title="Lifestyle & family"><TextField label="Family history" name="familyHistory" values={values} set={setProfileValue} /><YesNoOtherField label="Smoking status" name="smokingStatus" values={values} set={setProfileValue} /><YesNoOtherField label="Alcohol history" name="alcoholHistory" values={values} set={setProfileValue} /><YesNoOtherField label="Pregnancy status" name="pregnancyStatus" values={values} set={setProfileValue} /><YesNoOtherField label="Breastfeeding status" name="breastfeedingStatus" values={values} set={setProfileValue} /></ProfileEditor><ProfileEditor title="Safety alerts" alert><Area label="Clinical alerts" name="clinicalAlerts" values={values} set={setProfileValue} /><label className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-900"><input type="checkbox" checked={values.criticalAlert} onChange={(event) => setValues((current) => ({ ...current, criticalAlert: event.target.checked }))} />Show critical alert throughout the patient record</label><TextField label="Reason for change" name="reasonForChange" values={values} set={setProfileValue} /></ProfileEditor></div>{mutation.isError ? <p className="mt-3 text-sm text-red-700">{mutation.error.message}</p> : null}<div className="mt-5 flex justify-end"><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving...' : 'Save medical profile'}</Button></div></Card>;
   return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Clinical record</p><h2 className="text-xl font-semibold">Medical profile</h2><p className="text-sm text-muted-foreground">A structured view of concerns, history, medicines, allergies, and safety alerts.</p></div>{canEdit ? <Button variant="secondary" onClick={() => setEditing(true)}>Update profile</Button> : null}</div>{profile.criticalAlert || profile.clinicalAlerts ? <Card className="border-red-200 bg-red-50"><div className="flex gap-3 text-red-900"><ShieldAlert className="mt-0.5 size-5 shrink-0" /><div><div className="font-semibold">Clinical safety alert</div><p className="mt-1 text-sm">{profile.clinicalAlerts || 'Critical alert is enabled for this patient.'}</p></div></div></Card> : null}<div className="grid gap-4 xl:grid-cols-2"><ProfileCard icon={<HeartPulse className="size-5" />} title="Primary concerns & history" fields={[["Skin concern", profile.skinConcern], ["Hair concern", profile.hairConcern], ["Medical history", profile.medicalHistory], ["Surgical history", profile.surgicalHistory], ["Previous aesthetic procedures", profile.previousAestheticProcedures]]} /><ProfileCard icon={<ShieldAlert className="size-5" />} title="Medicines & allergies" fields={[["Current medicines", profile.currentMedications], ["Drug allergies", profile.allergyToDrugs], ["Product allergies", profile.productAllergies], ["Food allergies", profile.foodAllergies]]} /><ProfileCard title="Lifestyle & family" fields={[["Family history", profile.familyHistory], ["Smoking", profile.smokingStatus], ["Alcohol", profile.alcoholHistory]]} /><ProfileCard title="Reproductive health" fields={[["Pregnancy status", profile.pregnancyStatus], ["Breastfeeding status", profile.breastfeedingStatus], ["Menstrual history", profile.menstrualHistory]]} /></div></div>;
 }
 function ProfileEditor({ title, alert = false, children }: { title: string; alert?: boolean; children: React.ReactNode }) { return <section className={`space-y-3 rounded-xl border p-4 ${alert ? 'border-red-200 bg-red-50/40' : ''}`}><h3 className="font-semibold">{title}</h3>{children}</section>; }
@@ -497,3 +511,38 @@ function PrescriptionSelect({ label: title, value, placeholder, options, onChang
 function Field({ label: title, children }: { label: string; children: React.ReactNode }) { return <label className="grid gap-1 text-sm"><span className="font-semibold text-foreground">{title}</span>{children}</label>; }
 function TextField({ label: title, name, values, set, type = 'text' }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void; type?: string }) { return <Field label={title}><Input type={type} value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></Field>; }
 function Area({ label: title, name, values, set }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void }) { return <label className="grid gap-1 text-sm sm:col-span-2"><span className="font-medium">{title}</span><textarea className="min-h-24 rounded-md border border-border bg-surface px-3 py-2" value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></label>; }
+function YesNoOtherField({ label: title, name, values, set, wide = false }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void; wide?: boolean }) {
+  const currentValue = String(values[name] ?? '');
+  const mode = currentValue === '' ? '' : currentValue === 'Yes' || currentValue === 'No' ? currentValue : 'Other';
+  const [otherText, setOtherText] = useState(mode === 'Other' ? currentValue : '');
+  return <div className={`grid gap-1 text-sm ${wide ? 'sm:col-span-2' : ''}`}>
+    <span className="font-semibold text-foreground">{title}</span>
+    <Select
+      value={mode}
+      onChange={(event) => {
+        const next = event.target.value;
+        if (next === 'Other') {
+          set(name, otherText);
+        } else {
+          set(name, next);
+        }
+      }}
+    >
+      <option value="">Select</option>
+      <option value="Yes">Yes</option>
+      <option value="No">No</option>
+      <option value="Other">Other (type below)</option>
+    </Select>
+    {mode === 'Other' ? (
+      <Input
+        className="mt-1"
+        value={otherText}
+        placeholder="Please specify"
+        onChange={(event) => {
+          setOtherText(event.target.value);
+          set(name, event.target.value);
+        }}
+      />
+    ) : null}
+  </div>;
+}

@@ -262,7 +262,7 @@ export function AnalyticsView() {
         </Card>
       ) : (
         <>
-          {mode === 'FINANCE' ? <FinancialTab overview={overview} trend={trend} queryString={queryString} /> : null}
+          {mode === 'FINANCE' ? <FinancialTab overview={overview} trend={trend} branchId={branchId} /> : null}
           {mode === 'CRM' && tab === 'EXECUTIVE' ? <ExecutiveTab overview={overview} trend={trend} /> : null}
           {mode === 'CRM' && tab === 'LEADS' ? <LeadsTab overview={overview} trend={trend} /> : null}
           {mode === 'CRM' && tab === 'PATIENTS' ? <PatientsTab overview={overview} trend={trend} /> : null}
@@ -507,113 +507,257 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
-function FinanceExportCard({ queryString }: { queryString: string }) {
+function FinanceExportCard({ branchId }: { branchId: string }) {
+  const [modal, setModal] = useState<'download' | 'email' | null>(null);
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="font-semibold">Export &amp; share</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Download a CA-ready report, or email it directly - pick the date range and GST scope in the popup.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => setModal('download')}>
+            <Download className="size-4" />
+            Download report
+          </Button>
+          <Button type="button" onClick={() => setModal('email')}>
+            <Mail className="size-4" />
+            Email report to
+          </Button>
+        </div>
+      </div>
+      {modal ? <FinanceExportModal mode={modal} branchId={branchId} onClose={() => setModal(null)} /> : null}
+    </Card>
+  );
+}
+
+function FinanceExportModal({
+  mode,
+  branchId,
+  onClose,
+}: {
+  mode: 'download' | 'email';
+  branchId: string;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
+  const defaultRange = useMemo(() => initialRange(), []);
+  const [dateFrom, setDateFrom] = useState(defaultRange.from);
+  const [dateTo, setDateTo] = useState(defaultRange.to);
+  const [taxType, setTaxType] = useState<'ALL' | 'GST' | 'NON_GST'>('ALL');
+  const [format, setFormat] = useState<'pdf' | 'csv'>('pdf');
   const [recipientEmail, setRecipientEmail] = useState('');
   const [showRecipients, setShowRecipients] = useState(false);
-  const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  function quickRange(range: '7D' | '30D' | '90D' | 'MONTH' | 'YEAR') {
+    const end = new Date();
+    const start = new Date();
+    if (range === '7D') start.setDate(end.getDate() - 6);
+    if (range === '30D') start.setDate(end.getDate() - 29);
+    if (range === '90D') start.setDate(end.getDate() - 89);
+    if (range === 'MONTH') start.setDate(1);
+    if (range === 'YEAR') {
+      start.setMonth(0);
+      start.setDate(1);
+    }
+    setDateFrom(dateKey(start));
+    setDateTo(dateKey(end));
+  }
+
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    if (branchId) params.set('branchId', branchId);
+    if (dateFrom) params.set('dateFrom', new Date(`${dateFrom}T00:00:00+05:30`).toISOString());
+    if (dateTo) params.set('dateTo', new Date(`${dateTo}T23:59:59+05:30`).toISOString());
+    return params.toString();
+  }, [branchId, dateFrom, dateTo]);
 
   const recipientsQuery = useQuery({
     queryKey: ['finance-export-recipients', queryString],
     queryFn: () => apiRequest<{ data: string[] }>(`/analytics/finance/export/recipients${queryString ? `?${queryString}` : ''}`),
+    enabled: mode === 'email',
   });
   const recipients = recipientsQuery.data?.data ?? [];
 
   const download = useMutation({
-    mutationFn: (format: 'pdf' | 'csv') =>
-      apiBlob(`/analytics/finance/export?format=${format}${queryString ? `&${queryString}` : ''}`),
-    onSuccess: (blob, format) => downloadBlob(blob, `finance-analytics.${format}`),
+    mutationFn: () => apiBlob(`/analytics/finance/export?format=${format}&taxType=${taxType}${queryString ? `&${queryString}` : ''}`),
+    onSuccess: (blob) => {
+      downloadBlob(blob, `finance-analytics.${format}`);
+      onClose();
+    },
+    onError: (error: Error) => setStatus({ type: 'error', message: error.message }),
   });
 
   const emailReport = useMutation({
     mutationFn: () =>
       apiRequest('/analytics/finance/export/email', {
         method: 'POST',
-        body: JSON.stringify({ recipientEmail, ...Object.fromEntries(new URLSearchParams(queryString)) }),
+        body: JSON.stringify({ recipientEmail, taxType, ...Object.fromEntries(new URLSearchParams(queryString)) }),
       }),
     onSuccess: () => {
-      setEmailStatus({ type: 'success', message: `Report sent to ${recipientEmail}.` });
+      setStatus({ type: 'success', message: `Report sent to ${recipientEmail}.` });
       queryClient.invalidateQueries({ queryKey: ['finance-export-recipients'] });
     },
-    onError: (error: Error) => setEmailStatus({ type: 'error', message: error.message }),
+    onError: (error: Error) => setStatus({ type: 'error', message: error.message }),
   });
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="font-semibold">Export &amp; share</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Download the report for the selected period, or email it directly to your CA.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" disabled={download.isPending} onClick={() => download.mutate('pdf')}>
-            <Download className="size-4" />
-            Download PDF
-          </Button>
-          <Button type="button" variant="secondary" disabled={download.isPending} onClick={() => download.mutate('csv')}>
-            <Download className="size-4" />
-            Download CSV
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+      <Card className="w-full max-w-lg">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {mode === 'download' ? 'Download finance report' : 'Email finance report'}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Choose the date range and GST scope for the report.
+            </p>
+          </div>
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Close
           </Button>
         </div>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(220px,1fr)_auto] sm:items-end">
-        <FilterField label="Email report to">
-          <div className="relative">
-            <Input
-              type="email"
-              placeholder="ca@example.com"
-              value={recipientEmail}
-              onChange={(event) => setRecipientEmail(event.target.value)}
-              onFocus={() => setShowRecipients(true)}
-              onBlur={() => window.setTimeout(() => setShowRecipients(false), 150)}
-            />
-            {showRecipients && recipients.length ? (
-              <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border bg-surface shadow-sm">
-                {recipients.map((email) => (
-                  <button
-                    key={email}
+
+        <div className="mt-5 space-y-4">
+          <FilterField label="Quick range">
+            <div className="flex flex-wrap gap-2">
+              {(['7D', '30D', '90D', 'MONTH', 'YEAR'] as const).map((range) => (
+                <Button key={range} type="button" variant="secondary" onClick={() => quickRange(range)}>
+                  {range === 'MONTH' ? 'This month' : range === 'YEAR' ? 'This year' : `Last ${range.replace('D', '')} days`}
+                </Button>
+              ))}
+            </div>
+          </FilterField>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FilterField label="From">
+              <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            </FilterField>
+            <FilterField label="To">
+              <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            </FilterField>
+          </div>
+          <FilterField label="Report scope">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { value: 'ALL', label: 'GST + Non-GST' },
+                  { value: 'GST', label: 'GST only' },
+                  { value: 'NON_GST', label: 'Non-GST only' },
+                ] as const
+              ).map((option) => (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={taxType === option.value ? 'primary' : 'secondary'}
+                  onClick={() => setTaxType(option.value)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </FilterField>
+
+          {mode === 'download' ? (
+            <FilterField label="File format">
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { value: 'pdf', label: 'PDF' },
+                    { value: 'csv', label: 'CSV' },
+                  ] as const
+                ).map((option) => (
+                  <Button
+                    key={option.value}
                     type="button"
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
-                    onMouseDown={() => setRecipientEmail(email)}
+                    variant={format === option.value ? 'primary' : 'secondary'}
+                    onClick={() => setFormat(option.value)}
                   >
-                    {email}
-                  </button>
+                    {option.label}
+                  </Button>
                 ))}
               </div>
-            ) : null}
-          </div>
-        </FilterField>
-        <Button
-          type="button"
-          disabled={!recipientEmail.trim() || emailReport.isPending}
-          onClick={() => {
-            setEmailStatus(null);
-            emailReport.mutate();
-          }}
-        >
-          <Mail className="size-4" />
-          {emailReport.isPending ? 'Sending...' : 'Send email'}
-        </Button>
-      </div>
-      {emailStatus ? (
-        <p className={`mt-2 text-sm ${emailStatus.type === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>
-          {emailStatus.message}
-        </p>
-      ) : null}
-    </Card>
+            </FilterField>
+          ) : (
+            <FilterField label="Email report to">
+              <div className="relative">
+                <Input
+                  type="email"
+                  placeholder="ca@example.com"
+                  value={recipientEmail}
+                  onChange={(event) => setRecipientEmail(event.target.value)}
+                  onFocus={() => setShowRecipients(true)}
+                  onBlur={() => window.setTimeout(() => setShowRecipients(false), 150)}
+                />
+                {showRecipients && recipients.length ? (
+                  <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border bg-surface shadow-sm">
+                    {recipients.map((email) => (
+                      <button
+                        key={email}
+                        type="button"
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                        onMouseDown={() => setRecipientEmail(email)}
+                      >
+                        {email}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </FilterField>
+          )}
+
+          {status ? (
+            <p className={`text-sm ${status.type === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>{status.message}</p>
+          ) : null}
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          {mode === 'download' ? (
+            <Button
+              type="button"
+              disabled={download.isPending}
+              onClick={() => {
+                setStatus(null);
+                download.mutate();
+              }}
+            >
+              <Download className="size-4" />
+              {download.isPending ? 'Preparing...' : 'Download'}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              disabled={!recipientEmail.trim() || emailReport.isPending}
+              onClick={() => {
+                setStatus(null);
+                emailReport.mutate();
+              }}
+            >
+              <Mail className="size-4" />
+              {emailReport.isPending ? 'Sending...' : 'Send email'}
+            </Button>
+          )}
+        </div>
+      </Card>
+    </div>
   );
 }
 
 function FinancialTab({
   overview,
   trend,
-  queryString,
+  branchId,
 }: {
   overview?: AnalyticsOverview;
   trend: Array<TrendPoint & { label: string }>;
-  queryString: string;
+  branchId: string;
 }) {
   const data = overview?.analytics.financial;
   return (
@@ -625,7 +769,7 @@ function FinancialTab({
         <Metric label="Outstanding" value={money(data?.outstanding ?? 0)} icon={Activity} />
         <Metric label="Collection rate" value={`${data?.collectionRate ?? 0}%`} icon={TrendingUp} />
       </div>
-      <FinanceExportCard queryString={queryString} />
+      <FinanceExportCard branchId={branchId} />
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border-primary/20 bg-primary/5"><div className="text-sm text-muted-foreground">GST invoices</div><div className="mt-2 text-2xl font-semibold">{data?.gst.invoices ?? 0}</div><div className="mt-2 text-sm">Billed {money(data?.gst.billed ?? 0)} · GST {money(data?.gst.tax ?? 0)}</div></Card>
         <Card><div className="text-sm text-muted-foreground">Non-GST invoices</div><div className="mt-2 text-2xl font-semibold">{data?.nonGst.invoices ?? 0}</div><div className="mt-2 text-sm">Billed {money(data?.nonGst.billed ?? 0)}</div></Card>

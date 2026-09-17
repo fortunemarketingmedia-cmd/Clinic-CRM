@@ -40,6 +40,10 @@ export const leadRepository = {
     const archiveStatusFilter = filters.archiveOutcome === 'WON' ? { in: archivedStatuses.slice(0, 4) } : filters.archiveOutcome === 'LOST' ? { in: archivedStatuses.slice(4) } : { in: archivedStatuses };
     const closedRange = { gte: filters.closedFrom, lte: filters.closedTo };
     const where: Prisma.LeadWhereInput = {
+        // A patient created directly (walk-in registration / "Create Patient") still needs a Lead
+        // row internally (Patient.leadId is required), but it never went through the sales
+        // pipeline, so it must not surface as a "won" deal in the Lead journey.
+        NOT: { source: 'WALK_IN', nextAction: 'Clinical registration complete' },
         branchId: filters.branchId,
         source: filters.source ?? (filters.view === 'MANUAL' ? { notIn: ['GOOGLE_ADS', 'META_ADS'] } : undefined),
         status: filters.status ?? (filters.view === 'ARCHIVED' ? archiveStatusFilter : filters.view === 'ACTIVE' || filters.view === 'MANUAL' ? { notIn: archivedStatuses } : filters.includeClosed ? undefined : { notIn: clientPipelineStatuses }),

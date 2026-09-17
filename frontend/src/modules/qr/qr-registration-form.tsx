@@ -3,7 +3,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2 } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { useState } from 'react';
+import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -128,7 +129,7 @@ export function QrRegistrationForm({ token, onSuccess, initialBranchId }: { toke
             register={form.register}
             setValue={(value) => form.setValue(field.key, value, { shouldDirty: true, shouldValidate: true })}
           />
-        )) : <LegacyRegistrationFields register={form.register} />}
+        )) : <LegacyRegistrationFields form={form} />}
         {submitRegistration.error ? (
           <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2">
             {submitRegistration.error.message}
@@ -173,6 +174,41 @@ function formatOptionLabel(value: string) {
     : normalized;
 }
 
-function LegacyRegistrationFields({ register }: { register: Register }) {
-  return <><Input placeholder="Referred by" {...register('referredBy')} /><Input placeholder="Full name" {...register('fullName')} /><Input type="number" placeholder="Age" {...register('age')} /><Select {...register('sex')}><option value="">Select sex</option>{SEX_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select><Input placeholder="Contact number" {...register('mobile')} /><Input placeholder="Address" {...register('address')} /><Select {...register('maritalStatus')}><option value="">Select marital status</option>{MARITAL_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Occupation" {...register('occupation')} /><Input placeholder="Skin concern" {...register('skinConcern')} /><Input placeholder="Hair concern" {...register('hairConcern')} /><Input placeholder="Medical history" {...register('medicalHistory')} /><Input placeholder="Current medications" {...register('currentMedications')} /><Input placeholder="Allergy to drugs" {...register('allergyToDrugs')} /><Select {...register('keloidOrHypertrophicScar')}><option value="">Keloid / hypertrophic scar history</option>{SCAR_HISTORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Products currently used" {...register('productsCurrentlyUsed')} /><Select {...register('menstrualHistory')}><option value="">Select menstrual history</option>{MENSTRUAL_HISTORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Select {...register('pregnancyStatus')}><option value="">Select pregnancy status</option>{PREGNANCY_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Other notes" {...register('notes')} /></>;
+function LegacyRegistrationFields({ form }: { form: UseFormReturn<QrFormValues> }) {
+  const { register } = form;
+  return <><Input placeholder="Referred by" {...register('referredBy')} /><Input placeholder="Full name" {...register('fullName')} /><Input type="number" placeholder="Age" {...register('age')} /><Select {...register('sex')}><option value="">Select sex</option>{SEX_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select><Input placeholder="Contact number" {...register('mobile')} /><Input placeholder="Address" {...register('address')} /><Select {...register('maritalStatus')}><option value="">Select marital status</option>{MARITAL_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Occupation" {...register('occupation')} /><Input placeholder="Skin concern" {...register('skinConcern')} /><Input placeholder="Hair concern" {...register('hairConcern')} /><YesNoOtherField form={form} name="medicalHistory" label="Medical history" /><YesNoOtherField form={form} name="currentMedications" label="Current medications" /><YesNoOtherField form={form} name="allergyToDrugs" label="Drug allergies" /><Select {...register('keloidOrHypertrophicScar')}><option value="">Keloid / hypertrophic scar history</option>{SCAR_HISTORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><YesNoOtherField form={form} name="productsCurrentlyUsed" label="Products currently used" /><Select {...register('menstrualHistory')}><option value="">Select menstrual history</option>{MENSTRUAL_HISTORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Select {...register('pregnancyStatus')}><option value="">Select pregnancy status</option>{PREGNANCY_STATUS_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</Select><Input placeholder="Other notes" {...register('notes')} /></>;
+}
+
+function YesNoOtherField({ form, name, label }: { form: UseFormReturn<QrFormValues>; name: 'medicalHistory' | 'currentMedications' | 'allergyToDrugs' | 'productsCurrentlyUsed'; label: string }) {
+  const value = String(form.watch(name) ?? '');
+  const mode = value === '' ? '' : value === 'Yes' || value === 'No' ? value : 'Other';
+  const [otherText, setOtherText] = useState(mode === 'Other' ? value : '');
+  return (
+    <label className="grid gap-1.5">
+      <span className="text-sm font-medium">{label}</span>
+      <Select
+        value={mode}
+        onChange={(event) => {
+          const next = event.target.value;
+          form.setValue(name, next === 'Other' ? otherText : next, { shouldDirty: true });
+        }}
+      >
+        <option value="">Select</option>
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+        <option value="Other">Other (type below)</option>
+      </Select>
+      {mode === 'Other' ? (
+        <Input
+          className="mt-1"
+          value={otherText}
+          placeholder="Please specify"
+          onChange={(event) => {
+            setOtherText(event.target.value);
+            form.setValue(name, event.target.value, { shouldDirty: true });
+          }}
+        />
+      ) : null}
+    </label>
+  );
 }

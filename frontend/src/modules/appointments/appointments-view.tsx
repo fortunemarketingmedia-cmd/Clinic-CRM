@@ -4,8 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarClock,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   RotateCcw,
   Search,
@@ -284,14 +282,14 @@ export function AppointmentsView() {
   const isAdmin = session?.user.role === 'ADMIN';
   const isReceptionist = session?.user.role === 'RECEPTIONIST';
   const canBookAppointment = isAdmin || isReceptionist;
-  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [calendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()));
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<AppointmentStatus | ''>('');
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
-  const [viewMode, setViewMode] = useState<'calendar' | 'day' | 'list'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [dateFilter, setDateFilter] = useState<'TODAY' | 'TOMORROW' | 'WEEK' | 'MONTH' | 'CUSTOM'>('MONTH');
   const [customFrom, setCustomFrom] = useState(localDateKey(new Date()));
   const [customTo, setCustomTo] = useState(localDateKey(new Date()));
@@ -872,11 +870,7 @@ export function AppointmentsView() {
         <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-semibold">
-              {viewMode === 'calendar'
-                ? 'Universal Calendar'
-                : viewMode === 'day'
-                  ? 'Day Schedule'
-                  : 'List View'}
+              {viewMode === 'calendar' ? 'Universal Calendar' : 'List View'}
             </h2>
             <p className="text-sm text-muted-foreground">
               {new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(
@@ -895,13 +889,6 @@ export function AppointmentsView() {
               onClick={() => setViewMode('calendar')}
             >
               Calendar
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === 'day' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('day')}
-            >
-              Day schedule
             </Button>
             <Button
               type="button"
@@ -931,47 +918,10 @@ export function AppointmentsView() {
                 </option>
               ))}
             </Select>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-10 px-0"
-              aria-label="Previous month"
-              onClick={() =>
-                setCalendarMonth(
-                  new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1),
-                )
-              }
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                const today = new Date();
-                setCalendarMonth(today);
-                setSelectedDate(localDateKey(today));
-              }}
-            >
-              Current date
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-10 px-0"
-              aria-label="Next month"
-              onClick={() =>
-                setCalendarMonth(
-                  new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1),
-                )
-              }
-            >
-              <ChevronRight className="size-4" />
-            </Button>
           </div>
         </div>
 
-        {viewMode !== 'calendar' ? (
+        {viewMode === 'list' ? (
           <div className="flex flex-wrap items-center gap-2 border-b border-border py-3">
             {(
               [
@@ -1093,16 +1043,6 @@ export function AppointmentsView() {
           </div>
         ) : null}
 
-        {viewMode === 'day' ? (
-          <AppointmentList
-            appointments={appointments}
-            onSelect={setSelectedAppointment}
-            onEdit={startEdit}
-            onAction={(appointment, action) =>
-              updateAppointment.mutate({ id: appointment.id, values: appointmentActionPayload(action) })
-            }
-          />
-        ) : null}
         {viewMode === 'list' ? (
           <AppointmentList
             appointments={appointments}

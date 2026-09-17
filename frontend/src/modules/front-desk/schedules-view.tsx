@@ -582,10 +582,10 @@ function RoomCalendar({ appointments, selectedDate, onSelectDate }: { appointmen
   );
 }
 
-function RoomBookingDialog({ branches, resources, initialBranchId, initialDate, onClose, onBooked }: { branches: Branch[]; resources: ClinicResource[]; initialBranchId: string; initialDate: Date; onClose: () => void; onBooked: () => void }) {
+export function RoomBookingDialog({ branches, resources, initialBranchId, initialDate, initialName = '', initialMobile = '', onClose, onBooked }: { branches: Branch[]; resources: ClinicResource[]; initialBranchId: string; initialDate: Date; initialName?: string; initialMobile?: string; onClose: () => void; onBooked: () => void }) {
   const [branchId, setBranchId] = useState(initialBranchId);
-  const [name, setName] = useState('');
-  const [mobile, setMobile] = useState('');
+  const [name, setName] = useState(initialName);
+  const [mobile, setMobile] = useState(initialMobile);
   const [source, setSource] = useState('PHONE_CALL');
   const [appointmentAt, setAppointmentAt] = useState(`${localDateKey(initialDate)}T10:00`);
   const [roomNumber, setRoomNumber] = useState('');
