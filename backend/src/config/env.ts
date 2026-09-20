@@ -88,6 +88,7 @@ if (parsedEnv.NODE_ENV === 'production') {
     GOOGLE_ADS_INGEST_SECRET: parsedEnv.GOOGLE_ADS_INGEST_SECRET,
     META_ADS_INGEST_SECRET: parsedEnv.META_ADS_INGEST_SECRET,
     METRICS_SECRET: parsedEnv.METRICS_SECRET,
+    PAYMENT_GATEWAY_SECRET: parsedEnv.PAYMENT_GATEWAY_SECRET,
   };
   const invalid = Object.entries(requiredSecrets)
     .filter(([key, value]) => unsafeValue(value) || value!.length < (key === 'INTEGRATION_ENCRYPTION_KEY' ? 32 : 48))

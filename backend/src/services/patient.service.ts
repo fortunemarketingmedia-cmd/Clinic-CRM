@@ -8,6 +8,7 @@ import { HttpError } from '../utils/http-error.js';
 import { personService } from './person.service.js';
 import { formsRepository } from '../repositories/forms.repository.js';
 import { validateSubmission, type SnapshotField } from './form-policy.js';
+import { settingsService } from './settings.service.js';
 
 function requireBranchForReceptionist(role: Role, branchId?: string) {
   if (role === RoleEnum.RECEPTIONIST && !branchId) {
@@ -252,6 +253,8 @@ export const patientService = {
 
   async getQrRegistration(qrToken: string) {
     if (qrToken === 'clinic') {
+      const settings = await settingsService.getSettings();
+      if (!settings.qrRegistrationEnabled) throw new HttpError(404, 'Registration link not found');
       return {
         patientNo: 'New walk-in patient',
         fullName: '',
@@ -316,6 +319,8 @@ export const patientService = {
     submissionMetadata?: { ipAddress?: string; deviceMetadata?: string },
   ) {
     if (qrToken === 'clinic') {
+      const settings = await settingsService.getSettings();
+      if (!settings.qrRegistrationEnabled) throw new HttpError(404, 'Registration link not found');
       if (!input.branchId) {
         throw new HttpError(400, 'Branch is required for clinic QR registration');
       }

@@ -10,6 +10,10 @@ export const publicRoutes = Router();
 
 publicRoutes.use(rateLimit({ windowMs: 60 * 1000, max: 60 }));
 
+// The clinic QR is intentionally public for patient self-registration, so it
+// receives a stricter per-IP limit than the shared public integration routes.
+publicRoutes.use('/qr', rateLimit({ windowMs: 60 * 1000, max: 12, keyPrefix: 'qr-registration' }));
+
 publicRoutes.get('/qr/:token', (req, res, next) => {
   patientController.getQrRegistration(req, res).catch(next);
 });
