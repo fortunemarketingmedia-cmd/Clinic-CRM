@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { AuthGuard } from '@/modules/auth/auth-guard';
 import { SessionProvider, useSessionStore } from '@/store/session-store';
-import { apiAssetUrl, ApiError, DATA_CHANGED_EVENT, getAccessToken, type DataChangeDetail } from '@/services/api';
+import { apiEventStream, ApiError, DATA_CHANGED_EVENT, type DataChangeDetail } from '@/services/api';
 
 const dashboardQueries = [['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports'], ['clients-analytics']];
 const leadQueries = [['leads'], ['master-leads'], ['lead-profile'], ['lead-timeline'], ['lead-duplicates'], ['ad-leads-summary'], ['sales-pipeline']];
@@ -97,23 +97,34 @@ function RealtimeSync({ queryClient }: { queryClient: QueryClient }) {
 
   useEffect(() => {
     if (!session) return undefined;
-    const token = getAccessToken();
-    if (!token || typeof window === 'undefined' || typeof EventSource === 'undefined') return undefined;
+    let active = true;
+    let controller = new AbortController();
+    const reconnectDelayMs = 2_000;
 
-    const source = new EventSource(`${apiAssetUrl('/realtime/events')}?token=${encodeURIComponent(token)}`);
-    source.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as { path?: string };
-        if (data.path) refreshRelatedQueries(queryClient, data.path);
-      } catch {
-        // Ignore malformed or comment/heartbeat frames.
+    const connect = async () => {
+      while (active) {
+        controller = new AbortController();
+        try {
+          await apiEventStream('/realtime/events', (message) => {
+            try {
+              const data = JSON.parse(message) as { path?: string };
+              if (data.path) refreshRelatedQueries(queryClient, data.path);
+            } catch {
+              // Ignore malformed frames.
+            }
+          }, controller.signal);
+        } catch {
+          // A short retry handles transient network failures and token refreshes.
+        }
+        if (active) await new Promise((resolve) => window.setTimeout(resolve, reconnectDelayMs));
       }
     };
-    source.onerror = () => {
-      // EventSource retries automatically; nothing else to do here.
-    };
+    void connect();
 
-    return () => source.close();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [queryClient, session]);
 
   return null;

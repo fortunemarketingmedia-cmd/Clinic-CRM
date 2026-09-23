@@ -189,6 +189,48 @@ export async function apiBlob(path: string): Promise<Blob> {
   return response.blob();
 }
 
+export async function apiEventStream(
+  path: string,
+  onMessage: (data: string) => void,
+  signal: AbortSignal,
+) {
+  const request = (accessToken: string | null) =>
+    fetchWithTimeout(`${API_URL}${path}`, {
+      credentials: 'include',
+      headers: {
+        Accept: 'text/event-stream',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      signal,
+    });
+
+  let response = await request(getAccessToken());
+  if (response.status === 401 && !signal.aborted) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) response = await request(refreshedToken);
+  }
+  if (!response.ok || !response.body) throw new ApiError('Live updates are unavailable', response.status);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (!signal.aborted) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const frames = buffer.split(/\r?\n\r?\n/);
+    buffer = frames.pop() ?? '';
+    for (const frame of frames) {
+      const data = frame
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trimStart())
+        .join('\n');
+      if (data) onMessage(data);
+    }
+  }
+}
+
 export async function apiUpload<T>(
   path: string,
   file: File,

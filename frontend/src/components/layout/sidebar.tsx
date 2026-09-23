@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   BellRing,
+  Pill,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -65,6 +66,7 @@ export const navigationSections = [
     label: 'Administration',
     items: [
       { label: 'Master Records', icon: ClipboardCheck, href: '/clients', roles: allOperational },
+      { label: 'Medicines', icon: Pill, href: '/medicines', roles: doctorReviveRoles },
       { label: 'Settings', icon: Settings, href: '/settings', roles: doctorReviveRoles },
     ],
   },
