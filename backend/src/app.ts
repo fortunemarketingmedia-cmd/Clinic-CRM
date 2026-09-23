@@ -38,6 +38,7 @@ import { cacheService } from './services/cache.service.js';
 import { metricsService } from './services/metrics.service.js';
 import { realtimeService } from './services/realtime.service.js';
 import { realtimeRoutes } from './routes/realtime.routes.js';
+import { medicineRoutes } from './routes/medicine.routes.js';
 
 export const app = express();
 
@@ -159,6 +160,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/patients', patientRoutes);
+app.use('/api/medicines', medicineRoutes);
 app.use('/api/clinical', patient360Routes);
 app.use('/api/forms', formRoutes);
 app.use('/api/consents', consentRoutes);

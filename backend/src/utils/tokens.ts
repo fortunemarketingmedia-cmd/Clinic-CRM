@@ -7,6 +7,7 @@ type TokenPayload = {
   sub: string;
   role: Role;
   jti?: string;
+  exp?: number;
 };
 
 export function signAccessToken(payload: TokenPayload) {

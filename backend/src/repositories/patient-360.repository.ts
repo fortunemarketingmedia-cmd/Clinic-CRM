@@ -128,7 +128,7 @@ export const patient360Repository = {
   },
 
   listMedicines(search?: string) {
-    return prisma.medicine.findMany({ where: { status: 'ACTIVE', name: search ? { contains: search, mode: 'insensitive' } : undefined }, orderBy: { name: 'asc' }, take: 50 });
+    return prisma.medicine.findMany({ where: { status: 'ACTIVE', OR: search ? [{ name: { contains: search, mode: 'insensitive' } }, { genericName: { contains: search, mode: 'insensitive' } }, { strength: { contains: search, mode: 'insensitive' } }, { form: { contains: search, mode: 'insensitive' } }] : undefined }, orderBy: { name: 'asc' }, take: 50 });
   },
   listTemplates(branchId?: string) {
     return prisma.clinicalTemplate.findMany({ where: { active: true, OR: branchId ? [{ branchId: null }, { branchId }] : [{ branchId: null }] }, orderBy: { name: 'asc' } });

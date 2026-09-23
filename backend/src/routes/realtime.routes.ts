@@ -5,17 +5,20 @@ import { realtimeService } from '../services/realtime.service.js';
 export const realtimeRoutes = Router();
 
 realtimeRoutes.get('/events', (req, res) => {
-  const token = typeof req.query.token === 'string' ? req.query.token : undefined;
+  const authorization = req.header('authorization');
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
   if (!token) {
     res.status(401).end();
     return;
   }
+  let expiresAt = Date.now() + 15 * 60 * 1000;
   try {
     const payload = verifyAccessToken(token);
     if (payload.role === 'DEVELOPER') {
       res.status(401).end();
       return;
     }
+    if (payload.exp) expiresAt = payload.exp * 1000;
   } catch {
     res.status(401).end();
     return;
@@ -35,10 +38,11 @@ realtimeRoutes.get('/events', (req, res) => {
   const heartbeat = setInterval(() => {
     res.write(': ping\n\n');
   }, 25_000);
+  const expiry = setTimeout(() => res.end(), Math.max(1, expiresAt - Date.now()));
 
   req.on('close', () => {
     clearInterval(heartbeat);
+    clearTimeout(expiry);
     unsubscribe();
-    res.end();
   });
 });

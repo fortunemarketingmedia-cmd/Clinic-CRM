@@ -20,11 +20,11 @@ export const auditService = {
       newValue?: Prisma.InputJsonValue;
     },
   ) {
-    return auditRepository.create({ ...context, ...event });
+    const { userId, branchId, ipAddress, device, correlationId } = context;
+    return auditRepository.create({ userId, branchId, ipAddress, device, correlationId, ...event });
   },
 
   list(filters: { branchId?: string; entity?: string; entityId?: string; userId?: string; take: number }) {
     return auditRepository.list(filters);
   },
 };
-

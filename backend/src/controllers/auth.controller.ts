@@ -30,7 +30,13 @@ function setRefreshCookie(res: Response, refreshToken: string) {
 }
 
 function clearRefreshCookie(res: Response) {
-  res.clearCookie(env.REFRESH_TOKEN_COOKIE_NAME, refreshCookieOptions);
+  res.clearCookie(env.REFRESH_TOKEN_COOKIE_NAME, {
+    httpOnly: refreshCookieOptions.httpOnly,
+    secure: refreshCookieOptions.secure,
+    sameSite: refreshCookieOptions.sameSite,
+    path: refreshCookieOptions.path,
+    domain: refreshCookieOptions.domain,
+  });
 }
 
 export const authController = {
