@@ -176,7 +176,7 @@ export const patientService = {
       },
     });
     await timelineRepository.create({
-      leadId: patient.leadId,
+      leadId: patient.leadId ?? undefined,
       patientId: patient.id,
       type: 'PATIENT_CREATED',
       title: 'Patient created',
@@ -229,7 +229,7 @@ export const patientService = {
     await this.getPatient(id);
     const patient = await patientRepository.update(id, input);
     await timelineRepository.create({
-      leadId: patient.leadId,
+      leadId: patient.leadId ?? undefined,
       patientId: patient.id,
       type: 'PATIENT_UPDATED',
       title: 'Patient details updated',
@@ -243,7 +243,7 @@ export const patientService = {
     const profile = await patientRepository.upsertMedicalProfile(patientId, medicalData, updatedById, reasonForChange);
     const patient = await this.getPatient(patientId);
     await timelineRepository.create({
-      leadId: patient.leadId,
+      leadId: patient.leadId ?? undefined,
       patientId,
       type: 'MEDICAL_PROFILE_UPDATED',
       title: 'Medical profile updated',
@@ -360,7 +360,7 @@ export const patientService = {
         },
       });
       await timelineRepository.create({
-        leadId: patient.leadId,
+        leadId: patient.leadId ?? undefined,
         patientId: patient.id,
         type: 'QR_FORM_SUBMITTED',
         title: 'QR form submitted',
@@ -481,7 +481,7 @@ export const patientService = {
       },
     );
     await timelineRepository.create({
-      leadId: updatedPatient.leadId,
+      leadId: updatedPatient.leadId ?? undefined,
       patientId: updatedPatient.id,
       type: 'QR_FORM_SUBMITTED',
       title: 'QR form submitted',

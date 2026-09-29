@@ -24,7 +24,7 @@ export const clinicalService = {
   async createSession(patientId: string, input: Parameters<typeof clinicalRepository.createSession>[1]) {
     const patient = await ensurePatient(patientId);
     if (input.appointmentId) {
-      const appointment = patient.lead.appointments.find((item) => item.id === input.appointmentId);
+      const appointment = await patientRepository.findAppointment(patient, input.appointmentId);
       if (!appointment) throw new HttpError(400, 'Appointment does not belong to this patient');
     }
     if (input.packageId) {
@@ -37,7 +37,7 @@ export const clinicalService = {
     }
     const session = await clinicalRepository.createSession(patientId, input);
     await timelineRepository.create({
-      leadId: patient.leadId,
+      leadId: patient.leadId ?? undefined,
       patientId,
       type: input.followupDate ? 'FOLLOW_UP_SCHEDULED' : 'SESSION_CREATED',
       title: input.followupDate ? 'Follow-up scheduled' : 'Session added',
@@ -51,12 +51,12 @@ export const clinicalService = {
     const existing = await clinicalRepository.findSession(patientId, sessionId);
     if (!existing) throw new HttpError(404, 'Treatment session not found');
     if (input.appointmentId) {
-      const appointment = patient.lead.appointments.find((item) => item.id === input.appointmentId);
+      const appointment = await patientRepository.findAppointment(patient, input.appointmentId);
       if (!appointment) throw new HttpError(400, 'Appointment does not belong to this patient');
     }
     const session = await clinicalRepository.updateSession(patientId, sessionId, input);
     await timelineRepository.create({
-      leadId: patient.leadId,
+      leadId: patient.leadId ?? undefined,
       patientId,
       type: 'SESSION_CREATED',
       title: 'Treatment updated',
@@ -71,7 +71,7 @@ export const clinicalService = {
     if (!existing) throw new HttpError(404, 'Treatment session not found');
     const deleted = await clinicalRepository.deleteSession(patientId, sessionId);
     await timelineRepository.create({
-      leadId: patient.leadId,
+      leadId: patient.leadId ?? undefined,
       patientId,
       type: 'SESSION_CREATED',
       title: 'Treatment deleted',
@@ -100,7 +100,7 @@ export const clinicalService = {
     const patient = await ensurePatient(patientId);
     const file = await clinicalRepository.createFile(patientId, input);
     await timelineRepository.create({
-      leadId: patient.leadId,
+      leadId: patient.leadId ?? undefined,
       patientId,
       type: 'FILE_ATTACHED',
       title: 'File attached',

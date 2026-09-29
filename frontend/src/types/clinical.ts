@@ -19,7 +19,8 @@ export type Patient360 = Patient & {
   primaryConcern?: string | null;
   person?: { marketingConsent: boolean; transactionalConsent: boolean; appointmentNotificationConsent: boolean; dataProcessingConsent: boolean } | null;
   medicalProfile?: (MedicalProfile & { clinicalAlerts?: string | null; criticalAlert?: boolean; surgicalHistory?: string | null; productAllergies?: string | null; foodAllergies?: string | null; familyHistory?: string | null; smokingStatus?: string | null; alcoholHistory?: string | null; versions?: MedicalProfileVersion[] }) | null;
-  lead: NonNullable<Patient['lead']> & { appointments: Appointment[] };
+  lead?: Patient['lead'] | null;
+  appointments: Appointment[];
   clinicalEncounters?: ClinicalEncounter[];
   sessions?: PatientSession[];
   treatmentPlans?: TreatmentPlan[];

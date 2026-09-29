@@ -39,7 +39,7 @@ export const patient360Repository = {
     const appointments = await prisma.appointment.findMany({
       where: {
         OR: [
-          { leadId: patient.leadId },
+          ...(patient.leadId ? [{ leadId: patient.leadId }] : []),
           ...(patient.personId ? [{ lead: { personId: patient.personId } }] : []),
         ],
       },
@@ -52,10 +52,7 @@ export const patient360Repository = {
 
     return {
       ...patient,
-      lead: {
-        ...patient.lead,
-        appointments,
-      },
+      appointments,
     };
   },
 

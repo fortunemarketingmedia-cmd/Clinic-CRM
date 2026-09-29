@@ -52,7 +52,7 @@ export const patient360Service = {
     const outstandingAmount = patient.invoices.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalAmount) - invoice.payments.reduce((paid, payment) => paid + Number(payment.amount), 0)), 0);
     const sessionsRemaining = patient.packages.reduce((sum, treatmentPackage) => sum + Math.max(0, treatmentPackage.totalSessions - treatmentPackage.completedSessions), 0);
     const activeTreatmentPlan = patient.treatmentPlans.find((plan) => plan.status === 'ACTIVE' || plan.status === 'ACCEPTED');
-    const appointments = patient.lead.appointments;
+    const appointments = patient.appointments;
     const lastVisit = appointments.find((appointment) => ['COMPLETED', 'BILLING_PENDING'].includes(appointment.status));
     const nextAppointment = [...appointments].reverse().find((appointment) => new Date(appointment.appointmentAt) > new Date() && !['CANCELLED', 'NO_SHOW'].includes(appointment.status));
 
@@ -83,7 +83,7 @@ export const patient360Service = {
     requireClinicalRole(actor); const patient = await requirePatient(patientId, actor);
     if (input.branchId !== patient.branchId) throw new HttpError(400, 'Encounter branch must match the patient registration branch');
     const encounter = await patient360Repository.createEncounter({ patientId, ...input });
-    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId, patientId, createdById: actor.id, type: 'CLINICAL_ENCOUNTER_CREATED', title: 'Clinical encounter created', description: input.type });
+    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId ?? undefined, patientId, createdById: actor.id, type: 'CLINICAL_ENCOUNTER_CREATED', title: 'Clinical encounter created', description: input.type });
     await audit(actor, { action: 'CLINICAL_ENCOUNTER_CREATED', entity: 'ClinicalEncounter', entityId: encounter.id, newValue: { type: encounter.type, status: encounter.status } });
     return encounter;
   },
@@ -120,7 +120,7 @@ export const patient360Service = {
     if (input.branchId !== patient.branchId) throw new HttpError(400, 'Treatment-plan branch must match the patient branch');
     const { items, ...plan } = input;
     const created = await patient360Repository.createTreatmentPlan({ patientId, ...plan, items: { create: items } });
-    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId, patientId, createdById: actor.id, type: 'TREATMENT_PLAN_CREATED', title: 'Treatment plan created', description: input.concern });
+    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId ?? undefined, patientId, createdById: actor.id, type: 'TREATMENT_PLAN_CREATED', title: 'Treatment plan created', description: input.concern });
     await audit(actor, { action: 'TREATMENT_PLAN_CREATED', entity: 'TreatmentPlan', entityId: created.id, newValue: { status: created.status, concern: created.concern } });
     return created;
   },
@@ -139,7 +139,7 @@ export const patient360Service = {
     if (input.status === 'COMPLETED' && !input.consentVerified) throw new HttpError(409, 'Consent must be verified before completing a procedure');
     if (input.status === 'COMPLETED' && input.packageId) { const treatmentPackage = await patient360Repository.findPatientPackage(input.packageId); if (!treatmentPackage || treatmentPackage.patientId !== patientId || treatmentPackage.status !== 'ACTIVE' || treatmentPackage.completedSessions + treatmentPackage.reservedSessions >= treatmentPackage.totalSessions) throw new HttpError(409, 'An active patient package with remaining sessions is required'); }
     const created = await patient360Repository.createProcedureSession({ patientId, ...input }, actor.id);
-    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId, patientId, createdById: actor.id, type: 'PROCEDURE_RECORDED', title: 'Procedure session recorded', description: input.procedureName });
+    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId ?? undefined, patientId, createdById: actor.id, type: 'PROCEDURE_RECORDED', title: 'Procedure session recorded', description: input.procedureName });
     await audit(actor, { action: 'PROCEDURE_SESSION_CREATED', entity: 'ProcedureSession', entityId: created.id, newValue: { status: created.status, adverseEventFlag: created.adverseEventFlag } });
     if (created.status === 'COMPLETED') {
       try {
@@ -157,7 +157,7 @@ export const patient360Service = {
     const patient = await requirePatient(patientId, actor); const { items, ...prescription } = input;
     const prescriptionNo = `REV-RX-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const created = await patient360Repository.createPrescription({ patientId, prescriptionNo, ...prescription, status: 'SIGNED', signedById: actor.id, signedAt: new Date(), items: { create: items } });
-    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId, patientId, createdById: actor.id, type: 'PRESCRIPTION_CREATED', title: 'Prescription issued', description: prescriptionNo });
+    await timelineRepository.create({ personId: patient.personId ?? undefined, leadId: patient.leadId ?? undefined, patientId, createdById: actor.id, type: 'PRESCRIPTION_CREATED', title: 'Prescription issued', description: prescriptionNo });
     await audit(actor, { action: 'PRESCRIPTION_CREATED', entity: 'Prescription', entityId: created.id, newValue: { prescriptionNo, status: created.status } });
     return created;
   },

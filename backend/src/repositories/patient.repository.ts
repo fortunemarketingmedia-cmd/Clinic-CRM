@@ -66,6 +66,18 @@ export const patientRepository = {
     return prisma.patient.findUnique({ where: { leadId } });
   },
 
+  findAppointment(patient: { leadId: string | null; personId: string | null }, appointmentId: string) {
+    return prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        OR: [
+          ...(patient.leadId ? [{ leadId: patient.leadId }] : []),
+          ...(patient.personId ? [{ lead: { personId: patient.personId } }] : []),
+        ],
+      },
+    });
+  },
+
   findDuplicates(input: { mobile?: string; email?: string }) {
     return prisma.patient.findMany({
       where: {
@@ -160,39 +172,8 @@ export const patientRepository = {
     },
   ) {
     return prisma.$transaction(async (tx) => {
-      const createdBy = await tx.user.findFirst({
-        where: { accessLevel: 'ADMIN', status: 'ACTIVE' },
-        orderBy: { createdAt: 'asc' },
-      });
-
-      if (!createdBy) {
-        throw new Error('No active admin user is available for QR registration intake');
-      }
-
-      const lead = await tx.lead.create({
-        data: {
-          qrToken: crypto.randomBytes(24).toString('hex'),
-          name: data.fullName,
-          mobile: data.mobile,
-          email: data.email,
-          address: data.address,
-          source: 'WALK_IN',
-          status: 'CONVERTED',
-          branchId: data.branchId,
-          createdById: createdBy.id,
-          personId: data.personId,
-          ownerId: createdBy.id,
-          nextAction: 'Clinical registration complete',
-          nextActionDueAt: new Date(),
-          convertedAt: new Date(),
-          appointmentAt: new Date(),
-          appointmentType: 'CLINIC_VISIT',
-        },
-      });
-
       return tx.patient.create({
         data: {
-          leadId: lead.id,
           personId: data.personId,
           branchId: data.branchId,
           patientNo: data.patientNo,
@@ -205,6 +186,7 @@ export const patientRepository = {
           address: data.address,
           occupation: data.occupation,
           maritalStatus: data.maritalStatus,
+          registrationSource: 'DIRECT_PATIENT_REGISTRATION',
           medicalProfile: {
             create: data.medicalProfile,
           },

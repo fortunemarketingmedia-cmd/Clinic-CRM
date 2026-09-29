@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -128,6 +128,8 @@ export function QrRegistrationForm({ token, onSuccess, initialBranchId }: { toke
             field={field}
             register={form.register}
             setValue={(value) => form.setValue(field.key, value, { shouldDirty: true, shouldValidate: true })}
+            setOtherValue={(value) => form.setValue(`${field.key}Other`, value, { shouldDirty: true, shouldValidate: true })}
+            otherValue={currentValues[`${field.key}Other`]}
           />
         )) : <LegacyRegistrationFields form={form} />}
         {submitRegistration.error ? (
@@ -147,11 +149,16 @@ export function QrRegistrationForm({ token, onSuccess, initialBranchId }: { toke
 
 type Register = ReturnType<typeof useForm<QrFormValues>>['register'];
 
-function QrTemplateField({ field, register, setValue }: { field: FormField; register: Register; setValue: (value: unknown) => void }) {
+function QrTemplateField({ field, register, setValue, setOtherValue, otherValue }: { field: FormField; register: Register; setValue: (value: unknown) => void; setOtherValue: (value: unknown) => void; otherValue: unknown }) {
   const input = register(field.key);
   const label = <span className="text-sm font-medium">{field.label}{field.required ? ' *' : ''}</span>;
+  const otherOption = (field.options ?? []).find((option) => option.toLowerCase() === 'other');
+  const [showOther, setShowOther] = useState(false);
+  useEffect(() => {
+    if (otherValue) setShowOther(true);
+  }, [otherValue]);
   if (field.type === 'CHECKBOX' || field.type === 'DECLARATION') return <label className="flex items-start gap-2 rounded-md border p-3 md:col-span-2"><input type="checkbox" disabled={field.readOnly} {...input} /><span>{label}{field.helpText ? <span className="mt-1 block text-xs text-muted-foreground">{field.helpText}</span> : null}</span></label>;
-  if (field.type === 'DROPDOWN' || field.type === 'RADIO') return <label className="grid gap-1.5">{label}<Select disabled={field.readOnly} {...input}><option value="">Select</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{formatOptionLabel(option)}</option>)}</Select></label>;
+  if (field.type === 'DROPDOWN' || field.type === 'RADIO') return <label className="grid gap-1.5">{label}<Select disabled={field.readOnly} {...input} onChange={(event) => { input.onChange(event); const isOther = Boolean(otherOption && event.target.value === otherOption); setShowOther(isOther); if (!isOther) setOtherValue(''); }}><option value="">Select</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{formatOptionLabel(option)}</option>)}</Select>{otherOption && showOther ? <Input className="mt-1" value={String(otherValue ?? '')} placeholder={`Please specify ${field.label.toLowerCase()}`} onChange={(event) => setOtherValue(event.target.value)} autoFocus /> : null}</label>;
   if (field.type === 'MULTI_SELECT') return <label className="grid gap-1.5">{label}<select multiple disabled={field.readOnly} className="min-h-24 rounded-md border bg-background p-2 text-sm" {...input}>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
   if (field.type === 'SIGNATURE') return <div className="grid gap-1.5 md:col-span-2">{label}<SignaturePad onChange={setValue} disabled={field.readOnly} /></div>;
   if (field.type === 'FILE_UPLOAD' || field.type === 'IMAGE_UPLOAD') return <label className="grid gap-1.5">{label}<Input type="file" accept={field.type === 'IMAGE_UPLOAD' ? 'image/*' : undefined} disabled={field.readOnly} onChange={(event) => setValue(event.target.files?.[0]?.name ?? '')} /></label>;
@@ -181,8 +188,15 @@ function LegacyRegistrationFields({ form }: { form: UseFormReturn<QrFormValues> 
 
 function YesNoOtherField({ form, name, label }: { form: UseFormReturn<QrFormValues>; name: 'medicalHistory' | 'currentMedications' | 'allergyToDrugs' | 'productsCurrentlyUsed'; label: string }) {
   const value = String(form.watch(name) ?? '');
-  const mode = value === '' ? '' : value === 'Yes' || value === 'No' ? value : 'Other';
-  const [otherText, setOtherText] = useState(mode === 'Other' ? value : '');
+  const initialMode = value === '' ? '' : value === 'Yes' || value === 'No' ? value : 'Other';
+  const [mode, setMode] = useState(initialMode);
+  const [otherText, setOtherText] = useState(initialMode === 'Other' ? value : '');
+  useEffect(() => {
+    if (value && value !== 'Yes' && value !== 'No') {
+      setMode('Other');
+      setOtherText(value);
+    }
+  }, [value]);
   return (
     <label className="grid gap-1.5">
       <span className="text-sm font-medium">{label}</span>
@@ -190,6 +204,7 @@ function YesNoOtherField({ form, name, label }: { form: UseFormReturn<QrFormValu
         value={mode}
         onChange={(event) => {
           const next = event.target.value;
+          setMode(next);
           form.setValue(name, next === 'Other' ? otherText : next, { shouldDirty: true });
         }}
       >

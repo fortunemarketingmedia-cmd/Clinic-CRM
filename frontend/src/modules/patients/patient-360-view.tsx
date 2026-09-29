@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, CalendarCheck2, CircleDollarSign, Download, HeartPulse, Plus, Printer, ReceiptText, Search, ShieldAlert, Stethoscope, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -61,7 +61,7 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
   const staff = staffQuery.data?.data ?? [];
   const doctors = staff.filter((member) => member.role === 'ADMIN');
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['patient-360', patientId] });
-  const activeConsultation = patient?.lead.appointments.find((appointment) => appointment.resourceType === 'CONSULTATION' && ['WAITING', 'IN_CONSULTATION'].includes(appointment.status));
+  const activeConsultation = patient?.appointments.find((appointment) => appointment.resourceType === 'CONSULTATION' && ['WAITING', 'IN_CONSULTATION'].includes(appointment.status));
   const startConsultation = useMutation({
     mutationFn: () => activeConsultation && activeConsultation.status !== 'IN_CONSULTATION'
       ? apiRequest(`/appointments/${activeConsultation.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'IN_CONSULTATION' }) })
@@ -119,7 +119,7 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
   const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => apiRequest<{ data: Branch[] }>('/branches'), enabled: canEdit });
   const branches = branchesQuery.data?.data ?? [];
   const bookingResourcesQuery = useQuery({ queryKey: ['clinical-resources', patient.branchId], queryFn: () => apiRequest<{ data: ClinicResource[] }>(`/front-desk/resources?branchId=${patient.branchId}`), enabled: Boolean(canEdit && showRoomBooking) });
-  const appointments = patient.lead.appointments ?? [];
+  const appointments = patient.appointments ?? [];
   const now = Date.now();
   const finished = (appointment: Appointment) => ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(appointment.status);
   const upcoming = appointments.filter((appointment) => !finished(appointment) && new Date(appointment.appointmentAt).getTime() >= now).sort((a, b) => +new Date(a.appointmentAt) - +new Date(b.appointmentAt));
@@ -253,7 +253,7 @@ function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appoint
 }
 
 function Overview({ patient }: { patient: Patient360 }) {
-  const latestAppointment = patient.summary.lastVisit ?? patient.lead.appointments[0];
+  const latestAppointment = patient.summary.lastVisit ?? patient.appointments[0];
   const profile = patient.medicalProfile;
   const registrationSource = patient.registrationSource ?? patient.lead?.source;
   return <div className="space-y-4">
@@ -513,14 +513,22 @@ function TextField({ label: title, name, values, set, type = 'text' }: { label: 
 function Area({ label: title, name, values, set }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void }) { return <label className="grid gap-1 text-sm sm:col-span-2"><span className="font-medium">{title}</span><textarea className="min-h-24 rounded-md border border-border bg-surface px-3 py-2" value={String(values[name] ?? '')} onChange={(event) => set(name, event.target.value)} /></label>; }
 function YesNoOtherField({ label: title, name, values, set, wide = false }: { label: string; name: string; values: Record<string, string | boolean>; set: (name: string, value: string) => void; wide?: boolean }) {
   const currentValue = String(values[name] ?? '');
-  const mode = currentValue === '' ? '' : currentValue === 'Yes' || currentValue === 'No' ? currentValue : 'Other';
-  const [otherText, setOtherText] = useState(mode === 'Other' ? currentValue : '');
+  const initialMode = currentValue === '' ? '' : currentValue === 'Yes' || currentValue === 'No' ? currentValue : 'Other';
+  const [mode, setMode] = useState(initialMode);
+  const [otherText, setOtherText] = useState(initialMode === 'Other' ? currentValue : '');
+  useEffect(() => {
+    if (currentValue && currentValue !== 'Yes' && currentValue !== 'No') {
+      setMode('Other');
+      setOtherText(currentValue);
+    }
+  }, [currentValue]);
   return <div className={`grid gap-1 text-sm ${wide ? 'sm:col-span-2' : ''}`}>
     <span className="font-semibold text-foreground">{title}</span>
     <Select
       value={mode}
       onChange={(event) => {
         const next = event.target.value;
+        setMode(next);
         if (next === 'Other') {
           set(name, otherText);
         } else {

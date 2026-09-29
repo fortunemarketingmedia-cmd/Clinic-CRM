@@ -15,6 +15,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:medicines": "node scripts/import-medicine-catalog.mjs",
+    "catalog:sync": "tsx src/scripts/sync-rate-card.ts",
     "data:reset:operational": "node prisma/clear-operational-data.mjs",
     "bootstrap:admin": "node scripts/bootstrap-production-admin.mjs",
     "storage:migrate:s3": "node scripts/migrate-private-files-to-s3.mjs"

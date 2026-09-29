@@ -5,7 +5,7 @@ export type Patient = {
   id: string;
   patientNo: string;
   qrToken: string;
-  leadId: string;
+  leadId?: string | null;
   branchId: string;
   fullName: string;
   mobile: string;

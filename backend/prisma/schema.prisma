@@ -1362,7 +1362,7 @@ model Patient {
   id                          String                       @id @default(cuid())
   patientNo                   String                       @unique
   qrToken                     String                       @unique
-  leadId                      String                       @unique
+  leadId                      String?                      @unique
   personId                    String?                      @unique
   branchId                    String
   fullName                    String
@@ -1382,7 +1382,7 @@ model Patient {
   nextVisitAt                 DateTime?
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
-  lead                        Lead                         @relation(fields: [leadId], references: [id])
+  lead                        Lead?                        @relation(fields: [leadId], references: [id])
   person                      Person?                      @relation(fields: [personId], references: [id])
   branch                      Branch                       @relation(fields: [branchId], references: [id])
   medicalProfile              MedicalProfile?
