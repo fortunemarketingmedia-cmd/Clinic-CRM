@@ -44,6 +44,7 @@ const envSchema = z.object({
   FILE_SCAN_REQUIRED: z.enum(['true', 'false']).default('false'),
   GOOGLE_ADS_INGEST_SECRET: optional(z.string().min(24)),
   META_ADS_INGEST_SECRET: optional(z.string().min(24)),
+  WEBSITE_LEAD_INGEST_SECRET: optional(z.string().min(24)),
   PAYMENT_GATEWAY_SECRET: optional(z.string().min(16)),
   INTEGRATION_ENCRYPTION_KEY: optional(z.string().min(32)),
   META_GRAPH_API_URL: z.string().url().default('https://graph.facebook.com'),
@@ -87,6 +88,7 @@ if (parsedEnv.NODE_ENV === 'production') {
     FILE_ACCESS_SECRET: parsedEnv.FILE_ACCESS_SECRET,
     GOOGLE_ADS_INGEST_SECRET: parsedEnv.GOOGLE_ADS_INGEST_SECRET,
     META_ADS_INGEST_SECRET: parsedEnv.META_ADS_INGEST_SECRET,
+    WEBSITE_LEAD_INGEST_SECRET: parsedEnv.WEBSITE_LEAD_INGEST_SECRET,
     METRICS_SECRET: parsedEnv.METRICS_SECRET,
     PAYMENT_GATEWAY_SECRET: parsedEnv.PAYMENT_GATEWAY_SECRET,
   };

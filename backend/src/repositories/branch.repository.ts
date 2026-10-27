@@ -17,6 +17,10 @@ export const branchRepository = {
     return prisma.branch.findFirst({ orderBy: { name: 'asc' } });
   },
 
+  findByName(name: string) {
+    return prisma.branch.findFirst({ where: { name: { equals: name, mode: 'insensitive' } } });
+  },
+
   update(id: string, data: { address?: string; phone?: string }) {
     return prisma.branch.update({ where: { id }, data });
   },

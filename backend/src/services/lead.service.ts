@@ -74,15 +74,25 @@ export const leadService = {
     mobile: string;
     email?: string;
     branchId?: string;
+    branchName?: string;
     interestedTreatment?: string;
+    preferredDate?: string;
     message?: string;
     formName?: string;
     pageUrl?: string;
     utmSource?: string;
     utmMedium?: string;
     utmCampaign?: string;
+    privacyConsent: true;
+    consentAt: string;
   }) {
-    const branchId = input.branchId ?? (await branchRepository.first())?.id;
+    const requestedBranch = input.branchName
+      ? await branchRepository.findByName(input.branchName)
+      : undefined;
+    if (input.branchName && !requestedBranch) {
+      throw new HttpError(400, 'Requested clinic branch was not found');
+    }
+    const branchId = input.branchId ?? requestedBranch?.id ?? (await branchRepository.first())?.id;
     if (!branchId) throw new HttpError(409, 'No clinic branch is configured for website leads');
 
     const owner = await userRepository.firstActiveAdmin();
@@ -90,10 +100,12 @@ export const leadService = {
 
     const tracking = [
       input.formName ? `Form: ${input.formName}` : undefined,
+      input.preferredDate ? `Preferred date: ${input.preferredDate}` : undefined,
       input.pageUrl ? `Page: ${input.pageUrl}` : undefined,
       input.utmSource ? `UTM source: ${input.utmSource}` : undefined,
       input.utmMedium ? `UTM medium: ${input.utmMedium}` : undefined,
       input.utmCampaign ? `UTM campaign: ${input.utmCampaign}` : undefined,
+      `Privacy notice accepted: ${input.consentAt}`,
       input.message ? `Message: ${input.message}` : undefined,
     ].filter(Boolean).join('\n');
 
