@@ -30,6 +30,11 @@ publicRoutes.post('/ads/meta', requireSharedSecret(env.META_ADS_INGEST_SECRET), 
   adLeadController.createPublic({ ...req.body, platform: 'META', rawPayload: req.body }, res).catch(next);
 });
 
-publicRoutes.post('/website-leads', rateLimit({ windowMs: 60 * 1000, max: 12, keyPrefix: 'website-leads' }), (req, res, next) => {
-  leadController.createWebsiteLead(req, res).catch(next);
-});
+publicRoutes.post(
+  '/website-leads',
+  rateLimit({ windowMs: 60 * 1000, max: 12, keyPrefix: 'website-leads' }),
+  requireSharedSecret(env.WEBSITE_LEAD_INGEST_SECRET),
+  (req, res, next) => {
+    leadController.createWebsiteLead(req, res).catch(next);
+  },
+);

@@ -25,13 +25,17 @@ export const websiteLeadSchema = z.object({
   mobile: z.string().min(8).max(32),
   email: z.string().email().optional(),
   branchId: z.string().min(1).optional(),
+  branchName: z.string().min(1).max(120).optional(),
   interestedTreatment: z.string().max(160).optional(),
+  preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   message: z.string().max(2_000).optional(),
   formName: z.string().max(120).optional(),
   pageUrl: z.string().url().max(1_000).optional(),
   utmSource: z.string().max(160).optional(),
   utmMedium: z.string().max(160).optional(),
   utmCampaign: z.string().max(160).optional(),
+  privacyConsent: z.literal(true),
+  consentAt: z.string().datetime(),
   website: z.string().max(0).optional(),
 });
 
