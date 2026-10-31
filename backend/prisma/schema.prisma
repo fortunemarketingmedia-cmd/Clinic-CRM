@@ -1628,6 +1628,9 @@ model ProcedureSession {
   beforeImages          Json?
   afterImages           Json?
   adverseEventFlag      Boolean                @default(false)
+  sittingNumber         Int?
+  chartType             String?
+  chartMarkings         Json?
   status                ProcedureSessionStatus @default(PLANNED)
   performedAt           DateTime?
   createdAt             DateTime               @default(now())

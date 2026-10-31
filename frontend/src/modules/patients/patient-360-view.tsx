@@ -18,10 +18,11 @@ import type { StaffMember } from '@/types/front-desk';
 import { ConsultationBookingDialog } from '../appointments/consultation-booking-dialog';
 import { RoomBookingDialog } from '../front-desk/schedules-view';
 import { PatientDocumentsPanel, PatientGalleryPanel } from './patient-forms-files-panel';
+import { PatientStagesPanel } from './patient-stages-panel';
 import { PatientTreatmentPanel } from './patient-treatment-panel';
 import { TreatmentConsentsCard } from './signed-consents';
 
-const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Documents'] as const;
+const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Treatment Stages', 'Documents'] as const;
 type Tab = typeof tabs[number];
 type MedicineOption = { id: string; name: string; genericName?: string | null; strength?: string | null; form?: string | null };
 type PackageMasterOption = { id: string; branchId?: string | null; name: string; totalSessions: number; validityDays: number; price: string; taxPercent: string; active: boolean };
@@ -106,6 +107,7 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
     {tab === 'Prescriptions' ? <Prescriptions patient={patient} canCreate={canPrescribe} onCreate={() => setComposer('prescription')} /> : null}
     {tab === 'Medical Profile' ? <MedicalProfile patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
     {tab === 'Treatment' ? <PatientTreatmentPanel patient={patient} /> : null}
+    {tab === 'Treatment Stages' ? <PatientStagesPanel patient={patient} canRecord={canClinical} /> : null}
     {tab === 'Documents' ? <div className="space-y-6"><PatientGalleryPanel patient={patient} /><PatientDocumentsPanel patient={patient} /></div> : null}
 
     {composer ? <ClinicalComposer kind={composer} patient={patient} staff={staff} resources={resourcesQuery.data?.data ?? []} defaultDoctorId={doctors[0]?.id ?? staff[0]?.id} onClose={() => setComposer(null)} onSaved={() => { setComposer(null); invalidate(); }} /> : null}
