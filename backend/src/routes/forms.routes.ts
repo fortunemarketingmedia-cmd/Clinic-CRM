@@ -19,6 +19,7 @@ consentRoutes.patch('/templates/:id', (req, res, next) => { formsController.upda
 consentRoutes.post('/sign', (req, res, next) => { formsController.signConsent(req, res).catch(next); });
 consentRoutes.get('/patients/:patientId', (req, res, next) => { formsController.listConsentRecords(req, res).catch(next); });
 consentRoutes.post('/:id/withdraw', (req, res, next) => { formsController.withdrawConsent(req, res).catch(next); });
+consentRoutes.get('/:id/signatures/:signer', (req, res, next) => { formsController.consentSignature(req, res).catch(next); });
 consentRoutes.get('/:id/pdf', (req, res, next) => { formsController.consentPdf(req, res).catch(next); });
 
 export const fileRoutes = Router();

@@ -90,6 +90,25 @@ docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.
 
 The command refuses to overwrite an existing account. Enroll MFA immediately.
 
+### Recover an existing production Admin
+
+The demo seed credentials are deliberately unavailable in production. If the initial Admin exists but its password is lost, reset it from the VPS with a new, unique password of at least 14 characters containing uppercase, lowercase, numeric, and special characters:
+
+```sh
+RESET_ADMIN_CONFIRM=RESET_EXISTING_PRODUCTION_ADMIN \
+RESET_ADMIN_EMAIL='admin@reviveskinclinics.in' \
+RESET_ADMIN_PASSWORD='new-unique-password-from-your-password-manager' \
+docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml run --rm backend npm run reset:admin-password
+```
+
+This reactivates only an existing Admin and revokes all of its refresh sessions. It refuses to modify Receptionist or other accounts. If MFA access is also lost, add the separate explicit override below, then sign in and enroll MFA again immediately:
+
+```sh
+RESET_ADMIN_DISABLE_MFA=I_UNDERSTAND_MFA_WILL_BE_REMOVED
+```
+
+If the recovery command reports that the account does not exist, use the initial Admin bootstrap command above instead. Remove recovery commands containing passwords from shell history and store the new credential only in the approved password manager.
+
 ## 6. Existing patient-file migration
 
 Back up `backend/storage/private`, use the same production file-encryption key and MinIO settings, then run the controlled migration. It encrypts each file with AES-256-GCM before upload, records the plaintext SHA-256 in private metadata, skips verified matches, and never deletes the source:

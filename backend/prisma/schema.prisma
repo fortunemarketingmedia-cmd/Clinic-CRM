@@ -1628,6 +1628,9 @@ model ProcedureSession {
   beforeImages          Json?
   afterImages           Json?
   adverseEventFlag      Boolean                @default(false)
+  sittingNumber         Int?
+  chartType             String?
+  chartMarkings         Json?
   status                ProcedureSessionStatus @default(PLANNED)
   performedAt           DateTime?
   createdAt             DateTime               @default(now())
@@ -1857,8 +1860,11 @@ model ConsentRecord {
   procedureSessionId          String?
   language                    String
   consentText                 String
+  treatmentName               String?
   signerName                  String
   signatureStorageKey         String
+  doctorName                  String?
+  doctorSignatureStorageKey   String?
   guardianName                String?
   guardianRelationship        String?
   guardianSignatureStorageKey String?

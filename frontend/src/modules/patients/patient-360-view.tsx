@@ -18,8 +18,11 @@ import type { StaffMember } from '@/types/front-desk';
 import { ConsultationBookingDialog } from '../appointments/consultation-booking-dialog';
 import { RoomBookingDialog } from '../front-desk/schedules-view';
 import { PatientDocumentsPanel, PatientGalleryPanel } from './patient-forms-files-panel';
+import { PatientStagesPanel } from './patient-stages-panel';
+import { PatientTreatmentPanel } from './patient-treatment-panel';
+import { TreatmentConsentsCard } from './signed-consents';
 
-const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Documents'] as const;
+const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Treatment Stages', 'Documents'] as const;
 type Tab = typeof tabs[number];
 type MedicineOption = { id: string; name: string; genericName?: string | null; strength?: string | null; form?: string | null };
 type PackageMasterOption = { id: string; branchId?: string | null; name: string; totalSessions: number; validityDays: number; price: string; taxPercent: string; active: boolean };
@@ -97,12 +100,14 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
 
     <div className="overflow-x-auto border-b"><div className="flex min-w-max gap-1">{tabs.map((item) => <button key={item} className={`border-b-2 px-3 py-2 text-sm ${tab === item ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground'}`} onClick={() => setTab(item)}>{item}</button>)}</div></div>
 
-    {tab === 'Overview' ? <Overview patient={patient} /> : null}
+    {tab === 'Overview' ? <Overview patient={patient} onChooseTreatment={() => setTab('Treatment')} /> : null}
     {tab === 'Appointments' ? <AppointmentsPanel patient={patient} canEdit={canOperate} invalidate={invalidate} /> : null}
-    {tab === 'Care History' ? <CareHistoryPanel patient={patient} /> : null}
+    {tab === 'Care History' ? <CareHistoryPanel patient={patient} onChooseTreatment={() => setTab('Treatment')} /> : null}
     {tab === 'Billing' ? <BillingPanel patient={patient} canBill={canBill} invalidate={invalidate} /> : null}
     {tab === 'Prescriptions' ? <Prescriptions patient={patient} canCreate={canPrescribe} onCreate={() => setComposer('prescription')} /> : null}
     {tab === 'Medical Profile' ? <MedicalProfile patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
+    {tab === 'Treatment' ? <PatientTreatmentPanel patient={patient} /> : null}
+    {tab === 'Treatment Stages' ? <PatientStagesPanel patient={patient} canRecord={canClinical} /> : null}
     {tab === 'Documents' ? <div className="space-y-6"><PatientGalleryPanel patient={patient} /><PatientDocumentsPanel patient={patient} /></div> : null}
 
     {composer ? <ClinicalComposer kind={composer} patient={patient} staff={staff} resources={resourcesQuery.data?.data ?? []} defaultDoctorId={doctors[0]?.id ?? staff[0]?.id} onClose={() => setComposer(null)} onSaved={() => { setComposer(null); invalidate(); }} /> : null}
@@ -168,7 +173,7 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
 
 function AppointmentGroup({ title, empty, items, warning = false }: { title: string; empty: string; items: React.ReactNode[]; warning?: boolean }) { return <Card className={warning && items.length ? 'border-red-200' : ''}><h2 className="font-semibold">{title}</h2>{items.length ? <div className="mt-3 space-y-2">{items}</div> : <div className="py-7 text-center text-sm text-muted-foreground">{empty}</div>}</Card>; }
 
-function CareHistoryPanel({ patient }: { patient: Patient360 }) {
+function CareHistoryPanel({ patient, onChooseTreatment }: { patient: Patient360; onChooseTreatment: () => void }) {
   const packages = patient.packages ?? [];
   const invoices = patient.invoices ?? [];
   const paid = invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount ?? invoice.payments.reduce((total, payment) => total + Number(payment.amount), 0)), 0);
@@ -176,6 +181,7 @@ function CareHistoryPanel({ patient }: { patient: Patient360 }) {
   return <div className="space-y-4">
     <div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Complete patient journey</p><h2 className="text-xl font-semibold">Treatments & consultations</h2><p className="text-sm text-muted-foreground">Care taken, package progress, amounts paid, and the next scheduled visit in one place.</p></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric title="Care visits recorded" value={String(completedCare)} /><Metric title="Money paid" value={`Rs ${paid.toLocaleString('en-IN')}`} /><Metric title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} /><Metric title="Next session / visit" value={format(patient.summary.nextAppointment?.appointmentAt)} /></div>
+    <TreatmentConsentsCard patient={patient} title="Treatments chosen & consents" description="Treatments the patient has opted for, each with its signed consent form." onOpenTreatmentTab={onChooseTreatment} />
     <Card><div className="flex items-center gap-2"><CalendarCheck2 className="size-5 text-primary" /><h3 className="font-semibold">Packages & session progress</h3></div>{packages.length ? <div className="mt-3 grid gap-3 lg:grid-cols-2">{packages.map((item) => { const remaining = Math.max(0, item.totalSessions - item.completedSessions); return <div key={item.id} className="rounded-xl border p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{item.name}</div><div className="mt-1 text-xs text-muted-foreground">Purchased {format(item.purchaseDate)} · {label(item.status ?? 'ACTIVE')}</div></div><span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{remaining} remaining</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${item.totalSessions ? Math.min(100, item.completedSessions / item.totalSessions * 100) : 0}%` }} /></div><div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>{item.completedSessions}/{item.totalSessions} completed</span><span>Paid Rs {Number(item.paidAmount).toLocaleString('en-IN')}</span></div>{item.expiryDate ? <p className="mt-2 text-xs text-muted-foreground">Valid until {format(item.expiryDate)}</p> : null}</div>; })}</div> : <div className="py-8 text-center text-sm text-muted-foreground">No packages purchased.</div>}</Card>
     <div className="grid gap-4 xl:grid-cols-2"><Card><div className="flex items-center gap-2"><Stethoscope className="size-5 text-primary" /><h3 className="font-semibold">Consultations & treatment records</h3></div><div className="mt-3 space-y-2">{(patient.sessions ?? []).map((session) => <div key={session.id} className="rounded-lg border p-3"><div className="font-medium">{label(session.treatmentType)}</div><div className="mt-1 text-xs text-muted-foreground">{format(session.visitDate)} · {session.doctorConsulted || 'Provider not recorded'}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment taken" value={session.treatmentTaken || session.treatmentSuggested} /><Detail title="Diagnosis" value={session.diagnosis} /></dl></div>)}{(patient.clinicalEncounters ?? []).map((encounter) => <div key={encounter.id} className="rounded-lg border p-3"><div className="font-medium">{label(encounter.type)}</div><div className="mt-1 text-xs text-muted-foreground">{format(encounter.visitDate)} · Dr. {encounter.doctor.name}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment advised" value={encounter.treatmentAdvised} /><Detail title="Diagnosis" value={encounter.diagnosis} /></dl></div>)}{!(patient.sessions?.length || patient.clinicalEncounters?.length) ? <div className="py-8 text-center text-sm text-muted-foreground">No consultation or treatment records.</div> : null}</div></Card>
     <Card><div className="flex items-center gap-2"><CircleDollarSign className="size-5 text-primary" /><h3 className="font-semibold">Charges & payments</h3></div><div className="mt-3 space-y-2">{invoices.map((invoice) => { const invoicePaid = Number(invoice.paidAmount ?? invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0)); return <div key={invoice.id} className="rounded-lg border p-3"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{invoice.items?.map((item) => item.description).join(', ') || invoice.invoiceNo}</div><div className="mt-1 text-xs text-muted-foreground">{invoice.invoiceNo} · {format(invoice.invoiceDate)}</div></div><span className="text-sm font-semibold">Rs {Number(invoice.totalAmount).toLocaleString('en-IN')}</span></div><div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"><span>Paid: Rs {invoicePaid.toLocaleString('en-IN')}</span><span>Method: {invoice.payments[0]?.mode ? label(invoice.payments[0].mode) : 'Not recorded'}</span><span>Status: {label(invoice.status)}</span></div></div>; })}{!invoices.length ? <div className="py-8 text-center text-sm text-muted-foreground">No charges or payments recorded.</div> : null}</div></Card></div>
@@ -252,11 +258,12 @@ function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appoint
   </div>;
 }
 
-function Overview({ patient }: { patient: Patient360 }) {
+function Overview({ patient, onChooseTreatment }: { patient: Patient360; onChooseTreatment: () => void }) {
   const latestAppointment = patient.summary.lastVisit ?? patient.appointments[0];
   const profile = patient.medicalProfile;
   const registrationSource = patient.registrationSource ?? patient.lead?.source;
   return <div className="space-y-4">
+    <TreatmentConsentsCard patient={patient} description="What the patient is going for, with the signed consent beside each treatment." onOpenTreatmentTab={onChooseTreatment} />
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <h2 className="font-semibold">Personal details</h2>

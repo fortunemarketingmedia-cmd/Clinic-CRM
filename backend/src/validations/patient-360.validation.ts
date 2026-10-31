@@ -57,6 +57,9 @@ export const procedureSessionSchema = z.object({
   immediateReaction: optionalText, complication: optionalText, postCareInstructions: optionalText, followUpDate: z.coerce.date().optional(),
   beforeImages: z.array(z.string()).optional(), afterImages: z.array(z.string()).optional(), adverseEventFlag: z.boolean().default(false),
   status: z.nativeEnum(ProcedureSessionStatus).default('PLANNED'), performedAt: z.coerce.date().optional(),
+  // Sitting record chart (clinic "Stages" sheet): sitting number and treated areas marked on the face or body diagram.
+  sittingNumber: z.number().int().min(1).max(500).optional(), chartType: z.enum(['FACE', 'BODY']).optional(),
+  chartMarkings: z.array(z.object({ points: z.array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)])).min(1).max(1000) })).max(200).optional(),
 });
 
 const prescriptionItemSchema = z.object({

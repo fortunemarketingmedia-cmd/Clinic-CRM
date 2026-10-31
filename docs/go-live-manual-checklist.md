@@ -10,6 +10,7 @@ These actions require infrastructure access, clinic policy decisions, or secret 
 - Force MFA re-enrollment for accounts whose TOTP secret was protected using the previous fallback key. Existing recovery codes must be replaced.
 - Confirm HTTPS-only cookies and that `FRONTEND_URL`, `FRONTEND_URLS`, and `BACKEND_PUBLIC_URL` match the final domains. Keep `COOKIE_DOMAIN` empty for a host-only refresh cookie unless a reviewed requirement proves otherwise.
 - Create production Admin/Receptionist accounts through an approved bootstrap process. Do not run the demo seed. Production seeding is now blocked unless an explicit one-time override is supplied.
+- Store the production Admin credential in the approved password manager. If it is lost, use the production-only `npm run reset:admin-password` recovery command from the VPS; never enable demo accounts in production.
 
 ## 2. Staff authorization decision
 
