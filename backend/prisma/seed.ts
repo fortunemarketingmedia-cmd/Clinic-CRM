@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { PrismaClient, Role } from '@prisma/client';
+import { syncProcedureConsents } from '../src/data/procedure-consent-sync.js';
 
 const prisma = new PrismaClient();
 
@@ -408,6 +409,7 @@ async function main() {
     const template = await prisma.consentTemplate.upsert({ where: { id: consent.id }, update: { status: 'PUBLISHED', consentText: consent.consentText, requiresWitness: consent.requiresWitness }, create: { ...consent, status: 'PUBLISHED', currentVersion: 1, createdById: admin.id, publishedAt: new Date() } });
     await prisma.consentTemplateVersion.upsert({ where: { templateId_version: { templateId: template.id, version: 1 } }, update: {}, create: { templateId: template.id, version: 1, consentText: template.consentText, snapshot: { key: template.key, name: template.name, type: template.type, language: template.language, consentText: template.consentText, requiresGuardian: template.requiresGuardian, requiresWitness: template.requiresWitness, version: 1 } } });
   }
+  await syncProcedureConsents(prisma, admin.id);
 
   await prisma.packageMaster.updateMany({ where: { id: { in: ['package_master_skin_6', 'package_master_hair_8'] } }, data: { active: false } });
   const packageMasters = [

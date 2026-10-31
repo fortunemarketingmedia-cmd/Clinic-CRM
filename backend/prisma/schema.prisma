@@ -1857,8 +1857,11 @@ model ConsentRecord {
   procedureSessionId          String?
   language                    String
   consentText                 String
+  treatmentName               String?
   signerName                  String
   signatureStorageKey         String
+  doctorName                  String?
+  doctorSignatureStorageKey   String?
   guardianName                String?
   guardianRelationship        String?
   guardianSignatureStorageKey String?
