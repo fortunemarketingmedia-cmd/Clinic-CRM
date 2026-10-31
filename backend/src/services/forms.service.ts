@@ -62,6 +62,14 @@ export const formsService = {
   },
   async listConsentRecords(patientId: string, actor: Actor) { requireCareRole(actor); await requirePatient(patientId, actor); await formsRepository.expireConsentRecords(patientId); return formsRepository.listConsentRecords(patientId); },
   async withdrawConsent(id: string, reason: string, actor: Actor) { requireCareRole(actor); const existing = await formsRepository.findConsentRecord(id); if (!existing) throw new HttpError(404, 'Consent record not found'); await requirePatient(existing.patientId, actor); if (existing.status === 'SIGNED' && existing.expiresAt && existing.expiresAt <= new Date()) { await formsRepository.markConsentExpired(id); throw new HttpError(409, 'Expired consent cannot be withdrawn'); } if (existing.status !== 'SIGNED') throw new HttpError(409, 'Only active signed consent can be withdrawn'); const record = await formsRepository.withdrawConsent(id, reason); if (record.template.type === 'MARKETING_USE_CONSENT') await formsRepository.updateMarketingConsent(record.patientId, false); await audit(actor, { action: 'CONSENT_WITHDRAWN', entity: 'ConsentRecord', entityId: id, previousValue: { status: existing.status }, newValue: { status: 'WITHDRAWN', reason } }); return record; },
+  async consentSignature(id: string, signer: 'patient' | 'doctor' | 'guardian', actor: Actor) {
+    requireCareRole(actor); const record = await formsRepository.findConsentRecord(id); if (!record) throw new HttpError(404, 'Consent record not found'); await requirePatient(record.patientId, actor);
+    const storageKey = signer === 'patient' ? record.signatureStorageKey : signer === 'doctor' ? record.doctorSignatureStorageKey : record.guardianSignatureStorageKey;
+    if (!storageKey) throw new HttpError(404, 'Signature not recorded');
+    const buffer = await fileStorageService.read(storageKey);
+    const mimeType = buffer.subarray(0, 4).toString('hex') === '89504e47' ? 'image/png' : buffer.subarray(0, 3).toString('hex') === 'ffd8ff' ? 'image/jpeg' : 'image/webp';
+    return { buffer, mimeType };
+  },
   async consentPdf(id: string, actor: Actor) { requireCareRole(actor); const record = await formsRepository.findConsentRecord(id); if (!record) throw new HttpError(404, 'Consent record not found'); await requirePatient(record.patientId, actor); await audit(actor, { action: 'CONSENT_PDF_VIEWED', entity: 'ConsentRecord', entityId: id }); return fileStorageService.read(record.signedPdfStorageKey); },
 
   async uploadFile(input: z.infer<typeof secureFileMetadataSchema> & { contentBase64?: string }, actor: Actor, binary?: Buffer) {

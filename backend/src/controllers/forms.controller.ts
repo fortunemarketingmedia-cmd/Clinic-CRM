@@ -17,6 +17,7 @@ export const formsController = {
   async signConsent(req: Request, res: Response) { return res.status(201).json({ data: await formsService.signConsent(consentSignSchema.parse(req.body), actor(req)) }); },
   async listConsentRecords(req: Request, res: Response) { return res.json({ data: await formsService.listConsentRecords(req.params.patientId, actor(req)) }); },
   async withdrawConsent(req: Request, res: Response) { const input = consentWithdrawalSchema.parse(req.body); return res.json({ data: await formsService.withdrawConsent(req.params.id, input.reason, actor(req)) }); },
+  async consentSignature(req: Request, res: Response) { const signer = req.params.signer; if (signer !== 'patient' && signer !== 'doctor' && signer !== 'guardian') throw new HttpError(404, 'Unknown signer'); const { buffer, mimeType } = await formsService.consentSignature(req.params.id, signer, actor(req)); res.setHeader('Content-Type', mimeType); res.setHeader('Cache-Control', 'private, no-store'); return res.send(buffer); },
   async consentPdf(req: Request, res: Response) { const buffer = await formsService.consentPdf(req.params.id, actor(req)); res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="consent-${req.params.id}.pdf"`); return res.send(buffer); },
   async uploadFile(req: Request, res: Response) {
     if (req.file) {

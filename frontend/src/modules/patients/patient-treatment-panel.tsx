@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clock3, FileSignature, FileText, Search, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clock3, Eye, FileSignature, PenLine, Search, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
@@ -11,22 +11,19 @@ import { Select } from '@/components/ui/select';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { cn } from '@/lib/utils';
 import { consentKeysForTreatment, generalConsentKey, parseConsentText } from '@/lib/treatment-consents';
-import { apiBlob, apiRequest } from '@/services/api';
+import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { ClinicService } from '@/types/appointment';
 import type { Patient360 } from '@/types/clinical';
 import type { ConsentRecord, ConsentTemplate } from '@/types/forms';
 import type { StaffMember } from '@/types/front-desk';
+import { ConsentStatusChip, SignedConsentDocument, SignedConsentViewer, isTreatmentConsent, usePatientConsents } from './signed-consents';
 
 const formatDateTime = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
 const formatDate = (value: Date | string) => new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const formatSex = (value?: string | null) => value ? value.charAt(0) + value.slice(1).toLowerCase() : 'Not recorded';
 const shortFormName = (template: ConsentTemplate) => template.key === generalConsentKey ? 'General consent' : template.name.replace(/^Informed consent (for|of) /i, '').replace(/ Consent Form$/i, '');
 const doctorRoles = ['ADMIN', 'DOCTOR'];
-
-function useOpenPdf() {
-  return useMutation({ mutationFn: (id: string) => apiBlob(`/consents/${id}/pdf`), onSuccess: (blob) => { const url = URL.createObjectURL(blob); window.open(url, '_blank', 'noopener,noreferrer'); window.setTimeout(() => URL.revokeObjectURL(url), 60_000); } });
-}
 
 export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
   const [search, setSearch] = useState('');
@@ -35,8 +32,8 @@ export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
 
   const servicesQuery = useQuery({ queryKey: ['patient-treatment-services', patient.branchId], queryFn: () => apiRequest<{ data: ClinicService[] }>(`/front-desk/services?branchId=${encodeURIComponent(patient.branchId)}`) });
   const templatesQuery = useQuery({ queryKey: ['patient-consent-templates', patient.branchId], queryFn: () => apiRequest<{ data: ConsentTemplate[] }>(`/consents/templates?branchId=${encodeURIComponent(patient.branchId)}`) });
-  const recordsQuery = useQuery({ queryKey: ['patient-consents', patient.id], queryFn: () => apiRequest<{ data: ConsentRecord[] }>(`/consents/patients/${patient.id}`) });
-  const pdf = useOpenPdf();
+  const recordsQuery = usePatientConsents(patient.id);
+  const [viewing, setViewing] = useState<ConsentRecord | null>(null);
 
   // Same source and filter as Schedules & Rooms > Create Appointment > Treatment service.
   const treatments = useMemo(() => (servicesQuery.data?.data ?? [])
@@ -56,7 +53,7 @@ export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
 
   const templatesByKey = useMemo(() => new Map((templatesQuery.data?.data ?? []).filter((template) => template.status === 'PUBLISHED').map((template) => [template.key, template])), [templatesQuery.data?.data]);
   const records = recordsQuery.data?.data ?? [];
-  const procedureRecords = records.filter((record) => record.template.type === 'PROCEDURE_SPECIFIC_CONSENT' || record.treatmentName);
+  const procedureRecords = records.filter(isTreatmentConsent);
   const lastSignedFor = (name: string) => procedureRecords.find((record) => record.treatmentName === name && record.status === 'SIGNED');
   const selectedService = treatments.find((service) => service.id === selectedServiceId);
 
@@ -114,21 +111,16 @@ export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
       <div className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" /><h3 className="font-semibold">Treatment consent history</h3></div>
       <div className="mt-3 divide-y rounded-lg border">{procedureRecords.map((record) => <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{record.treatmentName ?? record.template.name}</span><StatusChip status={record.status} /></div>
+          <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{record.treatmentName ?? record.template.name}</span><ConsentStatusChip status={record.status} /></div>
           <div className="mt-1 text-xs text-muted-foreground">{record.template.name} · v{record.templateVersion} · {formatDateTime(record.signedAt)}{record.doctorName ? ` · ${record.doctorName}` : ''}</div>
         </div>
-        <Button type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={pdf.isPending} onClick={() => pdf.mutate(record.id)}><FileText className="size-3.5" />Signed PDF</Button>
+        <Button type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => setViewing(record)}><Eye className="size-3.5" />View consent</Button>
       </div>)}{!procedureRecords.length ? <p className="py-8 text-center text-sm text-muted-foreground">No treatment consents have been signed yet.</p> : null}</div>
-      {pdf.isError ? <p role="alert" className="mt-2 text-sm text-red-700">{pdf.error.message}</p> : null}
     </Card>
 
+    {viewing ? <SignedConsentViewer record={viewing} patient={patient} onClose={() => setViewing(null)} /> : null}
     {selectedService ? <ConsentDrawer key={selectedService.id} patient={patient} service={selectedService} templatesByKey={templatesByKey} templatesLoading={templatesQuery.isLoading} records={procedureRecords} onClose={() => setSelectedServiceId('')} /> : null}
   </div>;
-}
-
-function StatusChip({ status }: { status: ConsentRecord['status'] }) {
-  const tone = status === 'SIGNED' ? 'bg-emerald-50 text-emerald-700' : status === 'WITHDRAWN' ? 'bg-red-50 text-red-700' : 'bg-muted text-muted-foreground';
-  return <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', tone)}>{status.charAt(0) + status.slice(1).toLowerCase()}</span>;
 }
 
 function ConsentDrawer({ patient, service, templatesByKey, templatesLoading, records, onClose }: { patient: Patient360; service: ClinicService; templatesByKey: Map<string, ConsentTemplate>; templatesLoading: boolean; records: ConsentRecord[]; onClose: () => void }) {
@@ -136,7 +128,7 @@ function ConsentDrawer({ patient, service, templatesByKey, templatesLoading, rec
   const forms = keys.map((key) => templatesByKey.get(key)).filter((template): template is ConsentTemplate => Boolean(template));
   const missing = !templatesLoading && forms.length < keys.length;
   const [activeIndex, setActiveIndex] = useState(0);
-  const [signedNow, setSignedNow] = useState<Record<string, string>>({});
+  const [signedNow, setSignedNow] = useState<Record<string, ConsentRecord>>({});
   const active = forms[activeIndex];
 
   useEffect(() => {
@@ -172,9 +164,9 @@ function ConsentDrawer({ patient, service, templatesByKey, templatesLoading, rec
           service={service}
           template={active}
           previous={records.find((record) => record.template.id === active.id && record.treatmentName === service.name && record.status === 'SIGNED')}
-          signedRecordId={signedNow[active.id]}
+          signedRecord={signedNow[active.id]}
           nextLabel={forms.slice(activeIndex + 1).find((template) => !signedNow[template.id]) ? 'Continue to next form' : undefined}
-          onSigned={(recordId) => setSignedNow((current) => ({ ...current, [active.id]: recordId }))}
+          onSigned={(record) => setSignedNow((current) => ({ ...current, [active.id]: record }))}
           onNext={() => setActiveIndex(forms.findIndex((template, index) => index > activeIndex && !signedNow[template.id]))}
           onDone={onClose}
         /> : null}
@@ -183,10 +175,11 @@ function ConsentDrawer({ patient, service, templatesByKey, templatesLoading, rec
   </div>, document.body);
 }
 
-function ConsentForm({ patient, service, template, previous, signedRecordId, nextLabel, onSigned, onNext, onDone }: { patient: Patient360; service: ClinicService; template: ConsentTemplate; previous?: ConsentRecord; signedRecordId?: string; nextLabel?: string; onSigned: (recordId: string) => void; onNext: () => void; onDone: () => void }) {
+function ConsentForm({ patient, service, template, previous, signedRecord, nextLabel, onSigned, onNext, onDone }: { patient: Patient360; service: ClinicService; template: ConsentTemplate; previous?: ConsentRecord; signedRecord?: ConsentRecord; nextLabel?: string; onSigned: (record: ConsentRecord) => void; onNext: () => void; onDone: () => void }) {
   const client = useQueryClient();
   const { session } = useSessionStore();
-  const pdf = useOpenPdf();
+  // A treatment that already has a signed consent opens on that signed form; staff can still start a new one.
+  const [signingNew, setSigningNew] = useState(!previous);
   const blocks = useMemo(() => parseConsentText(template.consentText), [template.consentText]);
   const statementCount = blocks.filter((block) => block.kind === 'statement').length;
   const [acknowledged, setAcknowledged] = useState<Set<number>>(new Set());
@@ -220,27 +213,28 @@ function ConsentForm({ patient, service, template, previous, signedRecordId, nex
       return apiRequest<{ data: ConsentRecord }>('/consents/sign', { method: 'POST', body: JSON.stringify({ templateId: template.id, patientId: patient.id, appointmentId: appointment?.id, treatmentName: service.name, signerName: signerName.trim(), signatureBase64: patientSignature, doctorName: doctor.name, doctorSignatureBase64: doctorSignature }) });
     },
     onSuccess: async (result) => {
-      onSigned(result.data.id);
+      onSigned(result.data);
       await Promise.all([client.invalidateQueries({ queryKey: ['patient-consents', patient.id] }), client.invalidateQueries({ queryKey: ['patient-360', patient.id] })]);
     },
   });
 
-  if (signedRecordId) return <div className="grid min-h-full place-items-center p-8">
-    <div className="max-w-md text-center">
-      <span className="mx-auto grid size-14 place-items-center rounded-full bg-emerald-100 text-emerald-700"><CheckCircle2 className="size-8" /></span>
-      <h3 className="mt-4 text-lg font-semibold">Consent signed and saved</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{template.name} for {service.name} has been stored as a signed PDF in {patient.fullName}&apos;s record.</p>
-      <div className="mt-6 flex flex-wrap justify-center gap-2">
-        <Button type="button" variant="secondary" disabled={pdf.isPending} onClick={() => pdf.mutate(signedRecordId)}><FileText className="size-4" />{pdf.isPending ? 'Opening…' : 'Open signed PDF'}</Button>
+  if (signedRecord || (previous && !signingNew)) {
+    const record = (signedRecord ?? previous)!;
+    return <div className="flex min-h-full flex-col gap-3 p-4 sm:p-6">
+      {signedRecord ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <span className="inline-flex items-center gap-2 font-medium"><CheckCircle2 className="size-5" />Consent signed and saved to {patient.fullName}&apos;s record.</span>
         {nextLabel ? <Button type="button" onClick={onNext}>{nextLabel}<ChevronRight className="size-4" /></Button> : <Button type="button" onClick={onDone}>Done</Button>}
-      </div>
-      {pdf.isError ? <p role="alert" className="mt-3 text-sm text-red-700">{pdf.error.message}</p> : null}
-    </div>
-  </div>;
+      </div> : <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <span className="inline-flex items-center gap-2"><CheckCircle2 className="size-5 shrink-0" />Signed on {formatDateTime(record.signedAt)}{record.doctorName ? ` with ${record.doctorName}` : ''} (v{record.templateVersion}).</span>
+        <Button type="button" variant="secondary" onClick={() => setSigningNew(true)}><PenLine className="size-4" />Sign new consent</Button>
+      </div>}
+      <SignedConsentDocument record={record} patient={patient} />
+    </div>;
+  }
 
   return <div className="flex min-h-full flex-col">
     <div className="flex-1 space-y-4 p-4 sm:p-6">
-      {previous ? <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900"><CheckCircle2 className="mt-0.5 size-4 shrink-0" /><span>This consent was last signed on {formatDateTime(previous.signedAt)} (v{previous.templateVersion}). Signing again creates a new record for this session.</span></div> : null}
+      {previous ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900"><span>Signing a new consent for this session. The earlier one ({formatDateTime(previous.signedAt)}) stays on record.</span><button type="button" className="font-semibold hover:underline" onClick={() => setSigningNew(false)}>View signed consent</button></div> : null}
 
       <article className="mx-auto max-w-[720px] rounded-xl border bg-white px-5 py-7 text-[#241417] shadow-sm sm:px-10">
         <header className="text-center">
