@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { verifyAccessToken } from '../utils/tokens.js';
+import { resolveActiveUser } from '../middleware/auth.js';
 import { realtimeService } from '../services/realtime.service.js';
 
 export const realtimeRoutes = Router();
 
-realtimeRoutes.get('/events', (req, res) => {
+realtimeRoutes.get('/events', async (req, res) => {
   const authorization = req.header('authorization');
   const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
   if (!token) {
@@ -13,12 +13,12 @@ realtimeRoutes.get('/events', (req, res) => {
   }
   let expiresAt = Date.now() + 15 * 60 * 1000;
   try {
-    const payload = verifyAccessToken(token);
-    if (payload.role === 'DEVELOPER') {
+    const user = await resolveActiveUser(token);
+    if (!user) {
       res.status(401).end();
       return;
     }
-    if (payload.exp) expiresAt = payload.exp * 1000;
+    if (user.exp) expiresAt = user.exp * 1000;
   } catch {
     res.status(401).end();
     return;

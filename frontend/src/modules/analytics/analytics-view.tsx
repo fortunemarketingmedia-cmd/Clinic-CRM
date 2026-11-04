@@ -216,7 +216,7 @@ export function AnalyticsView() {
               </Button>
             ))}
           </div>
-          <div className="grid gap-3 md:grid-cols-[minmax(170px,1fr)_minmax(170px,1fr)_auto] md:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 sm:items-end xl:grid-cols-[minmax(170px,1fr)_minmax(170px,1fr)_auto]">
             <FilterField label="From">
               <Input
                 aria-label="Date from"
@@ -606,7 +606,7 @@ function FinanceExportModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/40 p-4" role="dialog" aria-modal="true">
       <Card className="w-full max-w-lg">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -925,7 +925,9 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
+    // min-w-0 lets the card shrink inside its grid column; the wide chart then scrolls inside the card instead of
+    // pushing the whole page sideways on phones and tablets.
+    <Card className="min-w-0">
       <div className="mb-5">
         <h2 className="font-semibold">{title}</h2>
         {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}

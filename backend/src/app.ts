@@ -33,6 +33,7 @@ import { securityRoutes } from './routes/security.routes.js';
 import { auditRoutes } from './routes/audit.routes.js';
 import { prisma } from './config/db.js';
 import { HttpError } from './utils/http-error.js';
+import { verifyAccessToken } from './utils/tokens.js';
 import { fileStorageService } from './services/file-storage.service.js';
 import { cacheService } from './services/cache.service.js';
 import { metricsService } from './services/metrics.service.js';
@@ -91,7 +92,16 @@ else app.use((req, res, next) => {
   });
   next();
 });
-app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 240, keyPrefix: 'api' }));
+// Signed-in requests are limited per user, not per address: a whole clinic usually shares one internet address,
+// and a per-address limit would lock every receptionist out when the clinic is busy.
+function apiRateLimitKey(req: express.Request) {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    try { return `user:${verifyAccessToken(header.slice(7)).sub}`; } catch { /* fall back to the address */ }
+  }
+  return `ip:${req.ip ?? 'unknown'}`;
+}
+app.use('/api', rateLimit({ windowMs: 60 * 1000, max: 240, keyPrefix: 'api', key: apiRateLimitKey }));
 app.use('/api', (req, res, next) => {
   res.on('finish', () => {
     if (req.method === 'GET' || req.method === 'HEAD') return;
@@ -147,6 +157,20 @@ app.use(
         .toLowerCase()}`,
   }),
 );
+// Second limiter keyed on the account alone, so one account cannot be guessed at from many addresses.
+app.use(
+  '/api/auth/login',
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    keyPrefix: 'login-account',
+    key: (req) => String(req.body?.email ?? '').trim().toLowerCase() || (req.ip ?? 'unknown'),
+  }),
+);
+app.use('/api/auth', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/users', userRoutes);

@@ -77,36 +77,68 @@ function notifyUnauthorized() {
   }
 }
 
-async function performTokenRefresh() {
-  const response = await fetchWithTimeout(`${API_URL}/auth/refresh`, {
+const wait = (ms: number) => new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+
+// Every tab shares the same refresh cookie. When two tabs renew at the same moment, the server accepts the first and
+// rejects the second, but the first one's reply has already stored the new cookie. One retry after a short pause picks
+// it up, so the second tab stays signed in. A genuinely expired or revoked session is rejected again and signs out.
+async function postRefresh() {
+  const send = () => fetchWithTimeout(`${API_URL}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
   });
+  const response = await send();
+  if (response.status !== 401 && response.status !== 403) return response;
+  await wait(400);
+  return send();
+}
 
-  if (!response.ok) {
+async function performTokenRefresh() {
+  const response = await postRefresh();
+
+  // Only a rejected refresh token ends the session. A busy or briefly unavailable server (429/5xx) must not sign the
+  // user out in the middle of their work: the failed request reports the error and the next one tries again.
+  if (response.status === 401 || response.status === 403) {
     setAccessToken(null);
     notifyUnauthorized();
     return null;
   }
+  if (!response.ok) throw new ApiError('The server is busy. Please try again in a moment.', response.status, response.headers.get('x-correlation-id') ?? undefined);
 
   const session = (await response.json()) as { accessToken: string };
   setAccessToken(session.accessToken);
   return session.accessToken;
 }
 
-export async function restoreSession<T>() {
-  const response = await fetchWithTimeout(`${API_URL}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  });
-  if (!response.ok) {
+let restorePromise: Promise<unknown> | null = null;
+
+// Shared so that simultaneous callers (React strict mode runs effects twice in development) use one refresh request:
+// the server rotates the refresh token on every use, so two parallel refreshes would race each other.
+export function restoreSession<T>() {
+  if (!restorePromise) restorePromise = performSessionRestore<T>().finally(() => { restorePromise = null; });
+  return restorePromise as Promise<(T & { accessToken: string }) | null>;
+}
+
+async function performSessionRestore<T>() {
+  // Retries briefly on a busy/unavailable server so a page reload during a hiccup does not drop the user to the login screen.
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt) await wait(attempt * 1_000);
+    try {
+      response = await postRefresh();
+    } catch (error) {
+      if (attempt === 2) throw error;
+      continue;
+    }
+    if (response.ok || response.status === 401 || response.status === 403) break;
+  }
+  if (!response || response.status === 401 || response.status === 403) {
     setAccessToken(null);
     return null;
   }
+  if (!response.ok) throw new ApiError('The server is busy. Please try again in a moment.', response.status);
   const session = (await response.json()) as T & { accessToken: string };
   setAccessToken(session.accessToken);
   return session;

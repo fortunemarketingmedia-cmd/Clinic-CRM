@@ -19,6 +19,7 @@ const rules: Array<{ key: string; test: (name: string) => boolean }> = [
   { key: 'procedure-radiofrequency-ablation', test: (name) => /radiofrequency ablation|\brfa\b/.test(name) },
   { key: 'procedure-q-switch-nd-yag', test: (name) => /q[ -]?switch|nd[ :-]?yag|laser toning/.test(name) },
   { key: 'procedure-laser-scars-stretch-marks', test: (name) => /scar|stretch mark|fractional|\bmnrf\b|\bco2\b/.test(name) },
+  { key: 'procedure-hpv-vaccination', test: (name) => /\bhpv\b|papilloma|gardasil|cervarix|cervavac/.test(name) },
 ];
 
 export function consentKeysForTreatment(serviceName: string) {

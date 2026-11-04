@@ -12,7 +12,7 @@ async function main() {
   });
   if (!administrator) throw new Error('An active Admin account is required before procedure consents can be synced.');
   const result = await syncProcedureConsents(prisma, administrator.id);
-  console.log(`Procedure consents synced: ${result.created} created, ${result.updated} updated, ${result.total} total.`);
+  console.log(`Procedure consents synced: ${result.created} created, ${result.updated} updated, ${result.total} total. Linked treatment services added: ${result.servicesCreated}.`);
 }
 
 main()

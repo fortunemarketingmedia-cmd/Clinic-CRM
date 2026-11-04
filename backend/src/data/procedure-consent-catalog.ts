@@ -234,6 +234,32 @@ const seeds: ProcedureConsentSeed[] = [
     ],
   },
   {
+    // Added 4 November 2026 from the clinic's paper "HPV Vaccination Consent Form" (one page, scanned separately from the packet).
+    // The paper's closing paragraphs sit under no heading; "Consent statement" is added for consistency with the Photo Facial form.
+    id: 'consent_procedure_hpv_vaccination', key: 'procedure-hpv-vaccination', name: 'HPV Vaccination Consent Form',
+    lines: [
+      '# Vaccine information',
+      'I have been informed that I / my child will receive the HPV vaccine, which helps protect against Human papillomavirus infection, a virus associated with cervical cancer, genital warts, and other cancers.',
+      '# Benefits explained',
+      'Protection against HPV-related cancers.',
+      'Prevention of genital warts.',
+      'Long-term immunity when full course is completed.',
+      '# Possible side effects',
+      '> I understand that common side effects may include:',
+      'Pain, redness, or swelling at injection site.',
+      'Mild fever.',
+      'Headache or fatigue.',
+      'Rare allergic reactions.',
+      '# Contraindications / precautions',
+      'No history of severe allergy to vaccine components.',
+      'Not currently suffering from serious illness (unless discussed).',
+      'Pregnancy status disclosed (if applicable).',
+      '# Consent statement',
+      'I have been given the opportunity to ask questions about the HPV vaccine, and all my questions have been answered satisfactorily.',
+      'I understand the benefits and risks and voluntarily consent to receive this vaccination.',
+    ],
+  },
+  {
     // Not in the clinic packet: used only for services with no matching paper form (e.g. Hydrafacial, microblading).
     // Built solely from statements that are common to every form in the packet; confirm with the clinic before go-live.
     id: 'consent_procedure_general', key: 'procedure-general-treatment', name: 'Informed Consent for Treatment',
@@ -255,3 +281,10 @@ export const procedureConsentCatalog = seeds.map(({ lines, ...item }) => ({
   requiresGuardian: false,
   requiresWitness: false,
 }));
+
+// Treatment services that exist only so a consent form above can be opened from Patient > Treatment, which lists
+// TREATMENT_ROOM services. They are not on the printed rate list, so no price is set here: the price is entered on the
+// invoice until the clinic confirms one. The sync only creates a missing service and never edits an existing one.
+export const consentLinkedServices = [
+  { id: 'service_hpv_vaccination', name: 'HPV Vaccination', category: 'Vaccination', durationMinutes: 15, bufferMinutes: 15, resourceType: 'TREATMENT_ROOM' as const },
+];

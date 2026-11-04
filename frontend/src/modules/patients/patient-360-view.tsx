@@ -230,7 +230,7 @@ function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appoint
     mutationFn: () => apiRequest(`/appointments/${appointment.id}`, { method: 'PATCH', body: JSON.stringify({ resourceType: 'TREATMENT_ROOM', roomNumber: Number(roomNumber) }) }),
     onSuccess: onSaved,
   });
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+  return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/40 p-4">
     <Card className="w-full max-w-md">
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -439,7 +439,7 @@ function PaymentModal({ patient, invoice, onClose, onSaved }: { patient: Patient
     mutationFn: () => apiRequest(`/billing/invoices/${invoice.id}/payments`, { method: 'POST', body: JSON.stringify({ patientId: patient.id, amount: Number(amount), mode, allocations: [{ invoiceId: invoice.id, amount: Number(amount) }] }) }),
     onSuccess: onSaved,
   });
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+  return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/40 p-4">
     <Card className="w-full max-w-md">
       <div className="flex items-start justify-between gap-3">
         <div><h2 className="text-lg font-semibold">Record payment</h2><p className="mt-1 text-sm text-muted-foreground">{invoice.invoiceNo} - Outstanding Rs {outstanding.toLocaleString('en-IN')}</p></div>

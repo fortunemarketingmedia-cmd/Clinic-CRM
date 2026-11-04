@@ -3,39 +3,55 @@ import { clinicalService } from '../services/clinical.service.js';
 import { fileSchema, packageSchema, sessionSchema, updateSessionSchema } from '../validations/clinical.validation.js';
 import { formsService } from '../services/forms.service.js';
 import { HttpError } from '../utils/http-error.js';
+import { patientService } from '../services/patient.service.js';
+import { accessService } from '../services/access.service.js';
 
 function actor(req: Request) { if (!req.user) throw new HttpError(401, 'Authentication required'); return { id: req.user.id, role: req.user.role, userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId }; }
 
+// Session and package routes take the patient id from the URL, so the caller's branch access is checked here.
+async function assertPatientAccess(req: Request) {
+  if (!req.user) throw new HttpError(401, 'Authentication required');
+  const patient = await patientService.getPatient(req.params.id, req.user.role);
+  await accessService.assertBranchAccess(req.user.id, req.user.role, patient.branchId);
+}
+
 export const clinicalController = {
   async listSessions(req: Request, res: Response) {
+    await assertPatientAccess(req);
     const sessions = await clinicalService.listSessions(req.params.id);
     return res.json({ data: sessions });
   },
 
   async createSession(req: Request, res: Response) {
+    await assertPatientAccess(req);
     const input = sessionSchema.parse(req.body);
     const session = await clinicalService.createSession(req.params.id, input);
     return res.status(201).json({ data: session });
   },
 
   async updateSession(req: Request, res: Response) {
+    await assertPatientAccess(req);
     const input = updateSessionSchema.parse(req.body);
     const session = await clinicalService.updateSession(req.params.id, req.params.sessionId, input);
     return res.json({ data: session });
   },
 
   async deleteSession(req: Request, res: Response) {
+    await assertPatientAccess(req);
     await clinicalService.deleteSession(req.params.id, req.params.sessionId);
     return res.status(204).send();
   },
 
   async listPackages(req: Request, res: Response) {
+    await assertPatientAccess(req);
     const packages = await clinicalService.listPackages(req.params.id);
     return res.json({ data: packages });
   },
 
   async createPackage(req: Request, res: Response) {
+    await assertPatientAccess(req);
     const input = packageSchema.parse(req.body);
+    await accessService.assertBranchAccess(req.user!.id, req.user!.role, input.branchId);
     const treatmentPackage = await clinicalService.createPackage(req.params.id, input);
     return res.status(201).json({ data: treatmentPackage });
   },

@@ -155,7 +155,7 @@ function ConsentDrawer({ patient, service, templatesByKey, templatesLoading, rec
         <span className={cn('grid size-5 place-items-center rounded-full text-[11px]', signedNow[template.id] ? 'bg-emerald-600 text-white' : index === activeIndex ? 'bg-primary text-white' : 'bg-muted')}>{signedNow[template.id] ? <Check className="size-3" /> : index + 1}</span>{shortFormName(template)}
       </button>)}</nav> : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scroll-padding-bottom:8rem]">
         {templatesLoading ? <div className="m-5 h-96 animate-pulse rounded-xl bg-muted/60" /> : null}
         {missing ? <div className="m-5 flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><AlertTriangle className="mt-0.5 size-5 shrink-0" /><div><div className="font-semibold">Consent form not published</div><p className="mt-1">The digital consent for this treatment has not been synced to this environment. Ask an administrator to run <code className="rounded bg-amber-100 px-1">npm run consents:sync -w backend</code>.</p></div></div> : null}
         {active ? <ConsentForm
@@ -278,7 +278,7 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
           </section>
           <section aria-label="Signature of Doctor">
             <div className="flex items-baseline justify-between"><h4 className="font-semibold">Signature of Doctor</h4><span className="text-xs text-neutral-500">Date: {formatDate(today)}</span></div>
-            <Select className="mt-2 bg-white" value={effectiveDoctorId} onChange={(event) => { setDoctorId(event.target.value); setDoctorSignature(''); }} aria-label="Treating doctor"><option value="">{staffQuery.isLoading ? 'Loading doctors…' : 'Select treating doctor'}</option>{doctors.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select>
+            <Select className="mt-2 bg-white" value={effectiveDoctorId} onChange={(event) => { if (event.target.value === effectiveDoctorId) return; setDoctorId(event.target.value); setDoctorSignature(''); }} aria-label="Treating doctor"><option value="">{staffQuery.isLoading ? 'Loading doctors…' : 'Select treating doctor'}</option>{doctors.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select>
             <div className="mt-2"><SignaturePad key={effectiveDoctorId} disabled={!doctor || !patientSignature} disabledLabel="Locked" onChange={setDoctorSignature} /></div>
             {!patientSignature ? <p className="text-xs text-neutral-500">The doctor signs after the patient.</p> : null}
           </section>
@@ -286,12 +286,12 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
       </article>
     </div>
 
-    <footer className="sticky bottom-0 border-t bg-surface/95 px-4 py-3 backdrop-blur sm:px-6">
+    <footer className="sticky bottom-0 border-t bg-surface/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ol className="flex flex-wrap gap-x-4 gap-y-1 text-xs">{steps.map((step) => <li key={step.label} className={cn('inline-flex items-center gap-1.5', step.done ? 'text-emerald-700' : 'text-muted-foreground')}>
           <span className={cn('grid size-4 place-items-center rounded-full border', step.done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-border')}>{step.done ? <Check className="size-2.5" strokeWidth={3} /> : null}</span>{step.label}{step.detail && !step.done ? ` ${step.detail}` : ''}
         </li>)}</ol>
-        <Button type="button" disabled={!ready || sign.isPending} onClick={() => sign.mutate()}><FileSignature className="size-4" />{sign.isPending ? 'Saving signed consent…' : 'Sign & save consent'}</Button>
+        <Button type="button" className="w-full sm:w-auto" disabled={!ready || sign.isPending} onClick={() => sign.mutate()}><FileSignature className="size-4" />{sign.isPending ? 'Saving signed consent…' : 'Sign & save consent'}</Button>
       </div>
       {sign.isError ? <p role="alert" className="mt-2 text-sm text-red-700">{sign.error.message}</p> : null}
     </footer>

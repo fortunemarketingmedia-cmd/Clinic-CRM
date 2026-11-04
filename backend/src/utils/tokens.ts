@@ -12,22 +12,24 @@ type TokenPayload = {
 
 export function signAccessToken(payload: TokenPayload) {
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
+    algorithm: 'HS256',
     expiresIn: env.ACCESS_TOKEN_TTL as jwt.SignOptions['expiresIn'],
   });
 }
 
 export function signRefreshToken(payload: TokenPayload) {
   return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+    algorithm: 'HS256',
     expiresIn: env.REFRESH_TOKEN_TTL as jwt.SignOptions['expiresIn'],
   });
 }
 
 export function verifyAccessToken(token: string) {
-  return jwt.verify(token, env.JWT_ACCESS_SECRET) as TokenPayload;
+  return jwt.verify(token, env.JWT_ACCESS_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
 }
 
 export function verifyRefreshToken(token: string) {
-  return jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload;
+  return jwt.verify(token, env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
 }
 
 export function createTokenId() {
