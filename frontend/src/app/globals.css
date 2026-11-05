@@ -19,6 +19,11 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: linear-gradient(180deg, hsl(36 100% 98%) 0%, hsl(24 100% 97%) 100%);
@@ -69,4 +74,25 @@ label > span:first-child {
 
 ::selection {
   background: hsl(var(--primary) / 0.18);
+}
+
+/* Phones: iOS zooms the page when a field under 16px is focused, which shifts the layout mid-form. */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Respect the operating-system setting for reduced motion (drawers, fades, skeleton shimmer). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

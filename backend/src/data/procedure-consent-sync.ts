@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { procedureConsentCatalog } from './procedure-consent-catalog.js';
+import { consentLinkedServices, procedureConsentCatalog } from './procedure-consent-catalog.js';
 
 // Publishes the procedure consent catalogue. Changed wording always creates a new template version so that
 // previously signed records keep pointing at the exact text the patient signed.
@@ -27,5 +27,13 @@ export async function syncProcedureConsents(prisma: PrismaClient, createdById: s
       updated += 1;
     });
   }
-  return { created, updated, total: procedureConsentCatalog.length };
+  let servicesCreated = 0;
+  for (const service of consentLinkedServices) {
+    // Skip when the clinic already added a service with this name (any branch), so the Treatment list never shows a duplicate.
+    const existing = await prisma.clinicService.findFirst({ where: { OR: [{ id: service.id }, { name: { equals: service.name, mode: 'insensitive' } }] }, select: { id: true } });
+    if (existing) continue;
+    await prisma.clinicService.create({ data: { ...service, active: true } });
+    servicesCreated += 1;
+  }
+  return { created, updated, total: procedureConsentCatalog.length, servicesCreated };
 }

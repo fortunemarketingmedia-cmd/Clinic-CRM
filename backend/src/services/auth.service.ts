@@ -22,6 +22,11 @@ type RequestMeta = {
   ipAddress?: string;
 };
 
+// Compared against when the email is unknown so a failed login takes the same time whether or not the account exists.
+const timingEqualiserHash = bcrypt.hashSync('timing-equaliser-not-a-password', 12);
+// A refresh token presented again this long after it was rotated is treated as stolen (see refresh below).
+const refreshReuseGraceMs = 60_000;
+
 function isOperationalAccount(accessLevel: AccessLevel) {
   return accessLevel === AccessLevelEnum.ADMIN || accessLevel === AccessLevelEnum.RECEPTIONIST;
 }
@@ -50,6 +55,7 @@ export const authService = {
     const user = await userRepository.findByEmail(email);
 
     if (!user || user.status !== UserStatus.ACTIVE || !isOperationalAccount(user.accessLevel)) {
+      await bcrypt.compare(password, timingEqualiserHash);
       await integrationRepository.createLoginEvent({ email, success: false, reason: 'INVALID_CREDENTIALS', ipAddress: meta.ipAddress, userAgent: meta.userAgent });
       throw new HttpError(401, 'Invalid email or password');
     }
@@ -98,7 +104,16 @@ export const authService = {
     const tokenHash = hashToken(refreshToken);
     const storedToken = await refreshTokenRepository.findActiveByHash(tokenHash);
 
-    if (!storedToken || storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE || !isOperationalAccount(storedToken.user.accessLevel)) {
+    if (!storedToken) {
+      // A rotated token coming back well after rotation means a copy of it was taken: end every session of that user.
+      // Within the grace window it is a second tab (or a retried request) racing the same rotation, which is harmless.
+      const previous = await refreshTokenRepository.findByHash(tokenHash);
+      if (previous?.revokedAt && previous.userId === payload.sub && Date.now() - previous.revokedAt.getTime() > refreshReuseGraceMs) {
+        await refreshTokenRepository.revokeAllForUser(previous.userId);
+      }
+      throw new HttpError(401, 'Invalid refresh token');
+    }
+    if (storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE || !isOperationalAccount(storedToken.user.accessLevel)) {
       throw new HttpError(401, 'Invalid refresh token');
     }
 

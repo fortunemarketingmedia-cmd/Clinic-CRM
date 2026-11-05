@@ -1,5 +1,7 @@
 import bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
+import { forgetUserAccess } from '../middleware/auth.js';
+import { refreshTokenRepository } from '../repositories/refresh-token.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { HttpError } from '../utils/http-error.js';
 
@@ -17,7 +19,8 @@ export const userService = {
     status: 'ACTIVE' | 'INACTIVE';
     branchIds: string[];
   }) {
-    const existing = await userRepository.findByEmail(input.email);
+    const email = input.email.trim().toLowerCase();
+    const existing = await userRepository.findByEmail(email);
 
     if (existing) {
       throw new HttpError(409, 'A user with this email already exists');
@@ -27,7 +30,7 @@ export const userService = {
 
     const user = await userRepository.create({
       name: input.name,
-      email: input.email,
+      email,
       passwordHash,
       role: input.role,
       status: input.status,
@@ -51,7 +54,17 @@ export const userService = {
       throw new HttpError(404, 'User not found');
     }
 
+    const losesAdmin = user.accessLevel === 'ADMIN' && user.status === 'ACTIVE' && ((input.role && input.role !== Role.ADMIN) || (input.status && input.status !== 'ACTIVE'));
+    if (losesAdmin && (await userRepository.countActiveAdmins()) <= 1) {
+      throw new HttpError(409, 'Cannot demote or deactivate the last active admin');
+    }
+
     const updated = await userRepository.update(id, input);
+    // Signed-in sessions must not keep the old access level or survive deactivation.
+    if ((input.status && input.status !== user.status) || (input.role && input.role !== user.accessLevel) || input.branchIds) {
+      forgetUserAccess(id);
+      if ((input.status && input.status !== 'ACTIVE') || (input.role && input.role !== user.accessLevel)) await refreshTokenRepository.revokeAllForUser(id);
+    }
     return { ...updated, role: updated.accessLevel };
   },
 
@@ -70,6 +83,8 @@ export const userService = {
       }
     }
 
+    await refreshTokenRepository.revokeAllForUser(id);
+    forgetUserAccess(id);
     return userRepository.delete(id);
   },
 };

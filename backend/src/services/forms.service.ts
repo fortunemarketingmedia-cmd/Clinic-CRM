@@ -2,6 +2,8 @@ import type { Prisma, Role } from '@prisma/client';
 import { Role as RoleEnum } from '@prisma/client';
 import type { z } from 'zod';
 import { formsRepository } from '../repositories/forms.repository.js';
+import { patientRepository } from '../repositories/patient.repository.js';
+import { prisma } from '../config/db.js';
 import { HttpError } from '../utils/http-error.js';
 import type { consentSignSchema, consentTemplateSchema, consentTemplateUpdateSchema, fileQuerySchema, formSubmissionSchema, formTemplateQuerySchema, formTemplateSchema, formTemplateUpdateSchema, secureFileMetadataSchema } from '../validations/forms.validation.js';
 import { accessService } from './access.service.js';
@@ -47,6 +49,8 @@ export const formsService = {
     requireCareRole(actor); const patient = await requirePatient(input.patientId, actor); const template = await formsRepository.findPublishedConsentVersion(input.templateId);
     if (!template || !template.versions[0]) throw new HttpError(409, 'Published consent template is unavailable'); if (template.requiresGuardian && (!input.guardianName || !input.guardianSignatureBase64)) throw new HttpError(400, 'Guardian name and signature are required'); if (template.requiresWitness && !input.staffWitnessId) throw new HttpError(400, 'Staff witness is required');
     if (template.type === 'PROCEDURE_SPECIFIC_CONSENT' && (!input.treatmentName || !input.doctorName || !input.doctorSignatureBase64)) throw new HttpError(400, 'Treatment, treating doctor, and doctor signature are required for procedure consent');
+    if (input.appointmentId && !(await patientRepository.findAppointment(patient, input.appointmentId))) throw new HttpError(400, 'Appointment does not belong to this patient');
+    if (input.procedureSessionId && !(await prisma.procedureSession.findFirst({ where: { id: input.procedureSessionId, patientId: patient.id }, select: { id: true } }))) throw new HttpError(400, 'Procedure session does not belong to this patient');
     const witness = input.staffWitnessId ? await formsRepository.findUser(input.staffWitnessId) : null; if (input.staffWitnessId && (!witness || witness.status !== 'ACTIVE')) throw new HttpError(400, 'Staff witness must be an active user');
     const signatureBuffer = Buffer.from(input.signatureBase64.slice(input.signatureBase64.indexOf(',') + 1), 'base64'); const signature = await fileStorageService.writeBase64(patient.id, input.signatureBase64, signatureMime(input.signatureBase64));
     let guardianSignature: Awaited<ReturnType<typeof fileStorageService.writeBase64>> | undefined; let guardianBuffer: Buffer | undefined;

@@ -22,6 +22,10 @@ export const refreshTokenRepository = {
     });
   },
 
+  findByHash(tokenHash: string) {
+    return prisma.refreshToken.findFirst({ where: { tokenHash }, select: { userId: true, revokedAt: true } });
+  },
+
   revokeByHash(tokenHash: string) {
     return prisma.refreshToken.updateMany({
       where: {

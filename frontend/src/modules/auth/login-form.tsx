@@ -92,7 +92,7 @@ export function LoginForm() {
               <span className="text-sm font-medium">Email</span>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
-                <Input className="pl-9" {...form.register('email')} />
+                <Input className="pl-9" type="email" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} {...form.register('email')} />
               </div>
               {form.formState.errors.email ? (
                 <span className="text-xs text-red-600">{form.formState.errors.email.message}</span>
@@ -107,6 +107,7 @@ export function LoginForm() {
               <Input
                 className="pl-9 tracking-[0.35em]"
                 inputMode="numeric"
+                autoComplete="one-time-code"
                 maxLength={6}
                 value={mfaCode}
                 onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, ''))}
@@ -120,7 +121,7 @@ export function LoginForm() {
           <span className="text-sm font-medium">Password</span>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
-            <Input className="pl-9" type="password" {...form.register('password')} />
+            <Input className="pl-9" type="password" autoComplete="current-password" {...form.register('password')} />
           </div>
           {form.formState.errors.password ? (
             <span className="text-xs text-red-600">{form.formState.errors.password.message}</span>

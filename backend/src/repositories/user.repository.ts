@@ -3,7 +3,8 @@ import { prisma } from '../config/db.js';
 
 export const userRepository = {
   findByEmail(email: string) {
-    return prisma.user.findUnique({ where: { email } });
+    // Case-insensitive so "Admin@clinic.com" and "admin@clinic.com" are the same account.
+    return prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' } } });
   },
 
   findById(id: string) {
