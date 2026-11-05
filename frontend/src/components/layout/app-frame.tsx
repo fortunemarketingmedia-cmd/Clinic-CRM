@@ -6,7 +6,7 @@ import { AuthGate } from '@/components/layout/auth-gate';
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublicRoute = pathname === '/login' || pathname.startsWith('/qr/');
+  const isPublicRoute = pathname === '/login' || pathname.startsWith('/qr/') || pathname.startsWith('/consent/');
 
   if (isPublicRoute) return children;
 

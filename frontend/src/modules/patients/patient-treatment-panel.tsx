@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clock3, Eye, FileSignature, PenLine, Search, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clipboard, Clock3, Eye, FileSignature, History, Link2, MessageCircle, PenLine, Search, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ const shortFormName = (template: ConsentTemplate) => template.key === generalCon
 const doctorRoles = ['ADMIN', 'DOCTOR'];
 
 export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
+  const [section, setSection] = useState<'treatments' | 'history'>('treatments');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [selectedServiceId, setSelectedServiceId] = useState('');
@@ -34,6 +35,7 @@ export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
   const templatesQuery = useQuery({ queryKey: ['patient-consent-templates', patient.branchId], queryFn: () => apiRequest<{ data: ConsentTemplate[] }>(`/consents/templates?branchId=${encodeURIComponent(patient.branchId)}`) });
   const recordsQuery = usePatientConsents(patient.id);
   const [viewing, setViewing] = useState<ConsentRecord | null>(null);
+  const [completing, setCompleting] = useState<ConsentRecord | null>(null);
 
   // Same source and filter as Schedules & Rooms > Create Appointment > Treatment service.
   const treatments = useMemo(() => (servicesQuery.data?.data ?? [])
@@ -70,7 +72,12 @@ export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
       </div>
     </div>
 
-    <Card className="p-0">
+    <div className="flex w-full gap-1 rounded-xl border bg-muted/50 p-1" role="tablist" aria-label="Treatment sections">
+      <button type="button" role="tab" aria-selected={section === 'treatments'} onClick={() => setSection('treatments')} className={cn('flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition', section === 'treatments' ? 'bg-surface text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}><FileSignature className="size-4" />Treatments</button>
+      <button type="button" role="tab" aria-selected={section === 'history'} onClick={() => setSection('history')} className={cn('flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition', section === 'history' ? 'bg-surface text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}><History className="size-4" />Consent history <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px]">{procedureRecords.length}</span></button>
+    </div>
+
+    {section === 'treatments' ? <Card className="p-0">
       <div className="space-y-3 border-b p-4">
         <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search treatments, e.g. HIFU, peel, laser hair" aria-label="Search treatments" /></div>
         <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
@@ -105,20 +112,20 @@ export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
           </li>;
         })}</ul>
       </section>)}</div>
-    </Card>
-
-    <Card>
+    </Card> : <Card>
       <div className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" /><h3 className="font-semibold">Treatment consent history</h3></div>
+      <p className="mt-1 text-sm text-muted-foreground">Patient-signed links appear here as pending until the treating doctor countersigns them.</p>
       <div className="mt-3 divide-y rounded-lg border">{procedureRecords.map((record) => <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{record.treatmentName ?? record.template.name}</span><ConsentStatusChip status={record.status} /></div>
           <div className="mt-1 text-xs text-muted-foreground">{record.template.name} · v{record.templateVersion} · {formatDateTime(record.signedAt)}{record.doctorName ? ` · ${record.doctorName}` : ''}</div>
         </div>
-        <Button type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => setViewing(record)}><Eye className="size-3.5" />View consent</Button>
+        <div className="flex flex-wrap gap-2">{record.status === 'PENDING' ? <Button type="button" className="h-8 px-3 text-xs" onClick={() => setCompleting(record)}><PenLine className="size-3.5" />Doctor countersign</Button> : null}<Button type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => setViewing(record)}><Eye className="size-3.5" />View consent</Button></div>
       </div>)}{!procedureRecords.length ? <p className="py-8 text-center text-sm text-muted-foreground">No treatment consents have been signed yet.</p> : null}</div>
-    </Card>
+    </Card>}
 
     {viewing ? <SignedConsentViewer record={viewing} patient={patient} onClose={() => setViewing(null)} /> : null}
+    {completing ? <DoctorCountersignDialog patient={patient} record={completing} onClose={() => setCompleting(null)} onCompleted={() => { setCompleting(null); recordsQuery.refetch(); }} /> : null}
     {selectedService ? <ConsentDrawer key={selectedService.id} patient={patient} service={selectedService} templatesByKey={templatesByKey} templatesLoading={templatesQuery.isLoading} records={procedureRecords} onClose={() => setSelectedServiceId('')} /> : null}
   </div>;
 }
@@ -236,6 +243,8 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
     <div className="flex-1 space-y-4 p-4 sm:p-6">
       {previous ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900"><span>Signing a new consent for this session. The earlier one ({formatDateTime(previous.signedAt)}) stays on record.</span><button type="button" className="font-semibold hover:underline" onClick={() => setSigningNew(false)}>View signed consent</button></div> : null}
 
+      <ConsentShareLink patient={patient} service={service} template={template} appointmentId={appointment?.id} />
+
       <article className="mx-auto max-w-[720px] rounded-xl border bg-white px-5 py-7 text-[#241417] shadow-sm sm:px-10">
         <header className="text-center">
           <img src="/revive-logo.png" alt="Revive Skin & Hair Clinic, Laser Center" className="mx-auto h-16 w-auto object-contain sm:h-20" />
@@ -296,6 +305,53 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
       {sign.isError ? <p role="alert" className="mt-2 text-sm text-red-700">{sign.error.message}</p> : null}
     </footer>
   </div>;
+}
+
+function ConsentShareLink({ patient, service, template, appointmentId }: { patient: Patient360; service: ClinicService; template: ConsentTemplate; appointmentId?: string }) {
+  const [copied, setCopied] = useState(false);
+  const invitation = useMutation({ mutationFn: () => apiRequest<{ data: { url: string; expiresAt: string } }>('/consents/invitations', { method: 'POST', body: JSON.stringify({ templateId: template.id, patientId: patient.id, appointmentId, treatmentName: service.name }) }) });
+  const share = invitation.data?.data;
+  const digits = patient.mobile.replace(/\D/g, '').replace(/^0+/, '');
+  const whatsappNumber = digits.length === 10 ? `91${digits}` : digits;
+  const message = share ? `Hello ${patient.fullName}, Revive Clinic has shared the consent form for ${service.name}. Please review and sign it securely here: ${share.url}` : '';
+  const copy = async () => { if (!share) return; await navigator.clipboard.writeText(share.url); setCopied(true); window.setTimeout(() => setCopied(false), 2_000); };
+
+  return <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><MessageCircle className="size-5" /></span><div><h3 className="font-semibold text-emerald-950">Send consent to patient on WhatsApp</h3><p className="mt-0.5 text-xs text-emerald-800">Creates a secure, single-use link for {patient.mobile}. The link expires after 7 days.</p></div></div>
+      {!share ? <Button type="button" disabled={invitation.isPending} onClick={() => invitation.mutate()}><Link2 className="size-4" />{invitation.isPending ? 'Generating…' : 'Generate consent link'}</Button> : null}
+    </div>
+    {share ? <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+      <Input readOnly value={share.url} aria-label="Patient consent link" className="bg-white text-xs" />
+      <Button type="button" variant="secondary" onClick={copy}><Clipboard className="size-4" />{copied ? 'Copied' : 'Copy'}</Button>
+      <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#25D366] px-4 text-sm font-medium text-white transition hover:bg-[#1fbd59]" href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle className="size-4" />Send via WhatsApp</a>
+    </div> : null}
+    {invitation.isError ? <p role="alert" className="mt-2 text-sm text-red-700">{invitation.error.message}</p> : null}
+  </div>;
+}
+
+function DoctorCountersignDialog({ patient, record, onClose, onCompleted }: { patient: Patient360; record: ConsentRecord; onClose: () => void; onCompleted: () => void }) {
+  const { session } = useSessionStore();
+  const [doctorId, setDoctorId] = useState('');
+  const [signature, setSignature] = useState('');
+  const staffQuery = useQuery({ queryKey: ['consent-doctors', patient.branchId], queryFn: () => apiRequest<{ data: StaffMember[] }>(`/front-desk/staff?branchId=${encodeURIComponent(patient.branchId)}`) });
+  const doctors = (staffQuery.data?.data ?? []).filter((member) => doctorRoles.includes(member.role));
+  const effectiveDoctorId = doctorId || doctors.find((member) => member.id === session?.user.id)?.id || (doctors.length === 1 ? doctors[0].id : '');
+  const doctor = doctors.find((member) => member.id === effectiveDoctorId);
+  const complete = useMutation({ mutationFn: () => {
+    if (!doctor) throw new Error('Select the treating doctor');
+    return apiRequest(`/consents/${record.id}/complete`, { method: 'POST', body: JSON.stringify({ doctorName: doctor.name, doctorSignatureBase64: signature }) });
+  }, onSuccess: onCompleted });
+
+  return createPortal(<div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Doctor countersign consent">
+    <Card className="w-full max-w-lg">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Patient signed via WhatsApp link</p><h2 className="mt-1 text-lg font-semibold">Doctor countersign</h2><p className="mt-1 text-sm text-muted-foreground">{record.treatmentName ?? record.template.name} · patient signature received {formatDateTime(record.signedAt)}</p></div><Button type="button" variant="ghost" className="size-9 p-0" onClick={onClose}><X className="size-5" /></Button></div>
+      <label className="mt-5 grid gap-1.5 text-sm"><span className="font-medium">Treating doctor</span><Select value={effectiveDoctorId} onChange={(event) => { setDoctorId(event.target.value); setSignature(''); }}><option value="">{staffQuery.isLoading ? 'Loading doctors…' : 'Select doctor'}</option>{doctors.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></label>
+      <div className="mt-4"><div className="mb-1.5 text-sm font-medium">Doctor signature</div><SignaturePad key={effectiveDoctorId} disabled={!doctor} disabledLabel="Select a doctor first" onChange={setSignature} /></div>
+      {complete.isError ? <p className="mt-2 text-sm text-red-700">{complete.error.message}</p> : null}
+      <div className="mt-5 flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="button" disabled={!doctor || !signature || complete.isPending} onClick={() => complete.mutate()}><PenLine className="size-4" />{complete.isPending ? 'Saving…' : 'Countersign & complete'}</Button></div>
+    </Card>
+  </div>, document.body);
 }
 
 function PaperField({ label, value, className }: { label: string; value: string; className?: string }) {

@@ -5,6 +5,7 @@ import { leadController } from '../controllers/lead.controller.js';
 import { rateLimit } from '../middleware/rate-limit.js';
 import { requireSharedSecret } from '../middleware/shared-secret.js';
 import { env } from '../config/env.js';
+import { formsController } from '../controllers/forms.controller.js';
 
 export const publicRoutes = Router();
 
@@ -20,6 +21,14 @@ publicRoutes.get('/qr/:token', (req, res, next) => {
 
 publicRoutes.post('/qr/:token', (req, res, next) => {
   patientController.submitQrRegistration(req, res).catch(next);
+});
+
+publicRoutes.use('/consents', rateLimit({ windowMs: 60 * 1000, max: 20, keyPrefix: 'public-consents' }));
+publicRoutes.get('/consents/:token', (req, res, next) => {
+  formsController.getPublicConsent(req, res).catch(next);
+});
+publicRoutes.post('/consents/:token/sign', (req, res, next) => {
+  formsController.submitPublicConsent(req, res).catch(next);
 });
 
 publicRoutes.post('/ads/google', requireSharedSecret(env.GOOGLE_ADS_INGEST_SECRET), (req, res, next) => {

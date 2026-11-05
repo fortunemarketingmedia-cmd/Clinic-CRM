@@ -29,6 +29,7 @@ try {
         "LoginEvent",
         "AuditLog",
         "ExportLog",
+        "ConsentInvitation",
         "FormSubmission",
         "LeadScoreHistory",
         "TimelineEvent",

@@ -1891,6 +1891,24 @@ model ConsentRecord {
   @@index([procedureSessionId])
 }
 
+model ConsentInvitation {
+  id                String    @id @default(cuid())
+  tokenHash         String    @unique
+  patientId         String
+  templateId        String
+  templateVersionId String
+  appointmentId     String?
+  treatmentName     String
+  createdById       String
+  expiresAt         DateTime
+  usedAt            DateTime?
+  consentRecordId   String?   @unique
+  createdAt         DateTime  @default(now())
+
+  @@index([patientId, createdAt])
+  @@index([expiresAt])
+}
+
 model MedicalProfileVersion {
   id               String         @id @default(cuid())
   medicalProfileId String

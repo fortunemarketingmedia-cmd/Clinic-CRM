@@ -24,12 +24,18 @@ export const consentTemplateSchema = z.object({
 export const consentTemplateUpdateSchema = consentTemplateSchema.omit({ key: true }).partial();
 // A drawn signature is a few tens of KB; 2 MB of base64 leaves ample room while bounding memory per request.
 const signatureDataUrlMax = 2_000_000;
+const drawnSignatureSchema = z.string().min(20).max(signatureDataUrlMax);
 export const consentSignSchema = z.object({
   templateId: z.string().min(1), patientId: z.string().min(1), appointmentId: z.string().optional(), procedureSessionId: z.string().optional(),
-  signerName: z.string().trim().min(2).max(120), signatureBase64: z.string().min(20).max(signatureDataUrlMax), guardianName: z.string().optional(), guardianRelationship: z.string().optional(),
+  signerName: z.string().trim().min(2).max(120), signatureBase64: drawnSignatureSchema, guardianName: z.string().optional(), guardianRelationship: z.string().optional(),
   guardianSignatureBase64: z.string().max(signatureDataUrlMax).optional(), staffWitnessId: z.string().optional(), treatmentName: z.string().trim().min(2).max(200).optional(),
-  doctorName: z.string().trim().min(2).max(120).optional(), doctorSignatureBase64: z.string().min(20).max(signatureDataUrlMax).optional(),
+  doctorName: z.string().trim().min(2).max(120).optional(), doctorSignatureBase64: drawnSignatureSchema.optional(),
 }).refine((value) => Boolean(value.doctorName) === Boolean(value.doctorSignatureBase64), { message: 'Doctor name and signature must be provided together', path: ['doctorSignatureBase64'] });
+export const consentInvitationSchema = z.object({
+  templateId: z.string().min(1), patientId: z.string().min(1), appointmentId: z.string().optional(), treatmentName: z.string().trim().min(2).max(200),
+});
+export const publicConsentSignSchema = z.object({ signerName: z.string().trim().min(2).max(120), signatureBase64: drawnSignatureSchema });
+export const completePendingConsentSchema = z.object({ doctorName: z.string().trim().min(2).max(120), doctorSignatureBase64: drawnSignatureSchema });
 export const consentWithdrawalSchema = z.object({ reason: z.string().trim().min(3) });
 
 export const secureFileMetadataSchema = z.object({

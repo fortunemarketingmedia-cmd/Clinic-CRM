@@ -22,7 +22,7 @@ export function usePatientConsents(patientId: string) {
 export const isTreatmentConsent = (record: ConsentRecord) => record.template.type === 'PROCEDURE_SPECIFIC_CONSENT' || Boolean(record.treatmentName);
 
 export function ConsentStatusChip({ status }: { status: ConsentRecord['status'] }) {
-  const tone = status === 'SIGNED' ? 'bg-emerald-50 text-emerald-700' : status === 'WITHDRAWN' ? 'bg-red-50 text-red-700' : 'bg-muted text-muted-foreground';
+  const tone = status === 'SIGNED' ? 'bg-emerald-50 text-emerald-700' : status === 'PENDING' ? 'bg-amber-50 text-amber-700' : status === 'WITHDRAWN' ? 'bg-red-50 text-red-700' : 'bg-muted text-muted-foreground';
   return <span className={cn('rounded-full px-2 py-0.5 text-[11px] font-medium', tone)}>{status.charAt(0) + status.slice(1).toLowerCase()}</span>;
 }
 
@@ -82,6 +82,7 @@ export function SignedConsentDocument({ record, patient, className }: { record: 
         <SignatureBlock title="Signature of Patient" name={record.signerName} signature={patientSignature} date={signedDay} />
         {record.doctorName ? <SignatureBlock title="Signature of Doctor" name={record.doctorName} signature={doctorSignature} date={signedDay} alignRight /> : null}
       </div>
+      {record.status === 'PENDING' ? <p className="mt-5 rounded-md bg-amber-50 p-3 text-sm text-amber-800">Patient signature received. This consent becomes complete after the treating doctor countersigns it.</p> : null}
       {record.status === 'WITHDRAWN' ? <p className="mt-5 rounded-md bg-red-50 p-3 text-sm text-red-700">Withdrawn{record.withdrawnAt ? ` on ${formatConsentDate(record.withdrawnAt)}` : ''}{record.withdrawalReason ? `: ${record.withdrawalReason}` : ''}</p> : null}
       <p className="mt-6 text-center text-[11px] text-neutral-500">Digitally signed {formatConsentDate(record.signedAt)} · Immutable consent record</p>
     </article>
@@ -117,7 +118,7 @@ export function SignedConsentViewer({ record, patient, onClose }: { record: Cons
     <div className="relative flex h-full w-full max-w-[860px] flex-col bg-background shadow-2xl animate-drawer-in">
       <header className="flex items-start justify-between gap-3 border-b bg-surface px-5 py-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2"><p className="text-xs font-semibold uppercase tracking-wider text-primary">Signed consent</p><ConsentStatusChip status={record.status} /></div>
+          <div className="flex items-center gap-2"><p className="text-xs font-semibold uppercase tracking-wider text-primary">{record.status === 'PENDING' ? 'Patient-signed consent' : 'Signed consent'}</p><ConsentStatusChip status={record.status} /></div>
           <h2 className="mt-0.5 truncate text-lg font-semibold">{record.treatmentName ?? record.template.name}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">{record.template.name} · v{record.templateVersion} · {formatConsentDate(record.signedAt)}{record.doctorName ? ` · ${record.doctorName}` : ''}</p>
         </div>
