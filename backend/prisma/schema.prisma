@@ -1902,11 +1902,15 @@ model ConsentInvitation {
   createdById       String
   expiresAt         DateTime
   usedAt            DateTime?
+  revokedAt         DateTime?
+  revokedById       String?
+  revocationReason  String?
   consentRecordId   String?   @unique
   createdAt         DateTime  @default(now())
 
   @@index([patientId, createdAt])
   @@index([expiresAt])
+  @@index([patientId, templateId, revokedAt, usedAt])
 }
 
 model MedicalProfileVersion {

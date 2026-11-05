@@ -1,6 +1,5 @@
 import type { Prisma, Role } from '@prisma/client';
 import { Role as RoleEnum } from '@prisma/client';
-import crypto from 'node:crypto';
 import type { z } from 'zod';
 import { formsRepository } from '../repositories/forms.repository.js';
 import { patientRepository } from '../repositories/patient.repository.js';
@@ -18,6 +17,7 @@ import { imageOptimizationService } from './image-optimization.service.js';
 import { metricsService } from './metrics.service.js';
 import { malwareScannerService } from './malware-scanner.service.js';
 import { env } from '../config/env.js';
+import { consentInvitationState, consentInvitationTokenHash, createConsentInvitationToken, publicConsentUrl, requireActiveConsentInvitation } from './consent-invitation.js';
 
 type Actor = AuditContext & { id: string; role: Role };
 const administratorRoles: Role[] = [RoleEnum.ADMIN];
@@ -36,8 +36,6 @@ async function requirePatient(patientId: string, actor: Actor) {
 }
 
 function signatureMime(data: string) { const match = /^data:(image\/(?:png|jpeg|webp));base64,/.exec(data); if (!match) throw new HttpError(400, 'Signature must be a PNG, JPEG, or WebP data URL'); return match[1]; }
-function invitationTokenHash(token: string) { return crypto.createHash('sha256').update(token).digest('hex'); }
-
 export const formsService = {
   async listFormTemplates(query: z.infer<typeof formTemplateQuerySchema>, actor: Actor) { requireCareRole(actor); await accessService.assertBranchAccess(actor.id, actor.role, query.branchId); return formsRepository.listFormTemplates(administratorRoles.includes(actor.role) ? query : { ...query, status: 'PUBLISHED' }); },
   async createFormTemplate(input: z.infer<typeof formTemplateSchema>, actor: Actor) { requireAdministrator(actor); await accessService.assertBranchAccess(actor.id, actor.role, input.branchId); const normalized = { ...input, fields: input.fields.map((field) => ({ ...field, options: field.options as Prisma.InputJsonValue | undefined, condition: field.condition as Prisma.InputJsonValue | undefined })) }; const created = await formsRepository.createFormTemplate(normalized, actor.id); await audit(actor, { action: 'FORM_TEMPLATE_CREATED', entity: 'FormTemplate', entityId: created.id, newValue: { version: created.currentVersion, status: created.status } }); return created; },
@@ -75,17 +73,39 @@ export const formsService = {
     if (template.requiresGuardian || template.requiresWitness) throw new HttpError(409, 'This consent must be completed at the clinic');
     if (input.appointmentId && !(await patientRepository.findAppointment(patient, input.appointmentId))) throw new HttpError(400, 'Appointment does not belong to this patient');
 
-    const token = crypto.randomBytes(32).toString('base64url');
+    const token = createConsentInvitationToken();
     const expiresAt = new Date(Date.now() + 7 * 86_400_000);
-    const invitation = await prisma.consentInvitation.create({ data: { tokenHash: invitationTokenHash(token), patientId: patient.id, templateId: template.id, templateVersionId: template.versions[0].id, appointmentId: input.appointmentId, treatmentName: input.treatmentName, createdById: actor.id, expiresAt } });
-    await audit(actor, { action: 'CONSENT_LINK_CREATED', entity: 'ConsentInvitation', entityId: invitation.id, newValue: { patientId: patient.id, templateId: template.id, treatmentName: input.treatmentName, expiresAt: expiresAt.toISOString() } });
-    return { url: `${env.FRONTEND_URL.replace(/\/$/, '')}/consent/${token}`, expiresAt: expiresAt.toISOString() };
+    const now = new Date();
+    const { invitation, revokedCount } = await prisma.$transaction(async (tx) => {
+      const revoked = await tx.consentInvitation.updateMany({ where: { patientId: patient.id, templateId: template.id, appointmentId: input.appointmentId ?? null, treatmentName: input.treatmentName, usedAt: null, revokedAt: null, expiresAt: { gt: now } }, data: { revokedAt: now, revokedById: actor.id, revocationReason: 'REISSUED' } });
+      const created = await tx.consentInvitation.create({ data: { tokenHash: consentInvitationTokenHash(token), patientId: patient.id, templateId: template.id, templateVersionId: template.versions[0].id, appointmentId: input.appointmentId, treatmentName: input.treatmentName, createdById: actor.id, expiresAt } });
+      return { invitation: created, revokedCount: revoked.count };
+    });
+    await audit(actor, { action: revokedCount ? 'CONSENT_LINK_REISSUED' : 'CONSENT_LINK_CREATED', entity: 'ConsentInvitation', entityId: invitation.id, newValue: { patientId: patient.id, templateId: template.id, treatmentName: input.treatmentName, expiresAt: expiresAt.toISOString(), revokedPriorLinks: revokedCount } });
+    return { invitationId: invitation.id, url: publicConsentUrl(env.FRONTEND_URL, token), expiresAt: expiresAt.toISOString() };
+  },
+  async revokeConsentInvitation(id: string, actor: Actor) {
+    requireCareRole(actor);
+    const invitation = await prisma.consentInvitation.findUnique({ where: { id } });
+    if (!invitation) throw new HttpError(404, 'Consent link not found');
+    await requirePatient(invitation.patientId, actor);
+    if (invitation.usedAt) throw new HttpError(409, 'A completed consent link cannot be revoked');
+    if (!invitation.revokedAt) {
+      const revoked = await prisma.consentInvitation.updateMany({ where: { id, usedAt: null, revokedAt: null }, data: { revokedAt: new Date(), revokedById: actor.id, revocationReason: 'MANUAL' } });
+      if (revoked.count !== 1) {
+        const current = await prisma.consentInvitation.findUnique({ where: { id } });
+        if (current?.usedAt) throw new HttpError(409, 'A completed consent link cannot be revoked');
+      } else {
+        await audit(actor, { action: 'CONSENT_LINK_REVOKED', entity: 'ConsentInvitation', entityId: id, newValue: { patientId: invitation.patientId, templateId: invitation.templateId } });
+      }
+    }
+    return { revoked: true };
   },
   async getPublicConsent(token: string) {
-    const invitation = await prisma.consentInvitation.findUnique({ where: { tokenHash: invitationTokenHash(token) } });
+    const invitation = await prisma.consentInvitation.findUnique({ where: { tokenHash: consentInvitationTokenHash(token) } });
     if (!invitation) throw new HttpError(404, 'Consent link not found');
-    if (invitation.usedAt) return { completed: true };
-    if (invitation.expiresAt <= new Date()) throw new HttpError(410, 'This consent link has expired. Please ask the clinic for a new link.');
+    if (consentInvitationState(invitation) === 'completed') return { completed: true };
+    requireActiveConsentInvitation(invitation);
     const [patient, version, template] = await Promise.all([
       prisma.patient.findUnique({ where: { id: invitation.patientId }, select: { fullName: true, patientNo: true, age: true, sex: true } }),
       prisma.consentTemplateVersion.findUnique({ where: { id: invitation.templateVersionId }, select: { version: true, consentText: true } }),
@@ -95,10 +115,9 @@ export const formsService = {
     return { completed: false, patient, treatmentName: invitation.treatmentName, template: { name: template.name, version: version.version, consentText: version.consentText }, expiresAt: invitation.expiresAt.toISOString() };
   },
   async submitPublicConsent(token: string, input: z.infer<typeof publicConsentSignSchema>, metadata: { ipAddress?: string; device?: string; correlationId: string }) {
-    const invitation = await prisma.consentInvitation.findUnique({ where: { tokenHash: invitationTokenHash(token) } });
+    const invitation = await prisma.consentInvitation.findUnique({ where: { tokenHash: consentInvitationTokenHash(token) } });
     if (!invitation) throw new HttpError(404, 'Consent link not found');
-    if (invitation.usedAt) throw new HttpError(409, 'This consent link has already been completed');
-    if (invitation.expiresAt <= new Date()) throw new HttpError(410, 'This consent link has expired. Please ask the clinic for a new link.');
+    requireActiveConsentInvitation(invitation);
     const [patient, version, template] = await Promise.all([
       prisma.patient.findUnique({ where: { id: invitation.patientId } }),
       prisma.consentTemplateVersion.findUnique({ where: { id: invitation.templateVersionId } }),
@@ -115,8 +134,12 @@ export const formsService = {
       const pdf = await buildConsentPdf({ patientName: patient.fullName, patientNo: patient.patientNo, patientAge: patient.age, patientSex: patient.sex, treatmentName: invitation.treatmentName, templateName: template.name, templateVersion: version.version, consentText: version.consentText, signerName: input.signerName, signedAt, signature: signatureBuffer });
       preliminaryPdf = await fileStorageService.writeBuffer(patient.id, pdf, 'application/pdf');
       record = await prisma.$transaction(async (tx) => {
-        const claimed = await tx.consentInvitation.updateMany({ where: { id: invitation.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: signedAt } });
-        if (claimed.count !== 1) throw new HttpError(409, 'This consent link has already been completed');
+        const claimed = await tx.consentInvitation.updateMany({ where: { id: invitation.id, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: signedAt } });
+        if (claimed.count !== 1) {
+          const current = await tx.consentInvitation.findUnique({ where: { id: invitation.id } });
+          if (current) requireActiveConsentInvitation(current);
+          throw new HttpError(409, 'This consent link is no longer available');
+        }
         const created = await tx.consentRecord.create({ data: { templateId: template.id, templateVersionId: version.id, templateVersion: version.version, patientId: patient.id, appointmentId: invitation.appointmentId, language: template.language, consentText: version.consentText, treatmentName: invitation.treatmentName, signerName: input.signerName, signatureStorageKey: signature.storageKey, signedPdfStorageKey: preliminaryPdf!.storageKey, status: 'PENDING', signedAt, ipAddress: metadata.ipAddress, deviceMetadata: metadata.device }, include: { template: true, version: true, staffWitness: { select: { id: true, name: true } } } });
         await tx.consentInvitation.update({ where: { id: invitation.id }, data: { consentRecordId: created.id } });
         return created;

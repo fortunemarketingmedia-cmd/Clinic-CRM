@@ -156,6 +156,7 @@ function refreshAccessToken() {
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAccessToken();
+  const isPublicPath = path.startsWith('/public/');
 
   const request = (accessToken: string | null) =>
     fetchWithTimeout(`${API_URL}${path}`, {
@@ -170,7 +171,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
 
   let response = await request(token);
 
-  if (response.status === 401 && path !== '/auth/login' && path !== '/auth/refresh') {
+  if (response.status === 401 && !isPublicPath && path !== '/auth/login' && path !== '/auth/refresh') {
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken) {
       response = await request(refreshedToken);

@@ -3,12 +3,11 @@
 import { usePathname } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { AuthGate } from '@/components/layout/auth-gate';
+import { isPublicAppRoute } from '@/lib/public-routes';
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isPublicRoute = pathname === '/login' || pathname.startsWith('/qr/') || pathname.startsWith('/consent/');
-
-  if (isPublicRoute) return children;
+  if (isPublicAppRoute(pathname)) return children;
 
   return (
     <AuthGate>

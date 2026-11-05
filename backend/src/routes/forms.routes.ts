@@ -18,6 +18,7 @@ consentRoutes.post('/templates', (req, res, next) => { formsController.createCon
 consentRoutes.patch('/templates/:id', (req, res, next) => { formsController.updateConsentTemplate(req, res).catch(next); });
 consentRoutes.post('/sign', (req, res, next) => { formsController.signConsent(req, res).catch(next); });
 consentRoutes.post('/invitations', (req, res, next) => { formsController.createConsentInvitation(req, res).catch(next); });
+consentRoutes.post('/invitations/:id/revoke', (req, res, next) => { formsController.revokeConsentInvitation(req, res).catch(next); });
 consentRoutes.get('/patients/:patientId', (req, res, next) => { formsController.listConsentRecords(req, res).catch(next); });
 consentRoutes.post('/:id/complete', (req, res, next) => { formsController.completePendingConsent(req, res).catch(next); });
 consentRoutes.post('/:id/withdraw', (req, res, next) => { formsController.withdrawConsent(req, res).catch(next); });

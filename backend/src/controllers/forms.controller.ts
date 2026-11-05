@@ -16,6 +16,7 @@ export const formsController = {
   async updateConsentTemplate(req: Request, res: Response) { return res.json({ data: await formsService.updateConsentTemplate(req.params.id, consentTemplateUpdateSchema.parse(req.body), actor(req)) }); },
   async signConsent(req: Request, res: Response) { return res.status(201).json({ data: await formsService.signConsent(consentSignSchema.parse(req.body), actor(req)) }); },
   async createConsentInvitation(req: Request, res: Response) { return res.status(201).json({ data: await formsService.createConsentInvitation(consentInvitationSchema.parse(req.body), actor(req)) }); },
+  async revokeConsentInvitation(req: Request, res: Response) { return res.json({ data: await formsService.revokeConsentInvitation(req.params.id, actor(req)) }); },
   async completePendingConsent(req: Request, res: Response) { return res.json({ data: await formsService.completePendingConsent(req.params.id, completePendingConsentSchema.parse(req.body), actor(req)) }); },
   async getPublicConsent(req: Request, res: Response) { return res.json({ data: await formsService.getPublicConsent(req.params.token) }); },
   async submitPublicConsent(req: Request, res: Response) { return res.status(201).json({ data: await formsService.submitPublicConsent(req.params.token, publicConsentSignSchema.parse(req.body), { ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId }) }); },

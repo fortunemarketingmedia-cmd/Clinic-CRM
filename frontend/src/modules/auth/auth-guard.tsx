@@ -3,21 +3,8 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { AppChromeSkeleton, Skeleton } from '@/components/ui/skeleton';
+import { isPublicAppRoute } from '@/lib/public-routes';
 import { useSessionStore } from '@/store/session-store';
-
-const publicRoutes = ['/login'];
-
-function isPublicRoute(pathname: string) {
-  if (publicRoutes.includes(pathname)) {
-    return true;
-  }
-
-  if (pathname.startsWith('/qr')) {
-    return true;
-  }
-
-  return false;
-}
 
 function FullPageLoader({ appChrome = false }: { appChrome?: boolean }) {
   if (appChrome) return <AppChromeSkeleton />;
@@ -38,7 +25,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const { session, hasHydrated } = useSessionStore();
-  const publicRoute = isPublicRoute(pathname);
+  const publicRoute = isPublicAppRoute(pathname);
 
   useEffect(() => {
     if (!hasHydrated) {

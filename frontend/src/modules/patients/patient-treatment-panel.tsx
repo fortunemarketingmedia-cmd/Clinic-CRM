@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clipboard, Clock3, Eye, FileSignature, History, Link2, MessageCircle, PenLine, Search, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clipboard, Clock3, Eye, FileSignature, History, Link2, MessageCircle, PenLine, RotateCw, Search, ShieldCheck, Unlink, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
@@ -309,8 +309,12 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
 
 function ConsentShareLink({ patient, service, template, appointmentId }: { patient: Patient360; service: ClinicService; template: ConsentTemplate; appointmentId?: string }) {
   const [copied, setCopied] = useState(false);
-  const invitation = useMutation({ mutationFn: () => apiRequest<{ data: { url: string; expiresAt: string } }>('/consents/invitations', { method: 'POST', body: JSON.stringify({ templateId: template.id, patientId: patient.id, appointmentId, treatmentName: service.name }) }) });
-  const share = invitation.data?.data;
+  const [share, setShare] = useState<{ invitationId: string; url: string; expiresAt: string } | null>(null);
+  const invitation = useMutation({ mutationFn: () => apiRequest<{ data: { invitationId: string; url: string; expiresAt: string } }>('/consents/invitations', { method: 'POST', body: JSON.stringify({ templateId: template.id, patientId: patient.id, appointmentId, treatmentName: service.name }) }), onSuccess: (result) => setShare(result.data) });
+  const revoke = useMutation({ mutationFn: () => {
+    if (!share) throw new Error('Generate a consent link first');
+    return apiRequest(`/consents/invitations/${encodeURIComponent(share.invitationId)}/revoke`, { method: 'POST', body: JSON.stringify({}) });
+  }, onSuccess: () => setShare(null) });
   const digits = patient.mobile.replace(/\D/g, '').replace(/^0+/, '');
   const whatsappNumber = digits.length === 10 ? `91${digits}` : digits;
   const message = share ? `Hello ${patient.fullName}, Revive Clinic has shared the consent form for ${service.name}. Please review and sign it securely here: ${share.url}` : '';
@@ -319,14 +323,14 @@ function ConsentShareLink({ patient, service, template, appointmentId }: { patie
   return <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="flex gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-emerald-600 text-white"><MessageCircle className="size-5" /></span><div><h3 className="font-semibold text-emerald-950">Send consent to patient on WhatsApp</h3><p className="mt-0.5 text-xs text-emerald-800">Creates a secure, single-use link for {patient.mobile}. The link expires after 7 days.</p></div></div>
-      {!share ? <Button type="button" disabled={invitation.isPending} onClick={() => invitation.mutate()}><Link2 className="size-4" />{invitation.isPending ? 'Generating…' : 'Generate consent link'}</Button> : null}
+      {!share ? <Button type="button" disabled={invitation.isPending} onClick={() => invitation.mutate()}><Link2 className="size-4" />{invitation.isPending ? 'Generating…' : 'Generate consent link'}</Button> : <div className="flex gap-2"><Button type="button" variant="secondary" disabled={invitation.isPending || revoke.isPending} onClick={() => invitation.mutate()}><RotateCw className="size-4" />{invitation.isPending ? 'Reissuing…' : 'Reissue'}</Button><Button type="button" variant="secondary" disabled={revoke.isPending || invitation.isPending} onClick={() => revoke.mutate()}><Unlink className="size-4" />{revoke.isPending ? 'Revoking…' : 'Revoke'}</Button></div>}
     </div>
     {share ? <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
       <Input readOnly value={share.url} aria-label="Patient consent link" className="bg-white text-xs" />
       <Button type="button" variant="secondary" onClick={copy}><Clipboard className="size-4" />{copied ? 'Copied' : 'Copy'}</Button>
       <a className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#25D366] px-4 text-sm font-medium text-white transition hover:bg-[#1fbd59]" href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer"><MessageCircle className="size-4" />Send via WhatsApp</a>
     </div> : null}
-    {invitation.isError ? <p role="alert" className="mt-2 text-sm text-red-700">{invitation.error.message}</p> : null}
+    {invitation.isError || revoke.isError ? <p role="alert" className="mt-2 text-sm text-red-700">{invitation.error?.message ?? revoke.error?.message}</p> : null}
   </div>;
 }
 
