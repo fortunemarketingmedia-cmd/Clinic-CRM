@@ -1,6 +1,8 @@
+import { Role } from '@prisma/client';
 import { Router } from 'express';
 import { appointmentController } from '../controllers/appointment.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/role.js';
 
 export const appointmentRoutes = Router();
 
@@ -26,6 +28,6 @@ appointmentRoutes.post('/:id/cancel', (req, res, next) => {
   appointmentController.cancel(req, res).catch(next);
 });
 
-appointmentRoutes.delete('/:id', (req, res, next) => {
+appointmentRoutes.delete('/:id', requireRole(Role.ADMIN), (req, res, next) => {
   appointmentController.delete(req, res).catch(next);
 });

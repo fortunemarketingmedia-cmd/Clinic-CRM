@@ -41,6 +41,7 @@ export type MedicalProfile = {
   productAllergies?: string | null;
   foodAllergies?: string | null;
   previousAestheticProcedures?: string | null;
+  hairProductsUsed?: string | null;
   breastfeedingStatus?: string | null;
   familyHistory?: string | null;
   smokingStatus?: string | null;
@@ -93,6 +94,7 @@ export type TreatmentPackage = {
   purchaseDate?: string;
   startDate?: string;
   expiryDate?: string;
+  notes?: string | null;
 };
 
 export type PatientFile = {

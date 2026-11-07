@@ -1,54 +1,29 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
 import { Bell, CheckCircle2, Clock3, LogOut, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { BranchToggle } from '@/modules/dashboard/branch-toggle';
+import { REMINDER_POPUP_EVENT, useReminderNotifications, type ReminderAlert } from '@/modules/notifications/use-reminder-notifications';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
-import type { FollowUp, Task } from '@/types/foundation';
 
 export function Header() {
-  const { session, setSession, selectedBranchId } = useSessionStore();
-  const [popup, setPopup] = useState<{ key: string; kind: 'Followup' | 'Task'; title: string; detail: string; dueAt: string } | null>(null);
-  const reminderParams = new URLSearchParams();
-  if (selectedBranchId) reminderParams.set('branchId', selectedBranchId);
-  if (session?.user.role === 'RECEPTIONIST') reminderParams.set('assignedUserId', session.user.id);
-  reminderParams.set('scope', 'ALL');
-  const reminderQuery = useQuery({
-    queryKey: ['header-reminders', selectedBranchId, session?.user.id],
-    queryFn: async () => {
-      const [followUps, tasks] = await Promise.all([
-        apiRequest<{ data: FollowUp[] }>(`/follow-ups?${reminderParams}`),
-        apiRequest<{ data: Task[] }>(`/tasks?${reminderParams}`),
-      ]);
-      const now = Date.now();
-      const activeFollowUps = followUps.data.filter((item) => !['COMPLETED', 'CANCELLED'].includes(item.status));
-      const activeTasks = tasks.data.filter((item) => !['COMPLETED', 'CANCELLED'].includes(item.status));
-      const dueItems = [...activeFollowUps, ...activeTasks].filter((item) => new Date(item.reminderAt || item.dueAt).getTime() <= now);
-      const alerts = [
-        ...activeFollowUps.filter((item) => new Date(item.reminderAt || item.dueAt).getTime() <= now).map((item) => ({
-          key: `due-followup-${item.id}`, kind: 'Followup' as const, title: item.activityType,
-          detail: `${item.person.fullName} · ${item.notes || 'Scheduled followup is ready'}`, dueAt: item.dueAt,
-        })),
-        ...activeTasks.filter((item) => new Date(item.reminderAt || item.dueAt).getTime() <= now).map((item) => ({
-          key: `due-task-${item.id}`, kind: 'Task' as const, title: item.title,
-          detail: item.description || 'Assigned task is ready for action', dueAt: item.dueAt,
-        })),
-        ...activeTasks.filter((item) => item.assignedUser.id === session?.user.id && item.createdAt && now - new Date(item.createdAt).getTime() <= 120_000).map((item) => ({
-          key: `assigned-task-${item.id}`, kind: 'Task' as const, title: 'New task assigned',
-          detail: item.title, dueAt: item.dueAt,
-        })),
-      ].sort((first, second) => new Date(first.dueAt).getTime() - new Date(second.dueAt).getTime());
-      return { count: dueItems.length, alerts };
-    },
-    enabled: Boolean(session && (session.user.role === 'ADMIN' || selectedBranchId)),
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-  });
+  const { session, setSession } = useSessionStore();
+  const [popup, setPopup] = useState<ReminderAlert | null>(null);
+  const reminderQuery = useReminderNotifications();
+
+  useEffect(() => {
+    const showPopup = (event: Event) => {
+      const alert = (event as CustomEvent<ReminderAlert>).detail;
+      if (!alert) return;
+      window.sessionStorage.setItem(`revive-alert:${alert.key}`, 'seen');
+      setPopup(alert);
+    };
+    window.addEventListener(REMINDER_POPUP_EVENT, showPopup);
+    return () => window.removeEventListener(REMINDER_POPUP_EVENT, showPopup);
+  }, []);
 
   useEffect(() => {
     if (popup || !reminderQuery.data?.alerts.length) return;

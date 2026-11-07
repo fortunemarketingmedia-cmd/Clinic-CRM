@@ -192,7 +192,7 @@ export const analyticsRepository = {
         where: filters.branchId ? { id: filters.branchId } : undefined,
         include: {
           _count: {
-            select: { leads: true, appointments: true, patients: true, invoices: true },
+            select: { leads: { where: { deletedAt: null } }, appointments: { where: { deletedAt: null } }, patients: { where: { deletedAt: null } }, invoices: { where: { deletedAt: null } } },
           },
         },
         orderBy: { name: 'asc' },
@@ -336,38 +336,38 @@ export const analyticsRepository = {
         SELECT to_char(("createdAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'leads' AS kind, COUNT(*)::double precision AS value
         FROM "Lead"
-        WHERE "createdAt" >= ${trendStart} AND "createdAt" <= ${trendEnd} ${branchSql}
+        WHERE "deletedAt" IS NULL AND "createdAt" >= ${trendStart} AND "createdAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
         SELECT to_char(("createdAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'patients' AS kind, COUNT(*)::double precision AS value
         FROM "Patient"
-        WHERE "createdAt" >= ${trendStart} AND "createdAt" <= ${trendEnd} ${branchSql}
+        WHERE "deletedAt" IS NULL AND "createdAt" >= ${trendStart} AND "createdAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
         SELECT to_char(("appointmentAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'appointments' AS kind, COUNT(*)::double precision AS value
         FROM "Appointment"
-        WHERE "appointmentAt" >= ${trendStart} AND "appointmentAt" <= ${trendEnd} ${branchSql}
+        WHERE "deletedAt" IS NULL AND "appointmentAt" >= ${trendStart} AND "appointmentAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
         SELECT to_char(("dueAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'followUps' AS kind, COUNT(*)::double precision AS value
         FROM "FollowUp"
-        WHERE "dueAt" >= ${trendStart} AND "dueAt" <= ${trendEnd} ${branchSql}
+        WHERE "deletedAt" IS NULL AND "dueAt" >= ${trendStart} AND "dueAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
         SELECT to_char(("invoiceDate" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'billed' AS kind, COALESCE(SUM("totalAmount"), 0)::double precision AS value
         FROM "Invoice"
-        WHERE "invoiceDate" >= ${trendStart} AND "invoiceDate" <= ${trendEnd}
+        WHERE "deletedAt" IS NULL AND "invoiceDate" >= ${trendStart} AND "invoiceDate" <= ${trendEnd}
           AND "status" <> 'CANCELLED' ${branchSql}
         GROUP BY 1
         UNION ALL
         SELECT to_char(("paidAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'collected' AS kind, COALESCE(SUM("amount"), 0)::double precision AS value
         FROM "Payment"
-        WHERE "paidAt" >= ${trendStart} AND "paidAt" <= ${trendEnd}
+        WHERE "deletedAt" IS NULL AND "paidAt" >= ${trendStart} AND "paidAt" <= ${trendEnd}
           AND "status" = 'COMPLETED' ${branchSql}
         GROUP BY 1
         ORDER BY 1, 2

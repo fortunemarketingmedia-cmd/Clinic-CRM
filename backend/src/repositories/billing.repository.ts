@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import type { CashClosingStatus, CreditNoteStatus, EstimateStatus, InvoiceStatus, PackageLedgerAction, PatientPackageStatus, PaymentMode, Prisma, RefundStatus } from '@prisma/client';
-import { prisma } from '../config/db.js';
+import { prisma, type DbTransaction } from '../config/db.js';
 
-const invoiceInclude = { patient: true, branch: true, items: { orderBy: { sortOrder: 'asc' as const } }, payments: { orderBy: { paidAt: 'desc' as const } }, paymentAllocations: true, refunds: true, creditNotes: true, discountApproval: true, createdBy: { select: { id: true, name: true } }, collectionOwner: { select: { id: true, name: true } } };
+const invoiceInclude = { patient: true, branch: true, items: { orderBy: { sortOrder: 'asc' as const } }, payments: { where: { deletedAt: null }, orderBy: { paidAt: 'desc' as const } }, paymentAllocations: true, refunds: true, creditNotes: true, discountApproval: true, createdBy: { select: { id: true, name: true } }, collectionOwner: { select: { id: true, name: true } } };
 const estimateInclude = { patient: true, branch: true, items: { orderBy: { sortOrder: 'asc' as const } }, invoice: { select: { id: true, invoiceNo: true } }, createdBy: { select: { id: true, name: true } } };
 const packageInclude = { patient: true, branch: true, packageMaster: true, ledgerEntries: { orderBy: { effectiveAt: 'desc' as const } } };
 
@@ -51,6 +51,7 @@ export const billingRepository = {
   createPackageMaster(data: Prisma.PackageMasterUncheckedCreateInput) { return prisma.packageMaster.create({ data, include: { branch: true } }); },
   updatePackageMaster(id: string, data: Prisma.PackageMasterUncheckedUpdateInput) { return prisma.packageMaster.update({ where: { id }, data, include: { branch: true } }); },
   listPatientPackages(filters: { patientId?: string; branchId?: string; status?: PatientPackageStatus }) { return prisma.treatmentPackage.findMany({ where: filters, include: packageInclude, orderBy: { purchaseDate: 'desc' } }); },
+  updatePatientPackage(id: string, data: Prisma.TreatmentPackageUncheckedUpdateInput) { return prisma.treatmentPackage.update({ where: { id }, data, include: packageInclude }); },
   findPatientPackage(id: string) { return prisma.treatmentPackage.findUnique({ where: { id }, include: packageInclude }); },
   purchasePackage(data: Prisma.TreatmentPackageUncheckedCreateInput, actorId: string) { return prisma.$transaction(async (tx) => { const purchased = await tx.treatmentPackage.create({ data }); await tx.packageSessionLedger.create({ data: { patientPackageId: purchased.id, action: 'PURCHASE', sessionDelta: purchased.totalSessions, balanceRemaining: purchased.totalSessions, amount: purchased.amount, notes: 'Package purchased', createdById: actorId } }); return tx.treatmentPackage.findUniqueOrThrow({ where: { id: purchased.id }, include: packageInclude }); }); },
   async applyPackageAction(id: string, action: PackageLedgerAction, input: { sessions: number; procedureSessionId?: string; referencePackageId?: string; targetPatientId?: string; targetBranchId?: string; amount?: number; effectiveAt?: Date; extensionDays?: number; notes: string; metadata?: Prisma.InputJsonValue }, actorId: string) { return prisma.$transaction(async (tx) => { const current = await tx.treatmentPackage.findUniqueOrThrow({ where: { id } }); let reservedDelta = 0; let consumedDelta = 0; let completedSessions = current.completedSessions; let reservedSessions = current.reservedSessions; let status = current.status; let expiryDate = current.expiryDate; let patientId = current.patientId; let branchId = current.branchId;
@@ -72,7 +73,7 @@ export const billingRepository = {
   updateCashClosing(id: string, data: Prisma.DailyCashClosingUncheckedUpdateInput) { return prisma.dailyCashClosing.update({ where: { id }, data, include: { branch: true, submittedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } } }); },
 };
 
-async function recalculateInvoice(tx: Prisma.TransactionClient, invoiceId: string) {
+async function recalculateInvoice(tx: DbTransaction, invoiceId: string) {
   const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
   const allocations = await tx.paymentAllocation.aggregate({ where: { invoiceId, payment: { status: 'COMPLETED' } }, _sum: { amount: true } });
   const refunds = await tx.refund.aggregate({ where: { invoiceId, status: 'PROCESSED' }, _sum: { amount: true } });

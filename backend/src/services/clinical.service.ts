@@ -65,20 +65,13 @@ export const clinicalService = {
     return session;
   },
 
-  async deleteSession(patientId: string, sessionId: string) {
-    const patient = await ensurePatient(patientId);
+  async getSession(patientId: string, sessionId: string) {
+    await ensurePatient(patientId);
     const existing = await clinicalRepository.findSession(patientId, sessionId);
     if (!existing) throw new HttpError(404, 'Treatment session not found');
-    const deleted = await clinicalRepository.deleteSession(patientId, sessionId);
-    await timelineRepository.create({
-      leadId: patient.leadId ?? undefined,
-      patientId,
-      type: 'SESSION_CREATED',
-      title: 'Treatment deleted',
-      description: deleted.treatmentTaken ?? deleted.treatmentSuggested ?? undefined,
-    });
-    return deleted;
+    return existing;
   },
+
 
   async listPackages(patientId: string) {
     await ensurePatient(patientId);

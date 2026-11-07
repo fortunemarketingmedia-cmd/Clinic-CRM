@@ -22,14 +22,14 @@ export const patient360Repository = {
         person: true,
         medicalProfile: { include: { versions: { include: { updatedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } } } },
         lead: true,
-        sessions: { include: { package: true, files: true }, orderBy: { visitDate: 'desc' } },
-        clinicalEncounters: { include: encounterInclude, orderBy: { visitDate: 'desc' } },
+        sessions: { where: { deletedAt: null }, include: { package: true, files: { where: { deletedAt: null } } }, orderBy: { visitDate: 'desc' } },
+        clinicalEncounters: { where: { deletedAt: null }, include: encounterInclude, orderBy: { visitDate: 'desc' } },
         treatmentPlans: { include: { assignedDoctor: { select: { id: true, name: true } }, assignedTherapist: { select: { id: true, name: true } }, items: { include: { service: true, practitioner: { select: { id: true, name: true } } } } }, orderBy: { createdAt: 'desc' } },
-        procedureSessions: { include: { practitioner: { select: { id: true, name: true } }, assistant: { select: { id: true, name: true } }, room: true, device: true }, orderBy: { createdAt: 'desc' } },
+        procedureSessions: { where: { deletedAt: null }, include: { practitioner: { select: { id: true, name: true } }, assistant: { select: { id: true, name: true } }, room: true, device: true }, orderBy: { createdAt: 'desc' } },
         prescriptions: { include: { doctor: { select: { id: true, name: true } }, signedBy: { select: { id: true, name: true } }, items: true }, orderBy: { prescribedAt: 'desc' } },
-        packages: { orderBy: { createdAt: 'desc' } },
-        invoices: { include: { items: { orderBy: { sortOrder: 'asc' } }, payments: true }, orderBy: { invoiceDate: 'desc' } },
-        files: { orderBy: { createdAt: 'desc' } },
+        packages: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+        invoices: { where: { deletedAt: null }, include: { items: { orderBy: { sortOrder: 'asc' } }, payments: { where: { deletedAt: null } } }, orderBy: { invoiceDate: 'desc' } },
+        files: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
         timelineEvents: { orderBy: { createdAt: 'desc' }, take: 200 },
       },
     });
@@ -93,6 +93,10 @@ export const patient360Repository = {
 
   listProcedureSessions(patientId: string) {
     return prisma.procedureSession.findMany({ where: { patientId }, include: { practitioner: { select: { id: true, name: true } }, assistant: { select: { id: true, name: true } }, room: true, device: true, treatmentPlan: true }, orderBy: { createdAt: 'desc' } });
+  },
+  findProcedureSession(id: string) { return prisma.procedureSession.findUnique({ where: { id } }); },
+  updateProcedureSession(id: string, data: Prisma.ProcedureSessionUncheckedUpdateInput) {
+    return prisma.procedureSession.update({ where: { id }, data, include: { practitioner: { select: { id: true, name: true } }, assistant: { select: { id: true, name: true } }, room: true, device: true, treatmentPlan: true } });
   },
   findPatientPackage(id: string) { return prisma.treatmentPackage.findUnique({ where: { id } }); },
   createProcedureSession(data: Prisma.ProcedureSessionUncheckedCreateInput, actorId?: string) {

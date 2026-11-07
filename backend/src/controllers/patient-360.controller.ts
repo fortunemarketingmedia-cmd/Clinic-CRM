@@ -9,6 +9,7 @@ import {
   medicineQuerySchema,
   prescriptionSchema,
   procedureSessionSchema,
+  procedureSessionUpdateSchema,
   treatmentPlanSchema,
   treatmentPlanUpdateSchema,
 } from '../validations/patient-360.validation.js';
@@ -29,6 +30,7 @@ export const patient360Controller = {
   async createTreatmentPlan(req: Request, res: Response) { return res.status(201).json({ data: await patient360Service.createTreatmentPlan(req.params.patientId, treatmentPlanSchema.parse(req.body), actor(req)) }); },
   async updateTreatmentPlan(req: Request, res: Response) { return res.json({ data: await patient360Service.updateTreatmentPlan(req.params.id, treatmentPlanUpdateSchema.parse(req.body), actor(req)) }); },
   async listProcedureSessions(req: Request, res: Response) { return res.json({ data: await patient360Service.listProcedureSessions(req.params.patientId, actor(req)) }); },
+  async updateProcedureSession(req: Request, res: Response) { return res.json({ data: await patient360Service.updateProcedureSession(req.params.id, procedureSessionUpdateSchema.parse(req.body), actor(req)) }); },
   async createProcedureSession(req: Request, res: Response) { return res.status(201).json({ data: await patient360Service.createProcedureSession(req.params.patientId, procedureSessionSchema.parse(req.body), actor(req)) }); },
   async listPrescriptions(req: Request, res: Response) { return res.json({ data: await patient360Service.listPrescriptions(req.params.patientId, actor(req)) }); },
   async createPrescription(req: Request, res: Response) { return res.status(201).json({ data: await patient360Service.createPrescription(req.params.patientId, prescriptionSchema.parse(req.body), actor(req)) }); },

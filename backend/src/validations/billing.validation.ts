@@ -15,6 +15,7 @@ export const invoiceSchema = z.object({
 }).refine((value) => value.items?.length || value.serviceName, { message: 'Invoice items are required', path: ['items'] });
 export const invoiceQuerySchema = z.object({ branchId: z.string().optional(), patientId: z.string().optional(), status: z.nativeEnum(InvoiceStatus).optional() });
 export const invoiceIssueSchema = z.object({ dueDate: z.coerce.date().optional(), terms: z.string().optional() });
+export const invoiceUpdateSchema = z.object({ invoiceDate: z.coerce.date().optional(), dueDate: z.coerce.date().nullable().optional(), notes: z.string().optional(), terms: z.string().optional() }).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 export const invoiceCancelSchema = z.object({ reason: z.string().trim().min(3) });
 
 export const paymentSchema = z.object({ patientId: z.string().min(1), branchId: z.string().optional(), amount: z.coerce.number().positive(), mode: z.nativeEnum(PaymentMode), paidAt: z.coerce.date().optional(), reference: z.string().optional(), notes: z.string().optional(), allocations: z.array(z.object({ invoiceId: z.string().min(1), amount: z.coerce.number().positive() })).optional() });
@@ -38,6 +39,7 @@ export const packageMasterSchema = z.object({ branchId: z.string().optional(), n
 export const packageMasterUpdateSchema = packageMasterSchema.partial();
 export const patientPackageSchema = z.object({ patientId: z.string().min(1), packageMasterId: z.string().min(1), branchId: z.string().min(1), startDate: z.coerce.date().optional(), discount: z.coerce.number().min(0).default(0), taxPercent: z.coerce.number().min(0).max(100).optional(), paidAmount: z.coerce.number().min(0).default(0), notes: z.string().optional() });
 export const patientPackageQuerySchema = z.object({ patientId: z.string().optional(), branchId: z.string().optional(), status: z.nativeEnum(PatientPackageStatus).optional() });
+export const patientPackageUpdateSchema = z.object({ name: z.string().trim().min(2).optional(), expiryDate: z.coerce.date().nullable().optional(), totalSessions: z.coerce.number().int().positive().optional(), notes: z.string().optional() }).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 export const packageActionSchema = z.object({ action: z.nativeEnum(PackageLedgerAction), sessions: z.coerce.number().int().positive().default(1), procedureSessionId: z.string().optional(), referencePackageId: z.string().optional(), targetPatientId: z.string().optional(), targetBranchId: z.string().optional(), amount: z.coerce.number().min(0).optional(), effectiveAt: z.coerce.date().optional(), extensionDays: z.coerce.number().int().positive().optional(), notes: z.string().trim().min(2), metadata: z.record(z.string(), z.unknown()).optional() });
 
 export const discountDecisionSchema = z.object({ approved: z.boolean(), notes: z.string().optional() });

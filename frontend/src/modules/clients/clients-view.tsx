@@ -9,10 +9,13 @@ import { Button } from '@/components/ui/button';
 import { SegmentedTabs } from '@/components/ui/data-visuals';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { DeleteRecordButton, EditButton } from '@/components/ui/record-actions';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import { QrRegistrationForm } from '@/modules/qr/qr-registration-form';
+import { LeadEditDialog } from '@/modules/leads/lead-record-actions';
+import { PatientEditDialog } from '@/modules/patients/patient-record-actions';
 import type { Patient } from '@/types/patient';
 import type { Lead } from '@/types/lead';
 import { PaginationControls, type PaginationMeta } from '@/components/ui/pagination-controls';
@@ -44,6 +47,8 @@ export function ClientsView() {
   const [dateTo, setDateTo] = useState('');
   const [recordTab, setRecordTab] = useState<'PATIENTS' | 'LEADS'>('PATIENTS');
   const [showCreatePatient, setShowCreatePatient] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [patientPage, setPatientPage] = useState(1);
   const [leadPage, setLeadPage] = useState(1);
   const { selectedBranchId, session, hasHydrated } = useSessionStore();
@@ -162,7 +167,7 @@ export function ClientsView() {
           <SourceFilter value={source} onChange={setSource} />
         </div>
 
-        <div className="overflow-hidden rounded-md border border-border">
+        <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-muted text-muted-foreground">
               <tr>
@@ -171,6 +176,7 @@ export function ClientsView() {
                 <th className="px-4 py-3 font-medium">Branch</th>
                 <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -184,11 +190,12 @@ export function ClientsView() {
                   <td className="px-4 py-3">{patient.branch?.name}</td>
                   <td className="px-4 py-3">{patient.lead?.source?.replace('_', ' ')}</td>
                   <td className="px-4 py-3">{patient.lead?.status?.replace('_', ' ')}</td>
+                  <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5"><EditButton onClick={() => setEditingPatient(patient)} /><DeleteRecordButton kind="patient" id={patient.id} what="patient" name={`${patient.fullName} · ${patient.patientNo}`} warning="Their open follow-ups, tasks, waitlist entries and upcoming appointments are removed as well." /></div></td>
                 </tr>
               ))}
               {!patientsQuery.isLoading && visiblePatients.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                     No clients found.
                   </td>
                 </tr>
@@ -205,7 +212,7 @@ export function ClientsView() {
         <div className="mb-4 grid gap-3 xl:grid-cols-[minmax(260px,1fr)_190px_180px_150px_150px]"><div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Search name, mobile, or email" value={search} onChange={(event) => setSearch(event.target.value)} /></div><Select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Every lead status</option>{['NEW','UNASSIGNED','ASSIGNED','ATTEMPTING_CONTACT','CONNECTED','QUALIFIED','APPOINTMENT_PROPOSED','APPOINTMENT_BOOKED','NURTURING','BOOKED','CONFIRMED','ARRIVED','CONVERTED','POSTPONED','NOT_ARRIVED','CANCELLED','LOST','DISQUALIFIED'].map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}</Select><SourceFilter value={source} onChange={setSource} /><Input aria-label="Created from" title="Created from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /><Input aria-label="Created to" title="Created to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></div>
         <h2 className="text-base font-semibold">Complete Lead History</h2>
         <p className="mt-1 text-sm text-muted-foreground">Every enquiry is retained, including repeat leads from an existing or former patient.</p>
-        <div className="mt-4 overflow-hidden rounded-md border border-border">
+        <div className="mt-4 overflow-x-auto rounded-md border border-border">
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-muted text-muted-foreground">
               <tr>
@@ -215,6 +222,7 @@ export function ClientsView() {
                 <th className="px-4 py-3 font-medium">Created</th>
                 <th className="px-4 py-3 font-medium">Source</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -229,11 +237,12 @@ export function ClientsView() {
                   <td className="px-4 py-3">{new Date(lead.createdAt).toLocaleString('en-IN')}</td>
                   <td className="px-4 py-3">{lead.source.replaceAll('_', ' ')}</td>
                   <td className="px-4 py-3">{lead.status.replaceAll('_', ' ')}</td>
+                  <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5"><EditButton onClick={() => setEditingLead(lead)} /><DeleteRecordButton kind="lead" id={lead.id} what="lead" name={`${lead.name} · ${lead.mobile}`} warning="Its open follow-ups, tasks and upcoming appointments are removed as well." /></div></td>
                 </tr>
               ))}
               {!leadsQuery.isLoading && leadsQuery.data?.data.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
+                  <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
                     No lead records found.
                   </td>
                 </tr>
@@ -244,6 +253,8 @@ export function ClientsView() {
         <PaginationControls meta={leadsQuery.data?.meta} onPageChange={setLeadPage} />
       </Card>
       ) : null}
+      {editingPatient ? <PatientEditDialog patient={editingPatient} onClose={() => setEditingPatient(null)} onSaved={() => { queryClient.invalidateQueries({ queryKey: ['clients-patients'] }); queryClient.invalidateQueries({ queryKey: ['patients'] }); }} /> : null}
+      {editingLead ? <LeadEditDialog lead={editingLead} onClose={() => setEditingLead(null)} onSaved={() => { queryClient.invalidateQueries({ queryKey: ['master-leads'] }); queryClient.invalidateQueries({ queryKey: ['leads'] }); }} /> : null}
     </section>
   );
 }

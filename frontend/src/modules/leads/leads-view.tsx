@@ -6,6 +6,7 @@ import { Edit3, Link2, Megaphone, Plus, Search, TrendingUp, X } from 'lucide-rea
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { DeleteRecordButton } from '@/components/ui/record-actions';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -729,7 +730,7 @@ export function LeadsView() {
                   <th className="px-4 py-3 font-medium">Mobile / Source</th>
                   <th className="px-4 py-3 font-medium">Branch</th>
                   <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Edit</th>
+                  <th className="px-4 py-3 font-medium">Edit / delete</th>
                 </tr>
               </thead>
 
@@ -758,6 +759,7 @@ export function LeadsView() {
                         <Button type="button" variant="secondary" aria-label="Edit lead" title="Edit lead" className="w-10 px-0" onClick={() => startEdit(lead)}>
                           <Edit3 className="size-4" />
                         </Button>
+                        <DeleteRecordButton kind="lead" id={lead.id} what="lead" name={`${lead.name} · ${lead.mobile}`} iconOnly className="h-10 w-10 px-0" warning="Its open follow-ups, tasks and upcoming appointments are removed as well." />
                       </div>
                     </td>
                   </tr>
@@ -796,6 +798,7 @@ export function LeadsView() {
                   <Edit3 className="size-4" />
                   Edit
                 </Button>
+                <DeleteRecordButton kind="lead" id={selectedLead.id} what="lead" name={`${selectedLead.name} · ${selectedLead.mobile}`} className="h-10 px-4 text-sm" warning="Its open follow-ups, tasks and upcoming appointments are removed as well." onDeleted={() => setSelectedLead(null)} />
                 <Button type="button" variant="secondary" onClick={() => setSelectedLead(null)}>
                   Close
                 </Button>

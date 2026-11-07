@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/select';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/services/api';
+import { AppointmentRecordActions } from '@/modules/appointments/appointment-record-actions';
 import { useSessionStore } from '@/store/session-store';
 import type { AppointmentStatus } from '@/types/appointment';
 import type { QueueAppointment, QueueStage } from '@/types/front-desk';
@@ -277,11 +278,14 @@ function QueueRow({ appointment, queueNumber, isDoctor, saving, onUpdate }: {
       <td className="px-4 py-3 text-muted-foreground">{practitionerName(appointment)}</td>
       <td className="px-4 py-3"><StatusBadge stage={appointment.queueStage} /></td>
       <td className="px-4 py-3 text-right">
-        {action ? (
-          <Button variant={action.status === 'COMPLETED' ? 'primary' : 'secondary'} className="h-8 px-3 text-xs" disabled={saving} onClick={() => onUpdate(action.status)}>
-            {saving ? 'Updating...' : action.label}
-          </Button>
-        ) : <span className="text-xs text-muted-foreground">-</span>}
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {action ? (
+            <Button variant={action.status === 'COMPLETED' ? 'primary' : 'secondary'} className="h-8 px-3 text-xs" disabled={saving} onClick={() => onUpdate(action.status)}>
+              {saving ? 'Updating...' : action.label}
+            </Button>
+          ) : null}
+          <AppointmentRecordActions appointment={appointment} canEdit name={clientName(appointment)} className="flex flex-wrap items-center justify-end gap-1.5" />
+        </div>
       </td>
     </tr>
   );
@@ -310,6 +314,7 @@ function QueueMobileCard({ appointment, queueNumber, isDoctor, saving, onUpdate 
           {saving ? 'Updating...' : action.label}
         </Button>
       )}
+      <AppointmentRecordActions appointment={appointment} canEdit name={clientName(appointment)} className="mt-3 flex flex-wrap items-center gap-1.5" />
     </article>
   );
 }

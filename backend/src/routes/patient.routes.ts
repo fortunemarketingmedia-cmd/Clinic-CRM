@@ -33,7 +33,7 @@ patientRoutes.patch('/:id', (req, res, next) => {
   patientController.update(req, res).catch(next);
 });
 
-patientRoutes.put('/:id/medical-profile', requireRole(Role.ADMIN), (req, res, next) => {
+patientRoutes.put('/:id/medical-profile', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
   patientController.upsertMedicalProfile(req, res).catch(next);
 });
 
@@ -49,7 +49,7 @@ patientRoutes.patch('/:id/sessions/:sessionId', requireRole(Role.ADMIN, Role.REC
   clinicalController.updateSession(req, res).catch(next);
 });
 
-patientRoutes.delete('/:id/sessions/:sessionId', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
+patientRoutes.delete('/:id/sessions/:sessionId', requireRole(Role.ADMIN), (req, res, next) => {
   clinicalController.deleteSession(req, res).catch(next);
 });
 

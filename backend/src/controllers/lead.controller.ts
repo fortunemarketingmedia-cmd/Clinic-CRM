@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { leadService } from '../services/lead.service.js';
+import { recordDeletionService } from '../services/record-deletion.service.js';
 import { HttpError } from '../utils/http-error.js';
 import { createLeadSchema, duplicateLeadQuerySchema, leadQuerySchema, updateLeadSchema, websiteLeadSchema } from '../validations/lead.validation.js';
 import { leadScoringService } from '../services/lead-scoring.service.js';
@@ -77,7 +78,7 @@ export const leadController = {
   async delete(req: Request, res: Response) {
     if (!req.user) throw new HttpError(401, 'Authentication required');
     await leadService.getLead(req.params.id, req.user);
-    await leadService.deleteLead(req.params.id, { userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId });
+    await recordDeletionService.softDelete('lead', req.params.id, req.user.id, { userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId });
     return res.status(204).send();
   },
 };
