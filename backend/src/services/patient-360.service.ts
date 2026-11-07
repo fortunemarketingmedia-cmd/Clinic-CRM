@@ -8,6 +8,7 @@ import type {
   encounterUpdateSchema,
   prescriptionSchema,
   procedureSessionSchema,
+  procedureSessionUpdateSchema,
   treatmentPlanSchema,
   treatmentPlanUpdateSchema,
 } from '../validations/patient-360.validation.js';
@@ -133,6 +134,14 @@ export const patient360Service = {
   },
 
   async listProcedureSessions(patientId: string, actor: Actor) { requireClinicalRole(actor); await requirePatient(patientId, actor); return patient360Repository.listProcedureSessions(patientId); },
+  async updateProcedureSession(id: string, input: z.infer<typeof procedureSessionUpdateSchema>, actor: Actor) {
+    requireClinicalRole(actor); const existing = await patient360Repository.findProcedureSession(id);
+    if (!existing) throw new HttpError(404, 'Sitting not found');
+    await requirePatient(existing.patientId, actor);
+    const updated = await patient360Repository.updateProcedureSession(id, input);
+    await audit(actor, { action: 'PROCEDURE_SESSION_UPDATED', entity: 'ProcedureSession', entityId: id, previousValue: JSON.parse(JSON.stringify(existing)), newValue: JSON.parse(JSON.stringify(input)) });
+    return updated;
+  },
   async createProcedureSession(patientId: string, input: z.infer<typeof procedureSessionSchema>, actor: Actor) {
     requireClinicalRole(actor); const patient = await requirePatient(patientId, actor);
     if (input.branchId !== patient.branchId) throw new HttpError(400, 'Procedure branch must match the patient branch');

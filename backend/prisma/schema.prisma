@@ -1073,6 +1073,8 @@ model Lead {
   closedAt                    DateTime?
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
+  deletedAt                   DateTime?
+  deletedById                 String?
   branch                      Branch                       @relation(fields: [branchId], references: [id])
   createdBy                   User                         @relation("LeadCreatedBy", fields: [createdById], references: [id])
   owner                       User?                        @relation("LeadOwner", fields: [ownerId], references: [id])
@@ -1103,6 +1105,7 @@ model Lead {
   @@index([branchId, status, createdAt])
   @@index([branchId, source, createdAt])
   @@index([createdById])
+  @@index([deletedAt])
 }
 
 model AdLead {
@@ -1175,6 +1178,8 @@ model Appointment {
   rescheduleCount         Int                    @default(0)
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
+  deletedAt               DateTime?
+  deletedById             String?
   lead                    Lead                   @relation(fields: [leadId], references: [id])
   branch                  Branch                 @relation(fields: [branchId], references: [id])
   treatment               Session?
@@ -1204,6 +1209,7 @@ model Appointment {
   @@index([branchId, status, appointmentAt])
   @@index([serviceId])
   @@index([counsellorId, appointmentAt])
+  @@index([deletedAt])
 }
 
 model ClinicService {
@@ -1314,6 +1320,8 @@ model WaitlistEntry {
   appointmentId     String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  deletedAt         DateTime?
+  deletedById       String?
   person            Person         @relation(fields: [personId], references: [id])
   patient           Patient?       @relation(fields: [patientId], references: [id])
   branch            Branch         @relation(fields: [branchId], references: [id])
@@ -1325,6 +1333,7 @@ model WaitlistEntry {
   @@index([branchId, status, preferredFrom])
   @@index([personId])
   @@index([serviceId, status])
+  @@index([deletedAt])
 }
 
 model LeadScoringRule {
@@ -1382,6 +1391,8 @@ model Patient {
   nextVisitAt                 DateTime?
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
+  deletedAt                   DateTime?
+  deletedById                 String?
   lead                        Lead?                        @relation(fields: [leadId], references: [id])
   person                      Person?                      @relation(fields: [personId], references: [id])
   branch                      Branch                       @relation(fields: [branchId], references: [id])
@@ -1415,6 +1426,7 @@ model Patient {
   @@index([assignedDoctorId, status])
   @@index([branchId, createdAt])
   @@index([branchId, status, createdAt])
+  @@index([deletedAt])
 }
 
 model TimelineEvent {
@@ -1496,6 +1508,8 @@ model ClinicalEncounter {
   lockedAt           DateTime?
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
+  deletedAt          DateTime?
+  deletedById        String?
   patient            Patient                     @relation(fields: [patientId], references: [id], onDelete: Cascade)
   appointment        Appointment?                @relation(fields: [appointmentId], references: [id])
   branch             Branch                      @relation(fields: [branchId], references: [id])
@@ -1512,6 +1526,7 @@ model ClinicalEncounter {
   @@index([branchId, visitDate])
   @@index([appointmentId])
   @@index([branchId, createdAt])
+  @@index([deletedAt])
 }
 
 model ClinicalEncounterAddendum {
@@ -1628,13 +1643,17 @@ model ProcedureSession {
   beforeImages          Json?
   afterImages           Json?
   adverseEventFlag      Boolean                @default(false)
+  sittingName           String?
   sittingNumber         Int?
   chartType             String?
   chartMarkings         Json?
+  chartValues           Json?
   status                ProcedureSessionStatus @default(PLANNED)
   performedAt           DateTime?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
+  deletedAt             DateTime?
+  deletedById           String?
   patient               Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
   appointment           Appointment?           @relation(fields: [appointmentId], references: [id])
   encounter             ClinicalEncounter?     @relation(fields: [encounterId], references: [id])
@@ -1657,6 +1676,7 @@ model ProcedureSession {
   @@index([practitionerId, status])
   @@index([branchId, status])
   @@index([treatmentPlanId])
+  @@index([deletedAt])
 }
 
 model Medicine {
@@ -1953,6 +1973,8 @@ model FollowUp {
   completedById        String?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  deletedAt            DateTime?
+  deletedById          String?
   person               Person            @relation(fields: [personId], references: [id])
   lead                 Lead?             @relation(fields: [leadId], references: [id])
   patient              Patient?          @relation(fields: [patientId], references: [id])
@@ -1967,6 +1989,7 @@ model FollowUp {
   @@index([leadId])
   @@index([patientId])
   @@index([personId])
+  @@index([deletedAt])
 }
 
 model Task {
@@ -1993,6 +2016,8 @@ model Task {
   completedAt          DateTime?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
+  deletedAt            DateTime?
+  deletedById          String?
   assignedUser         User         @relation("TaskAssignee", fields: [assignedUserId], references: [id])
   createdBy            User         @relation("TaskCreator", fields: [createdById], references: [id])
   completedBy          User?        @relation("TaskCompleter", fields: [completedById], references: [id])
@@ -2006,6 +2031,7 @@ model Task {
   @@index([branchId, status, dueAt])
   @@index([leadId])
   @@index([patientId])
+  @@index([deletedAt])
 }
 
 model CallLog {
@@ -2074,6 +2100,8 @@ model Session {
   packageId           String?
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
+  deletedById         String?
   patient             Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
   appointment         Appointment?      @relation(fields: [appointmentId], references: [id])
   package             TreatmentPackage? @relation(fields: [packageId], references: [id])
@@ -2083,6 +2111,7 @@ model Session {
   @@index([appointmentId])
   @@index([visitDate])
   @@index([followupDate])
+  @@index([deletedAt])
 }
 
 model PackageMaster {
@@ -2136,6 +2165,8 @@ model TreatmentPackage {
   notes                 String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
+  deletedAt             DateTime?
+  deletedById           String?
   patient               Patient                @relation(fields: [patientId], references: [id], onDelete: Cascade)
   branch                Branch                 @relation(fields: [branchId], references: [id])
   packageMaster         PackageMaster?         @relation(fields: [packageMasterId], references: [id])
@@ -2149,6 +2180,7 @@ model TreatmentPackage {
   @@index([branchId, status])
   @@index([packageMasterId])
   @@index([expiryDate, status])
+  @@index([deletedAt])
 }
 
 model PackageSessionLedger {
@@ -2257,6 +2289,8 @@ model Invoice {
   collectionNotes       String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
+  deletedAt             DateTime?
+  deletedById           String?
   estimate              Estimate?              @relation(fields: [estimateId], references: [id])
   patient               Patient                @relation(fields: [patientId], references: [id])
   branch                Branch                 @relation(fields: [branchId], references: [id])
@@ -2276,6 +2310,7 @@ model Invoice {
   @@index([invoiceDate])
   @@index([dueDate, status])
   @@index([collectionOwnerId, nextFollowUpAt])
+  @@index([deletedAt])
 }
 
 model InvoiceItem {
@@ -2323,6 +2358,8 @@ model Payment {
   reversalReason  String?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
+  deletedAt       DateTime?
+  deletedById     String?
   patient         Patient             @relation(fields: [patientId], references: [id])
   branch          Branch              @relation(fields: [branchId], references: [id])
   invoice         Invoice?            @relation(fields: [invoiceId], references: [id])
@@ -2335,6 +2372,7 @@ model Payment {
   @@index([branchId, paidAt])
   @@index([invoiceId])
   @@index([status])
+  @@index([deletedAt])
 }
 
 model PaymentAllocation {
@@ -2842,6 +2880,8 @@ model PatientFile {
   optimizationStatus    String             @default("NOT_REQUIRED")
   uploadIdempotencyKey  String?            @unique
   createdAt             DateTime           @default(now())
+  deletedAt             DateTime?
+  deletedById           String?
   patient               Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
   session               Session?           @relation(fields: [sessionId], references: [id])
   invoice               Invoice?           @relation(fields: [invoiceId], references: [id])
@@ -2861,6 +2901,7 @@ model PatientFile {
   @@index([patientId, fileType, createdAt])
   @@index([originalFileId])
   @@unique([originalFileId, variant])
+  @@index([deletedAt])
 }
 
 model WhatsAppAccount {

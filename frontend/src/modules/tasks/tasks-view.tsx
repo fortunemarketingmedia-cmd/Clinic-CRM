@@ -10,7 +10,9 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
+import { TaskRecordActions } from '@/modules/follow-ups/work-record-actions';
 import { useSessionStore } from '@/store/session-store';
+import type { Branch } from '@/types/branch';
 import type { Task, WorkStatus } from '@/types/foundation';
 import type { StaffMember } from '@/types/front-desk';
 
@@ -21,6 +23,9 @@ export function TasksView() {
   const [assigneeFilter, setAssigneeFilter] = useState('ME');
   const [showCreate, setShowCreate] = useState(false);
   const [taskForm, setTaskForm] = useState({ title: '', description: '', type: 'GENERAL', priority: 'MEDIUM', dueAt: '', reminderAt: '', assignedUserId: '' });
+  // Branch for the new task: the top-bar branch, or — when "All branches" is selected — chosen in the form.
+  const [formBranchId, setFormBranchId] = useState('');
+  const taskBranchId = formBranchId || selectedBranchId || '';
   const [completingTask, setCompletingTask] = useState<Task | null>(null);
   const [completionNotes, setCompletionNotes] = useState('');
   const params = new URLSearchParams();
@@ -35,15 +40,29 @@ export function TasksView() {
     enabled: Boolean(session && selectedBranchId),
   });
   const staff = staffQuery.data?.data ?? [];
+  const branchesQuery = useQuery({ queryKey: ['branches'], queryFn: () => apiRequest<{ data: Branch[] }>('/branches'), enabled: Boolean(session && showCreate) });
+  const branches = branchesQuery.data?.data ?? [];
+  const formStaffQuery = useQuery({
+    queryKey: ['task-assignees', taskBranchId],
+    queryFn: () => apiRequest<{ data: StaffMember[] }>(`/front-desk/staff?branchId=${encodeURIComponent(taskBranchId)}`),
+    enabled: Boolean(session && showCreate && taskBranchId),
+  });
+  const formStaff = taskBranchId ? formStaffQuery.data?.data ?? [] : [];
 
   useEffect(() => {
-    if (!staff.length) return;
     setTaskForm((current) => {
-      if (staff.some((member) => member.id === current.assignedUserId)) return current;
-      const defaultAssignee = staff.find((member) => member.id === session?.user.id)?.id ?? staff[0].id;
-      return { ...current, assignedUserId: defaultAssignee };
+      if (formStaff.some((member) => member.id === current.assignedUserId)) return current;
+      const defaultAssignee = formStaff.find((member) => member.id === session?.user.id)?.id ?? formStaff[0]?.id ?? '';
+      return current.assignedUserId === defaultAssignee ? current : { ...current, assignedUserId: defaultAssignee };
     });
-  }, [session?.user.id, staffQuery.data]);
+  }, [session?.user.id, formStaffQuery.data, taskBranchId]);
+
+  const missing = [
+    !taskBranchId && 'branch',
+    !taskForm.title.trim() && 'task title',
+    !taskForm.dueAt && 'due date and time',
+    !taskForm.assignedUserId && 'team member',
+  ].filter(Boolean) as string[];
 
   useEffect(() => {
     setAssigneeFilter('ME');
@@ -65,7 +84,7 @@ export function TasksView() {
         description: taskForm.description || undefined,
         reminderAt: taskForm.reminderAt ? new Date(taskForm.reminderAt).toISOString() : defaultReminder,
         assignedUserId: taskForm.assignedUserId,
-        branchId: selectedBranchId,
+        branchId: taskBranchId,
         automaticallyCreated: false,
       }),
       });
@@ -115,7 +134,6 @@ export function TasksView() {
           <p className="text-sm text-muted-foreground">
             Assigned operational work across CRM, appointments, and patient journeys.
           </p>
-          {!selectedBranchId ? <p className="mt-1 text-sm font-medium text-amber-700">Select a specific branch from the top bar before adding a task.</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Select
@@ -143,7 +161,7 @@ export function TasksView() {
             <option value="OVERDUE">Overdue</option>
             <option value="CANCELLED">Cancelled</option>
           </Select>
-          <Button type="button" disabled={!selectedBranchId} onClick={() => setShowCreate((value) => !value)}>
+          <Button type="button" onClick={() => { if (!showCreate) setFormBranchId(selectedBranchId ?? ''); setShowCreate((value) => !value); }}>
             {showCreate ? <X className="size-4" /> : <Plus className="size-4" />}
             {showCreate ? 'Close' : 'Add task'}
           </Button>
@@ -152,24 +170,26 @@ export function TasksView() {
 
       {showCreate ? (
         <Card className="border-primary/30 bg-primary/5">
-          <div><h2 className="font-semibold">Create a task</h2><p className="mt-1 text-sm text-muted-foreground">Assign work to an active receptionist or team member in this branch.</p></div>
+          <div><h2 className="font-semibold">Create a task</h2><p className="mt-1 text-sm text-muted-foreground">Assign work to an active receptionist or team member of the chosen branch. Fields marked <span className="font-semibold text-red-600">*</span> are required.</p></div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Input placeholder="Task title" value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} />
-            <Select value={taskForm.type} onChange={(event) => setTaskForm((current) => ({ ...current, type: event.target.value }))}>
+            <label className="block text-xs text-muted-foreground md:col-span-2">Branch <span className="font-semibold text-red-600">*</span><Select className="mt-1 w-full" aria-label="Task branch" value={taskBranchId} onChange={(event) => { setFormBranchId(event.target.value); setTaskForm((current) => ({ ...current, assignedUserId: '' })); }}><option value="">{branchesQuery.isLoading ? 'Loading branches...' : 'Select branch'}</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</Select>{!selectedBranchId ? <span className="mt-1 block text-amber-700">You are viewing all branches. Choose which branch this task belongs to.</span> : null}</label>
+            <label className="block text-xs text-muted-foreground">Task title <span className="font-semibold text-red-600">*</span><Input className="mt-1" placeholder="e.g. Call patient about HIFU sitting" value={taskForm.title} onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))} /></label>
+            <label className="block text-xs text-muted-foreground">Task type<Select className="mt-1 w-full" value={taskForm.type} onChange={(event) => setTaskForm((current) => ({ ...current, type: event.target.value }))}>
               <option value="GENERAL">General task</option>
               <option value="CALL">Call</option>
               <option value="APPOINTMENT">Appointment</option>
               <option value="PATIENT_SUPPORT">Patient support</option>
               <option value="DOCUMENT_REVIEW">Document review</option>
-            </Select>
-            <Input className="md:col-span-2" placeholder="Description (optional)" value={taskForm.description} onChange={(event) => setTaskForm((current) => ({ ...current, description: event.target.value }))} />
-            <label className="block text-xs text-muted-foreground">Due date and time<Input className="mt-1" type="datetime-local" value={taskForm.dueAt} onChange={(event) => setTaskForm((current) => ({ ...current, dueAt: event.target.value }))} /></label>
+            </Select></label>
+            <label className="block text-xs text-muted-foreground md:col-span-2">Description (optional)<Input className="mt-1" placeholder="Details the assignee needs to know" value={taskForm.description} onChange={(event) => setTaskForm((current) => ({ ...current, description: event.target.value }))} /></label>
+            <label className="block text-xs text-muted-foreground">Due date and time <span className="font-semibold text-red-600">*</span><Input className="mt-1" type="datetime-local" value={taskForm.dueAt} onChange={(event) => setTaskForm((current) => ({ ...current, dueAt: event.target.value }))} /></label>
             <label className="block text-xs text-muted-foreground">Notification time (optional)<Input className="mt-1" type="datetime-local" value={taskForm.reminderAt} onChange={(event) => setTaskForm((current) => ({ ...current, reminderAt: event.target.value }))} /><span className="mt-1 block">Defaults to 15 minutes before the task is due.</span></label>
             <label className="block text-xs text-muted-foreground">Priority<Select className="mt-1 w-full" value={taskForm.priority} onChange={(event) => setTaskForm((current) => ({ ...current, priority: event.target.value }))}><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></Select></label>
-            <label className="block text-xs text-muted-foreground md:col-span-2">Assign to<Select className="mt-1 w-full" value={taskForm.assignedUserId} onChange={(event) => setTaskForm((current) => ({ ...current, assignedUserId: event.target.value }))}><option value="">Select team member</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></label>
+            <label className="block text-xs text-muted-foreground md:col-span-2">Assign to <span className="font-semibold text-red-600">*</span><Select className="mt-1 w-full" value={taskForm.assignedUserId} disabled={!taskBranchId} onChange={(event) => setTaskForm((current) => ({ ...current, assignedUserId: event.target.value }))}><option value="">{!taskBranchId ? 'Select the branch first' : formStaffQuery.isLoading ? 'Loading team...' : 'Select team member'}</option>{formStaff.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></label>
           </div>
+          {missing.length ? <p className="mt-3 text-sm text-amber-700">Still needed: {missing.join(', ')}.</p> : null}
           {create.isError ? <p className="mt-3 text-sm text-red-600">{create.error.message}</p> : null}
-          <div className="mt-4 flex gap-2"><Button disabled={!taskForm.title.trim() || !taskForm.dueAt || !taskForm.assignedUserId || !selectedBranchId || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Creating...' : 'Create task'}</Button><Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button></div>
+          <div className="mt-4 flex gap-2"><Button disabled={missing.length > 0 || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Creating...' : 'Create task'}</Button><Button type="button" variant="secondary" onClick={() => setShowCreate(false)}>Cancel</Button></div>
         </Card>
       ) : null}
 
@@ -272,6 +292,7 @@ export function TasksView() {
                       Complete
                     </Button>
                   ) : null}
+                  <TaskRecordActions task={task} />
                 </div>
               </article>
             ))}

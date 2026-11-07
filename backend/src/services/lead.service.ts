@@ -371,14 +371,4 @@ export const leadService = {
 
     return updated;
   },
-
-  async deleteLead(id: string, audit?: AuditContext) {
-    const lead = await this.getLead(id);
-    await leadRepository.delete(id);
-    if (audit)
-      await auditService.record(
-        { ...audit, branchId: lead.branchId },
-        { action: 'LEAD_DELETED', entity: 'Lead', entityId: id },
-      );
-  },
 };

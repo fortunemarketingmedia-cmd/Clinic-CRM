@@ -13,7 +13,17 @@ export const convertLeadSchema = z.object({
   maritalStatus: z.string().optional(),
 });
 
-export const updatePatientSchema = convertLeadSchema.omit({ leadId: true }).partial();
+// Unlike lead conversion, editing must also support clearing an optional value.
+export const updatePatientSchema = z.object({
+  fullName: z.string().min(2).optional(),
+  mobile: z.string().min(8).optional(),
+  email: z.string().email().nullable().optional(),
+  age: z.coerce.number().int().positive().nullable().optional(),
+  sex: z.nativeEnum(Sex).nullable().optional(),
+  address: z.string().nullable().optional(),
+  occupation: z.string().nullable().optional(),
+  maritalStatus: z.string().nullable().optional(),
+});
 
 export const createPatientSchema = z.object({
   branchId: z.string().min(1),

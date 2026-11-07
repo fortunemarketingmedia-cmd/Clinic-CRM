@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma, type InventoryAlertType, type PurchaseOrderStatus, type StockState, type StockTransferStatus } from '@prisma/client';
-import { prisma } from '../config/db.js';
+import { prisma, type DbTransaction } from '../config/db.js';
 import { assertStockAvailable, purchaseOrderTotals, quantity } from '../services/inventory-policy.js';
 import { HttpError } from '../utils/http-error.js';
 
 const number = (prefix: string) => `${prefix}-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
-type Tx = Prisma.TransactionClient;
+type Tx = DbTransaction;
 type BalanceColumn = 'availableQuantity' | 'reservedQuantity' | 'damagedQuantity' | 'expiredQuantity' | 'inTransitQuantity';
 const columnFor = (state: StockState): BalanceColumn => ({ AVAILABLE: 'availableQuantity', RESERVED: 'reservedQuantity', DAMAGED: 'damagedQuantity', EXPIRED: 'expiredQuantity', IN_TRANSIT: 'inTransitQuantity' })[state] as BalanceColumn;
 

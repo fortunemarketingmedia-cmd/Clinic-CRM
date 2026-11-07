@@ -4,6 +4,7 @@ import { HttpError } from '../utils/http-error.js';
 import {
   completeFollowUpSchema,
   createFollowUpSchema,
+  updateFollowUpSchema,
   workQuerySchema,
 } from '../validations/work.validation.js';
 
@@ -35,6 +36,10 @@ export const followUpController = {
           context(req),
         ),
       });
+  },
+  async update(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    res.json({ data: await followUpService.update(req.params.id, updateFollowUpSchema.parse(req.body), req.user.id, req.user.role, context(req)) });
   },
   async complete(req: Request, res: Response) {
     if (!req.user) throw new HttpError(401, 'Authentication required');

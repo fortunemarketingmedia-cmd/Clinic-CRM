@@ -21,6 +21,7 @@ import { usePathname } from 'next/navigation';
 import { useLayoutEffect, useRef } from 'react';
 import type { Role } from '@/constants/roles';
 import { cn } from '@/lib/utils';
+import { useReminderNotifications } from '@/modules/notifications/use-reminder-notifications';
 
 const allOperational: Role[] = ['ADMIN', 'RECEPTIONIST'];
 const crmRoles: Role[] = ['ADMIN', 'RECEPTIONIST'];
@@ -80,6 +81,8 @@ export const navigationItems = navigationSections.flatMap((section) => section.i
 export function Sidebar({ role, collapsed, onToggle }: { role: Role; collapsed: boolean; onToggle: () => void }) {
   const pathname = usePathname();
   const sidebarRef = useRef<HTMLElement>(null);
+  const reminderQuery = useReminderNotifications();
+  const reminderCount = reminderQuery.data?.count ?? 0;
 
   useLayoutEffect(() => {
     const sidebar = sidebarRef.current;
@@ -133,7 +136,7 @@ export function Sidebar({ role, collapsed, onToggle }: { role: Role; collapsed: 
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'flex h-10 items-center gap-3 rounded-md px-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
+                      'relative flex h-10 items-center gap-3 rounded-md px-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground',
                       collapsed && 'justify-center px-0',
                       pathname === item.href &&
                         'bg-primary/10 font-medium text-primary ring-1 ring-primary/15',
@@ -141,6 +144,7 @@ export function Sidebar({ role, collapsed, onToggle }: { role: Role; collapsed: 
                   >
                     <item.icon className="size-4 shrink-0" />
                     <span className={cn(collapsed && 'sr-only')}>{item.label}</span>
+                    {item.href === '/notifications' && reminderCount > 0 ? <span className={cn('grid min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-5 text-white', collapsed ? 'absolute -right-1 -top-1' : 'ml-auto')}>{Math.min(reminderCount, 99)}</span> : null}
                   </Link>
                 ))}
               </div>

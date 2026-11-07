@@ -21,9 +21,9 @@ export const followUpRepository = {
       data: { nextAction, nextActionDueAt: dueAt, nextFollowupAt: dueAt },
     });
   },
-  list(filters: { branchId?: string; assignedUserId?: string; status?: WorkStatus; dueFrom?: Date; dueTo?: Date; scope?: 'ACTIVE_LEADS' | 'ALL' }) {
+  list(filters: { branchId?: string; assignedUserId?: string; status?: WorkStatus; dueFrom?: Date; dueTo?: Date; scope?: 'ACTIVE_LEADS' | 'ALL'; patientId?: string }) {
     return prisma.followUp.findMany({
-      where: { branchId: filters.branchId, assignedUserId: filters.assignedUserId, status: filters.status,
+      where: { branchId: filters.branchId, assignedUserId: filters.assignedUserId, status: filters.status, patientId: filters.patientId,
         OR: filters.scope === 'ALL' ? undefined : [{ leadId: null }, { lead: { status: { notIn: clientPipelineLeadStatuses } } }],
         dueAt: filters.dueFrom || filters.dueTo ? { gte: filters.dueFrom, lte: filters.dueTo } : undefined },
       include: { person: true, lead: true, patient: true, assignedUser: { select: { id: true, name: true } }, branch: true },
@@ -36,11 +36,15 @@ export const followUpRepository = {
       data: { status: 'COMPLETED', completedAt: new Date(), outcome },
     });
   },
+  findPatient(id: string) { return prisma.patient.findUnique({ where: { id }, select: { id: true, branchId: true, personId: true, leadId: true, fullName: true, mobile: true, email: true } }); },
   findById(id: string) { return prisma.followUp.findUnique({ where: { id }, include: { lead: true, person: true } }); },
   create(data: { personId: string; leadId?: string; patientId?: string; assignedUserId: string; branchId: string;
     activityType: string; channel: ActivityChannel; direction: ActivityDirection; dueAt: Date; notes?: string;
     reminderAt?: Date; priority: WorkPriority; source?: string; relatedAppointmentId?: string; createdById: string }) {
     return prisma.followUp.create({ data, include: { person: true, lead: true, patient: true, assignedUser: true, branch: true } });
+  },
+  update(id: string, data: { activityType?: string; channel?: ActivityChannel; dueAt?: Date; reminderAt?: Date; notes?: string; priority?: WorkPriority; assignedUserId?: string; status?: WorkStatus }) {
+    return prisma.followUp.update({ where: { id }, data, include: { person: true, lead: true, patient: true, assignedUser: { select: { id: true, name: true } }, branch: true } });
   },
   complete(id: string, data: { outcome: string; notes?: string; nextAction?: string; nextFollowUpAt?: Date; completedById: string }) {
     return prisma.followUp.update({ where: { id }, data: { ...data, status: 'COMPLETED', completedAt: new Date() }, include: { lead: true, person: true } });

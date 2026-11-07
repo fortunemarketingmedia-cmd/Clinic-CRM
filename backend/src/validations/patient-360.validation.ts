@@ -57,10 +57,20 @@ export const procedureSessionSchema = z.object({
   immediateReaction: optionalText, complication: optionalText, postCareInstructions: optionalText, followUpDate: z.coerce.date().optional(),
   beforeImages: z.array(z.string()).optional(), afterImages: z.array(z.string()).optional(), adverseEventFlag: z.boolean().default(false),
   status: z.nativeEnum(ProcedureSessionStatus).default('PLANNED'), performedAt: z.coerce.date().optional(),
-  // Sitting record chart (clinic "Stages" sheet): sitting number and treated areas marked on the face or body diagram.
-  sittingNumber: z.number().int().min(1).max(500).optional(), chartType: z.enum(['FACE', 'BODY']).optional(),
+  // Sitting record chart (clinic "Stages" sheets): named face/body chart, HIFU face & neck KJ boxes, or manual details.
+  sittingName: z.string().trim().min(1).max(120).optional(),
+  sittingNumber: z.number().int().min(1).max(500).optional(), chartType: z.enum(['FACE', 'BODY', 'HIFU', 'OTHER']).optional(),
   chartMarkings: z.array(z.object({ points: z.array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)])).min(1).max(1000) })).max(200).optional(),
+  // HIFU "Face & Neck Patient Record": KJ written in each box, keyed by box id (depth, side, number), e.g. "d45-R1".
+  chartValues: z.record(z.string().regex(/^d(45|30|15)-[RLC]\d{1,2}$/), z.string().trim().min(1).max(12))
+    .refine((values) => Object.keys(values).length <= 100, 'Too many chart values').optional(),
 });
+
+// Editing a recorded sitting: the record details only. Status and package deduction are set when it is recorded.
+export const procedureSessionUpdateSchema = procedureSessionSchema.pick({
+  sittingName: true, sittingNumber: true, chartType: true, chartMarkings: true, chartValues: true, deviceParameters: true,
+  treatmentArea: true, procedureNotes: true, postCareInstructions: true, performedAt: true, practitionerId: true,
+}).partial().refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 
 const prescriptionItemSchema = z.object({
   medicineId: z.string().optional(), medicineName: z.string().trim().min(2), genericName: optionalText, strength: optionalText,

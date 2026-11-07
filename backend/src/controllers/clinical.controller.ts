@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { clinicalService } from '../services/clinical.service.js';
+import { recordDeletionService } from '../services/record-deletion.service.js';
 import { fileSchema, packageSchema, sessionSchema, updateSessionSchema } from '../validations/clinical.validation.js';
 import { formsService } from '../services/forms.service.js';
 import { HttpError } from '../utils/http-error.js';
@@ -38,7 +39,8 @@ export const clinicalController = {
 
   async deleteSession(req: Request, res: Response) {
     await assertPatientAccess(req);
-    await clinicalService.deleteSession(req.params.id, req.params.sessionId);
+    const session = await clinicalService.getSession(req.params.id, req.params.sessionId);
+    await recordDeletionService.softDelete('treatment-record', session.id, req.user!.id, { userId: req.user!.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId });
     return res.status(204).send();
   },
 

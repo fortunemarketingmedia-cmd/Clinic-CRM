@@ -1,6 +1,8 @@
+import { Role } from '@prisma/client';
 import { Router } from 'express';
 import { leadController } from '../controllers/lead.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireRole } from '../middleware/role.js';
 
 export const leadRoutes = Router();
 
@@ -38,6 +40,6 @@ leadRoutes.patch('/:id', (req, res, next) => {
   leadController.update(req, res).catch(next);
 });
 
-leadRoutes.delete('/:id', (req, res, next) => {
+leadRoutes.delete('/:id', requireRole(Role.ADMIN), (req, res, next) => {
   leadController.delete(req, res).catch(next);
 });

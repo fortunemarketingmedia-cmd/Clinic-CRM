@@ -42,7 +42,7 @@ export const personRepository = {
             ]
           : undefined,
       },
-      include: { preferredBranch: true, patient: true, _count: { select: { leads: true } } },
+      include: { preferredBranch: true, patient: true, _count: { select: { leads: { where: { deletedAt: null } } } } },
       orderBy: { updatedAt: 'desc' },
       take: filters.take,
     });
@@ -53,7 +53,7 @@ export const personRepository = {
       where: { id },
       include: {
         preferredBranch: true,
-        leads: { include: { branch: true, owner: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
+        leads: { where: { deletedAt: null }, include: { branch: true, owner: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
         patient: { include: { branch: true } },
       },
     });

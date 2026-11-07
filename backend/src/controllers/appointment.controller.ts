@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { AppointmentResource, AppointmentStatus, Role } from '@prisma/client';
 import { appointmentService } from '../services/appointment.service.js';
+import { recordDeletionService } from '../services/record-deletion.service.js';
 import { HttpError } from '../utils/http-error.js';
 import {
   appointmentQuerySchema,
@@ -69,7 +70,7 @@ export const appointmentController = {
   async delete(req: Request, res: Response) {
     if (!req.user) throw new HttpError(401, 'Authentication required');
     await appointmentService.getAppointment(req.params.id, req.user);
-    await appointmentService.deleteAppointment(req.params.id);
+    await recordDeletionService.softDelete('appointment', req.params.id, req.user.id, { userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId });
     return res.status(204).send();
   },
 };
