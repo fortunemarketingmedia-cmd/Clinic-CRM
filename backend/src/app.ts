@@ -40,6 +40,7 @@ import { metricsService } from './services/metrics.service.js';
 import { realtimeService } from './services/realtime.service.js';
 import { realtimeRoutes } from './routes/realtime.routes.js';
 import { medicineRoutes } from './routes/medicine.routes.js';
+import { recordRoutes } from './routes/record.routes.js';
 
 export const app = express();
 
@@ -197,6 +198,7 @@ app.use('/api/integrations', integrationRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/security', securityRoutes);
+app.use('/api/records', recordRoutes);
 app.use('/api/audit', auditRoutes);
 
 app.use((req, _res, next) => {

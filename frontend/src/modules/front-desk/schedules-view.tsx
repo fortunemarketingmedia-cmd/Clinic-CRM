@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { DeleteRecordButton } from '@/components/ui/record-actions';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -533,12 +534,14 @@ function RoomWorkflowActions({ appointment, saving, onAction, onReschedule }: { 
   const role = session?.user.role;
   const isReceptionist = role === 'RECEPTIONIST';
   const canCheckoutRoom = role === 'ADMIN' || role === 'RECEPTIONIST';
-  const awaitingCheckIn = isReceptionist && ['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED', 'RESCHEDULED'].includes(appointment.status);
+  const notStarted = ['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED', 'RESCHEDULED'].includes(appointment.status);
+  const awaitingCheckIn = isReceptionist && notStarted;
   return <div className="mt-3 flex flex-wrap gap-1.5">
-    {awaitingCheckIn ? <Button type="button" variant="secondary" className="h-8 px-2 text-xs" onClick={onReschedule}>Reschedule</Button> : null}
+    {(isReceptionist || role === 'ADMIN') && notStarted ? <Button type="button" variant="secondary" className="h-8 px-2 text-xs" onClick={onReschedule}>Edit / reschedule</Button> : null}
     {awaitingCheckIn ? <Button type="button" className="h-8 px-2 text-xs" disabled={saving} onClick={() => onAction('CHECK_IN')}>{saving ? 'Checking in...' : 'Check in'}</Button> : null}
     {awaitingCheckIn ? <Button type="button" variant="secondary" className="h-8 px-2 text-xs" disabled={saving} onClick={() => onAction('CANCELLED')}>Cancel</Button> : null}
     {canCheckoutRoom && ['CHECKED_IN', 'WAITING', 'IN_CONSULTATION', 'TREATMENT_IN_PROGRESS'].includes(appointment.status) ? <Button type="button" className="h-8 px-2 text-xs" disabled={saving} onClick={() => onAction('CHECKOUT')}>{saving ? 'Checking out...' : 'Checkout'}</Button> : null}
+    <DeleteRecordButton kind="appointment" id={appointment.id} what="appointment" name={`${appointment.lead?.name ?? 'Room booking'} · ${new Date(appointment.appointmentAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}`} />
   </div>;
 }
 

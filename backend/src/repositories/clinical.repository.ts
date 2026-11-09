@@ -5,7 +5,7 @@ export const clinicalRepository = {
   listSessions(patientId: string) {
     return prisma.session.findMany({
       where: { patientId },
-      include: { package: true, files: true, appointment: { include: { branch: true } } },
+      include: { package: true, files: { where: { deletedAt: null } }, appointment: { include: { branch: true } } },
       orderBy: { visitDate: 'desc' },
     });
   },
@@ -54,13 +54,13 @@ export const clinicalRepository = {
 
       return tx.session.findUniqueOrThrow({
         where: { id: session.id },
-        include: { package: true, files: true, appointment: { include: { branch: true } } },
+        include: { package: true, files: { where: { deletedAt: null } }, appointment: { include: { branch: true } } },
       });
     });
   },
 
   findSession(patientId: string, sessionId: string) {
-    return prisma.session.findFirst({ where: { id: sessionId, patientId }, include: { package: true, files: true } });
+    return prisma.session.findFirst({ where: { id: sessionId, patientId }, include: { package: true, files: { where: { deletedAt: null } } } });
   },
 
   updateSession(patientId: string, sessionId: string, data: Partial<{
@@ -133,7 +133,7 @@ export const clinicalRepository = {
       return tx.session.update({
         where: { id: sessionId },
         data,
-        include: { package: true, files: true, appointment: { include: { branch: true } } },
+        include: { package: true, files: { where: { deletedAt: null } }, appointment: { include: { branch: true } } },
       });
     });
   },

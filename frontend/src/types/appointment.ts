@@ -34,6 +34,7 @@ export type Appointment = {
   serviceId?: string | null;
   doctorId?: string | null;
   therapistId?: string | null;
+  counsellorId?: string | null;
   resourceId?: string | null;
   equipmentId?: string | null;
   service?: ClinicService | null;

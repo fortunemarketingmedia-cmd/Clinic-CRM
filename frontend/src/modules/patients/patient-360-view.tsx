@@ -3,26 +3,32 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, CalendarCheck2, CircleDollarSign, Download, HeartPulse, Plus, Printer, ReceiptText, Search, ShieldAlert, Stethoscope, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { DeleteRecordButton, EditButton, LockedBadge } from '@/components/ui/record-actions';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { apiBlob, apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Appointment, ClinicResource } from '@/types/appointment';
 import type { Branch } from '@/types/branch';
-import type { Patient360 } from '@/types/clinical';
+import type { ClinicalEncounter, Patient360 } from '@/types/clinical';
 import type { StaffMember } from '@/types/front-desk';
+import type { PatientSession, TreatmentPackage } from '@/types/patient';
+import { AppointmentRecordActions } from '../appointments/appointment-record-actions';
 import { ConsultationBookingDialog } from '../appointments/consultation-booking-dialog';
 import { RoomBookingDialog } from '../front-desk/schedules-view';
+import { PatientFollowUpsPanel } from './patient-follow-ups-panel';
 import { PatientDocumentsPanel, PatientGalleryPanel } from './patient-forms-files-panel';
+import { EncounterEditDialog, InvoiceEditDialog, PackageEditDialog, PatientEditDialog, TreatmentRecordEditDialog } from './patient-record-actions';
 import { PatientStagesPanel } from './patient-stages-panel';
 import { PatientTreatmentPanel } from './patient-treatment-panel';
 import { TreatmentConsentsCard } from './signed-consents';
 
-const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Treatment Stages', 'Documents'] as const;
+const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Treatment Stages', 'Documents', 'Follow-ups'] as const;
 type Tab = typeof tabs[number];
 type MedicineOption = { id: string; name: string; genericName?: string | null; strength?: string | null; form?: string | null };
 type PackageMasterOption = { id: string; branchId?: string | null; name: string; totalSessions: number; validityDays: number; price: string; taxPercent: string; active: boolean };
@@ -52,6 +58,8 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
   const { session } = useSessionStore();
   const [tab, setTab] = useState<Tab>('Overview');
   const [composer, setComposer] = useState<'encounter' | 'prescription' | null>(null);
+  const [editingPatient, setEditingPatient] = useState(false);
+  const router = useRouter();
   const patientQuery = useQuery({ queryKey: ['patient-360', patientId], queryFn: () => apiRequest<{ data: Patient360 }>(`/clinical/patients/${patientId}/360`) });
   const patient = patientQuery.data?.data;
   const canClinical = Boolean(session && clinicalRoles.includes(session.user.role));
@@ -86,7 +94,11 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
   return <section className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>{!embedded ? <Link href="/clients" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Master records</Link> : null}<h1 className="text-2xl font-semibold">{patient.fullName}</h1><p className="text-sm text-muted-foreground">{patient.patientNo} - {patient.mobile} - {patient.branch?.name}</p></div>
-      {canStartConsultation && activeConsultation ? <Button type="button" disabled={startConsultation.isPending} onClick={() => startConsultation.mutate()}><Stethoscope className="size-4" />{startConsultation.isPending ? 'Starting...' : activeConsultation.status === 'IN_CONSULTATION' ? 'Continue consultancy' : 'Start consultancy'}</Button> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        {canOperate ? <EditButton label="Edit details" className="h-10 px-3 text-sm" onClick={() => setEditingPatient(true)} /> : null}
+        <DeleteRecordButton kind="patient" id={patient.id} what="patient" name={`${patient.fullName} · ${patient.patientNo}`} className="h-10 px-3 text-sm" warning="Their open follow-ups, tasks, waitlist entries and upcoming appointments are removed as well. Bills, signed consents and prescriptions stay in the audit records." onDeleted={() => router.push('/clients')} />
+        {canStartConsultation && activeConsultation ? <Button type="button" disabled={startConsultation.isPending} onClick={() => startConsultation.mutate()}><Stethoscope className="size-4" />{startConsultation.isPending ? 'Starting...' : activeConsultation.status === 'IN_CONSULTATION' ? 'Continue consultancy' : 'Start consultancy'}</Button> : null}
+      </div>
     </div>
 
     {patient.medicalProfile?.criticalAlert ? <Card className="border-red-300 bg-red-50 text-red-900"><div className="flex gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0" /><div><div className="font-semibold">Critical medical alert</div><div className="text-sm">{patient.medicalProfile.clinicalAlerts || allergy || 'Review the medical profile before treatment.'}</div></div></div></Card> : null}
@@ -102,14 +114,16 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
 
     {tab === 'Overview' ? <Overview patient={patient} onChooseTreatment={() => setTab('Treatment')} /> : null}
     {tab === 'Appointments' ? <AppointmentsPanel patient={patient} canEdit={canOperate} invalidate={invalidate} /> : null}
-    {tab === 'Care History' ? <CareHistoryPanel patient={patient} onChooseTreatment={() => setTab('Treatment')} /> : null}
+    {tab === 'Care History' ? <CareHistoryPanel patient={patient} canEditRecords={canOperate} canEditNotes={canClinical} canEditPackages={canBill} invalidate={invalidate} onChooseTreatment={() => setTab('Treatment')} /> : null}
     {tab === 'Billing' ? <BillingPanel patient={patient} canBill={canBill} invalidate={invalidate} /> : null}
     {tab === 'Prescriptions' ? <Prescriptions patient={patient} canCreate={canPrescribe} onCreate={() => setComposer('prescription')} /> : null}
     {tab === 'Medical Profile' ? <MedicalProfile patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
     {tab === 'Treatment' ? <PatientTreatmentPanel patient={patient} /> : null}
     {tab === 'Treatment Stages' ? <PatientStagesPanel patient={patient} canRecord={canClinical} /> : null}
     {tab === 'Documents' ? <div className="space-y-6"><PatientGalleryPanel patient={patient} /><PatientDocumentsPanel patient={patient} /></div> : null}
+    {tab === 'Follow-ups' ? <PatientFollowUpsPanel patient={patient} /> : null}
 
+    {editingPatient ? <PatientEditDialog patient={patient} onClose={() => setEditingPatient(false)} onSaved={invalidate} /> : null}
     {composer ? <ClinicalComposer kind={composer} patient={patient} staff={staff} resources={resourcesQuery.data?.data ?? []} defaultDoctorId={doctors[0]?.id ?? staff[0]?.id} onClose={() => setComposer(null)} onSaved={() => { setComposer(null); invalidate(); }} /> : null}
   </section>;
 }
@@ -133,7 +147,10 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
   const cancelled = appointments.filter((appointment) => ['CANCELLED', 'NO_SHOW'].includes(appointment.status)).sort((a, b) => +new Date(b.appointmentAt) - +new Date(a.appointmentAt));
   const renderAppointment = (appointment: Appointment) => <div key={appointment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
     <div><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{appointment.service?.name ?? label(appointment.appointmentType)}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold">{label(appointment.status)}</span></div><div className="mt-1 text-xs text-muted-foreground">{format(appointment.appointmentAt)}{appointment.doctor?.name ? ` · ${appointment.doctor.name}` : ''}{appointment.resourceType === 'TREATMENT_ROOM' ? ` · Room ${appointment.roomNumber ?? 'not assigned'}` : ''}</div>{appointment.notes ? <p className="mt-1 text-sm text-muted-foreground">{appointment.notes}</p> : null}</div>
-    {canEdit && appointment.resourceType === 'TREATMENT_ROOM' && !finished(appointment) ? <Button type="button" variant="secondary" onClick={() => setRoomEdit(appointment)}>Change room</Button> : null}
+    <div className="flex flex-wrap items-center gap-1.5">
+      {canEdit && appointment.resourceType === 'TREATMENT_ROOM' && !finished(appointment) ? <Button type="button" variant="secondary" className="h-8 px-2.5 text-xs" onClick={() => setRoomEdit(appointment)}>Change room</Button> : null}
+      <AppointmentRecordActions appointment={appointment} canEdit={canEdit} name={patient.fullName} onChanged={invalidate} />
+    </div>
   </div>;
   return <div className="space-y-4">
     {canEdit ? <div className="flex flex-wrap justify-end gap-2">
@@ -173,7 +190,11 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
 
 function AppointmentGroup({ title, empty, items, warning = false }: { title: string; empty: string; items: React.ReactNode[]; warning?: boolean }) { return <Card className={warning && items.length ? 'border-red-200' : ''}><h2 className="font-semibold">{title}</h2>{items.length ? <div className="mt-3 space-y-2">{items}</div> : <div className="py-7 text-center text-sm text-muted-foreground">{empty}</div>}</Card>; }
 
-function CareHistoryPanel({ patient, onChooseTreatment }: { patient: Patient360; onChooseTreatment: () => void }) {
+function CareHistoryPanel({ patient, canEditRecords, canEditNotes, canEditPackages, invalidate, onChooseTreatment }: { patient: Patient360; canEditRecords: boolean; canEditNotes: boolean; canEditPackages: boolean; invalidate: () => void; onChooseTreatment: () => void }) {
+  const [editingRecord, setEditingRecord] = useState<PatientSession | null>(null);
+  const [editingEncounter, setEditingEncounter] = useState<ClinicalEncounter | null>(null);
+  const [editingPackage, setEditingPackage] = useState<TreatmentPackage | null>(null);
+  const encounterLocked = (encounter: ClinicalEncounter) => ['SIGNED', 'LOCKED', 'ADDENDUM_ADDED'].includes(encounter.status);
   const packages = patient.packages ?? [];
   const invoices = patient.invoices ?? [];
   const paid = invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount ?? invoice.payments.reduce((total, payment) => total + Number(payment.amount), 0)), 0);
@@ -182,9 +203,12 @@ function CareHistoryPanel({ patient, onChooseTreatment }: { patient: Patient360;
     <div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Complete patient journey</p><h2 className="text-xl font-semibold">Treatments & consultations</h2><p className="text-sm text-muted-foreground">Care taken, package progress, amounts paid, and the next scheduled visit in one place.</p></div>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric title="Care visits recorded" value={String(completedCare)} /><Metric title="Money paid" value={`Rs ${paid.toLocaleString('en-IN')}`} /><Metric title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} /><Metric title="Next session / visit" value={format(patient.summary.nextAppointment?.appointmentAt)} /></div>
     <TreatmentConsentsCard patient={patient} title="Treatments chosen & consents" description="Treatments the patient has opted for, each with its signed consent form." onOpenTreatmentTab={onChooseTreatment} />
-    <Card><div className="flex items-center gap-2"><CalendarCheck2 className="size-5 text-primary" /><h3 className="font-semibold">Packages & session progress</h3></div>{packages.length ? <div className="mt-3 grid gap-3 lg:grid-cols-2">{packages.map((item) => { const remaining = Math.max(0, item.totalSessions - item.completedSessions); return <div key={item.id} className="rounded-xl border p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{item.name}</div><div className="mt-1 text-xs text-muted-foreground">Purchased {format(item.purchaseDate)} · {label(item.status ?? 'ACTIVE')}</div></div><span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{remaining} remaining</span></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${item.totalSessions ? Math.min(100, item.completedSessions / item.totalSessions * 100) : 0}%` }} /></div><div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>{item.completedSessions}/{item.totalSessions} completed</span><span>Paid Rs {Number(item.paidAmount).toLocaleString('en-IN')}</span></div>{item.expiryDate ? <p className="mt-2 text-xs text-muted-foreground">Valid until {format(item.expiryDate)}</p> : null}</div>; })}</div> : <div className="py-8 text-center text-sm text-muted-foreground">No packages purchased.</div>}</Card>
-    <div className="grid gap-4 xl:grid-cols-2"><Card><div className="flex items-center gap-2"><Stethoscope className="size-5 text-primary" /><h3 className="font-semibold">Consultations & treatment records</h3></div><div className="mt-3 space-y-2">{(patient.sessions ?? []).map((session) => <div key={session.id} className="rounded-lg border p-3"><div className="font-medium">{label(session.treatmentType)}</div><div className="mt-1 text-xs text-muted-foreground">{format(session.visitDate)} · {session.doctorConsulted || 'Provider not recorded'}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment taken" value={session.treatmentTaken || session.treatmentSuggested} /><Detail title="Diagnosis" value={session.diagnosis} /></dl></div>)}{(patient.clinicalEncounters ?? []).map((encounter) => <div key={encounter.id} className="rounded-lg border p-3"><div className="font-medium">{label(encounter.type)}</div><div className="mt-1 text-xs text-muted-foreground">{format(encounter.visitDate)} · Dr. {encounter.doctor.name}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment advised" value={encounter.treatmentAdvised} /><Detail title="Diagnosis" value={encounter.diagnosis} /></dl></div>)}{!(patient.sessions?.length || patient.clinicalEncounters?.length) ? <div className="py-8 text-center text-sm text-muted-foreground">No consultation or treatment records.</div> : null}</div></Card>
+    <Card><div className="flex items-center gap-2"><CalendarCheck2 className="size-5 text-primary" /><h3 className="font-semibold">Packages & session progress</h3></div>{packages.length ? <div className="mt-3 grid gap-3 lg:grid-cols-2">{packages.map((item) => { const remaining = Math.max(0, item.totalSessions - item.completedSessions); return <div key={item.id} className="rounded-xl border p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{item.name}</div><div className="mt-1 text-xs text-muted-foreground">Purchased {format(item.purchaseDate)} · {label(item.status ?? 'ACTIVE')}</div></div><div className="flex flex-col items-end gap-2"><span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{remaining} remaining</span><div className="flex gap-1.5">{canEditPackages ? <EditButton onClick={() => setEditingPackage(item)} /> : null}<DeleteRecordButton kind="package" id={item.id} what="package" name={item.name} warning="Sittings already recorded against this package are not changed." onDeleted={invalidate} /></div></div></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${item.totalSessions ? Math.min(100, item.completedSessions / item.totalSessions * 100) : 0}%` }} /></div><div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>{item.completedSessions}/{item.totalSessions} completed</span><span>Paid Rs {Number(item.paidAmount).toLocaleString('en-IN')}</span></div>{item.expiryDate ? <p className="mt-2 text-xs text-muted-foreground">Valid until {format(item.expiryDate)}</p> : null}</div>; })}</div> : <div className="py-8 text-center text-sm text-muted-foreground">No packages purchased.</div>}</Card>
+    <div className="grid gap-4 xl:grid-cols-2"><Card><div className="flex items-center gap-2"><Stethoscope className="size-5 text-primary" /><h3 className="font-semibold">Consultations & treatment records</h3></div><div className="mt-3 space-y-2">{(patient.sessions ?? []).map((session) => <div key={session.id} className="rounded-lg border p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="font-medium">{label(session.treatmentType)}</div><div className="flex gap-1.5">{canEditRecords ? <EditButton onClick={() => setEditingRecord(session)} /> : null}<DeleteRecordButton kind="treatment-record" id={session.id} what="treatment record" name={`${label(session.treatmentType)} · ${format(session.visitDate)}`} onDeleted={invalidate} /></div></div><div className="mt-1 text-xs text-muted-foreground">{format(session.visitDate)} · {session.doctorConsulted || 'Provider not recorded'}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment taken" value={session.treatmentTaken || session.treatmentSuggested} /><Detail title="Diagnosis" value={session.diagnosis} /></dl></div>)}{(patient.clinicalEncounters ?? []).map((encounter) => <div key={encounter.id} className="rounded-lg border p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="font-medium">{label(encounter.type)}</div>{encounterLocked(encounter) ? <LockedBadge /> : <div className="flex gap-1.5">{canEditNotes ? <EditButton onClick={() => setEditingEncounter(encounter)} /> : null}<DeleteRecordButton kind="encounter" id={encounter.id} what="consultation note" name={`${label(encounter.type)} · ${format(encounter.visitDate)}`} onDeleted={invalidate} /></div>}</div><div className="mt-1 text-xs text-muted-foreground">{format(encounter.visitDate)} · Dr. {encounter.doctor.name}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment advised" value={encounter.treatmentAdvised} /><Detail title="Diagnosis" value={encounter.diagnosis} /></dl></div>)}{!(patient.sessions?.length || patient.clinicalEncounters?.length) ? <div className="py-8 text-center text-sm text-muted-foreground">No consultation or treatment records.</div> : null}</div></Card>
     <Card><div className="flex items-center gap-2"><CircleDollarSign className="size-5 text-primary" /><h3 className="font-semibold">Charges & payments</h3></div><div className="mt-3 space-y-2">{invoices.map((invoice) => { const invoicePaid = Number(invoice.paidAmount ?? invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0)); return <div key={invoice.id} className="rounded-lg border p-3"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{invoice.items?.map((item) => item.description).join(', ') || invoice.invoiceNo}</div><div className="mt-1 text-xs text-muted-foreground">{invoice.invoiceNo} · {format(invoice.invoiceDate)}</div></div><span className="text-sm font-semibold">Rs {Number(invoice.totalAmount).toLocaleString('en-IN')}</span></div><div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"><span>Paid: Rs {invoicePaid.toLocaleString('en-IN')}</span><span>Method: {invoice.payments[0]?.mode ? label(invoice.payments[0].mode) : 'Not recorded'}</span><span>Status: {label(invoice.status)}</span></div></div>; })}{!invoices.length ? <div className="py-8 text-center text-sm text-muted-foreground">No charges or payments recorded.</div> : null}</div></Card></div>
+    {editingRecord ? <TreatmentRecordEditDialog patientId={patient.id} session={editingRecord} onClose={() => setEditingRecord(null)} onSaved={invalidate} /> : null}
+    {editingEncounter ? <EncounterEditDialog encounter={editingEncounter} onClose={() => setEditingEncounter(null)} onSaved={invalidate} /> : null}
+    {editingPackage ? <PackageEditDialog item={editingPackage} onClose={() => setEditingPackage(null)} onSaved={invalidate} /> : null}
   </div>;
 }
 
@@ -338,6 +362,7 @@ function Overview({ patient, onChooseTreatment }: { patient: Patient360; onChoos
 function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; canBill: boolean; invalidate: () => void }) {
   const [payingInvoice, setPayingInvoice] = useState<Patient360['invoices'][number] | null>(null);
   const [showInvoice, setShowInvoice] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Patient360['invoices'][number] | null>(null);
   const invoicePdf = usePdfActions((id) => `/billing/invoices/${id}/pdf`, (id) => `invoice-${id}.pdf`);
   const invoices = patient.invoices ?? [];
   return <div className="space-y-4">
@@ -374,6 +399,7 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
                 <div className={outstanding > 0 ? 'text-xs text-red-700' : 'text-xs text-emerald-700'}>{outstanding > 0 ? `Outstanding Rs ${outstanding.toLocaleString('en-IN')}` : 'Paid'}</div>
                 <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end"><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.preview.isPending} onClick={() => invoicePdf.preview.mutate(invoice.id)}>Preview</Button><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.download.isPending} onClick={() => invoicePdf.download.mutate(invoice.id)}><Download className="size-3.5" />Download</Button><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.print.isPending} onClick={() => invoicePdf.print.mutate(invoice.id)}><Printer className="size-3.5" />Print</Button></div>
                 {canBill && outstanding > 0 && ['ISSUED', 'PARTIAL', 'OVERDUE'].includes(invoice.status) ? <Button className="mt-2" variant="secondary" onClick={() => setPayingInvoice(invoice)}>Record payment</Button> : null}
+                <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end">{canBill ? <EditButton onClick={() => setEditingInvoice(invoice)} /> : null}<DeleteRecordButton kind="invoice" id={invoice.id} what="invoice" name={`${invoice.invoiceNo} · Rs ${Number(invoice.totalAmount).toLocaleString('en-IN')}`} warning="Payments recorded only against this invoice are removed from collections too." onDeleted={invalidate} /></div>
               </div>
             </div>
           </div>;
@@ -381,6 +407,7 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
       </div>
     </Card>
     {payingInvoice ? <PaymentModal patient={patient} invoice={payingInvoice} onClose={() => setPayingInvoice(null)} onSaved={() => { setPayingInvoice(null); invalidate(); }} /> : null}
+    {editingInvoice ? <InvoiceEditDialog invoice={editingInvoice} onClose={() => setEditingInvoice(null)} onSaved={invalidate} /> : null}
     {showInvoice ? <InvoiceModal patient={patient} onClose={() => setShowInvoice(false)} onSaved={() => { setShowInvoice(false); invalidate(); }} /> : null}
   </div>;
 }
@@ -472,7 +499,7 @@ function Prescriptions({ patient, canCreate, onCreate }: { patient: Patient360; 
   const prescriptions = patient.prescriptions ?? [];
   const sessionPrescriptions = (patient.sessions ?? []).filter((session) => session.prescription?.length);
   const items = [
-    ...prescriptions.map((prescription) => <Card key={prescription.id} className="overflow-hidden p-0"><div className="border-b bg-muted/30 p-4"><div className="flex flex-wrap justify-between gap-3"><div><div className="flex items-center gap-2"><span className="text-lg font-semibold text-primary">Rx</span><span className="font-semibold">{prescription.prescriptionNo}</span></div><div className="mt-1 text-xs text-muted-foreground">{format(prescription.prescribedAt)} · Dr. {prescription.doctor.name}</div></div><div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={pdf.preview.isPending} onClick={() => pdf.preview.mutate(prescription.id)}>Preview</Button><Button variant="secondary" disabled={pdf.download.isPending} onClick={() => pdf.download.mutate(prescription.id)}><Download className="size-4" />Download</Button><Button variant="secondary" disabled={pdf.print.isPending} onClick={() => pdf.print.mutate(prescription.id)}><Printer className="size-4" />Print</Button></div></div>{prescription.consultationSummary || prescription.diagnosisSummary ? <dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Consulted / treated for" value={prescription.consultationSummary} /><Detail title="Diagnosis" value={prescription.diagnosisSummary} /></dl> : null}</div><ol className="divide-y">{prescription.items.map((item, index) => <li key={item.id} className="grid gap-2 p-4 text-sm sm:grid-cols-[28px_1fr]"><span className="font-semibold text-primary">{index + 1}.</span><div><strong>{item.medicineName} {item.strength}</strong><div className="mt-1">{item.dosage} · {item.frequency} · {item.duration}{item.route ? ` · ${item.route}` : ''}{item.timing ? ` · ${item.timing}` : ''}</div>{item.instructions ? <div className="mt-1 text-muted-foreground">{item.instructions}</div> : null}</div></li>)}</ol></Card>),
+    ...prescriptions.map((prescription) => <Card key={prescription.id} className="overflow-hidden p-0"><div className="border-b bg-muted/30 p-4"><div className="flex flex-wrap justify-between gap-3"><div><div className="flex items-center gap-2"><span className="text-lg font-semibold text-primary">Rx</span><span className="font-semibold">{prescription.prescriptionNo}</span>{prescription.status === 'SIGNED' ? <LockedBadge /> : null}</div><div className="mt-1 text-xs text-muted-foreground">{format(prescription.prescribedAt)} · Dr. {prescription.doctor.name}</div></div><div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={pdf.preview.isPending} onClick={() => pdf.preview.mutate(prescription.id)}>Preview</Button><Button variant="secondary" disabled={pdf.download.isPending} onClick={() => pdf.download.mutate(prescription.id)}><Download className="size-4" />Download</Button><Button variant="secondary" disabled={pdf.print.isPending} onClick={() => pdf.print.mutate(prescription.id)}><Printer className="size-4" />Print</Button></div></div>{prescription.consultationSummary || prescription.diagnosisSummary ? <dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Consulted / treated for" value={prescription.consultationSummary} /><Detail title="Diagnosis" value={prescription.diagnosisSummary} /></dl> : null}</div><ol className="divide-y">{prescription.items.map((item, index) => <li key={item.id} className="grid gap-2 p-4 text-sm sm:grid-cols-[28px_1fr]"><span className="font-semibold text-primary">{index + 1}.</span><div><strong>{item.medicineName} {item.strength}</strong><div className="mt-1">{item.dosage} · {item.frequency} · {item.duration}{item.route ? ` · ${item.route}` : ''}{item.timing ? ` · ${item.timing}` : ''}</div>{item.instructions ? <div className="mt-1 text-muted-foreground">{item.instructions}</div> : null}</div></li>)}</ol></Card>),
     ...sessionPrescriptions.map((session) => <Card key={`session-rx-${session.id}`} className="p-4"><div className="font-semibold">Prescription from {label(session.treatmentType)}</div><div className="text-xs text-muted-foreground">{format(session.visitDate)} - {session.doctorConsulted || 'Provider not recorded'}</div><div className="mt-3 space-y-2">{session.prescription?.map((item, index) => <div key={`${session.id}-${index}`} className="rounded bg-muted p-3 text-sm"><strong>{item.medicine}</strong><div>{item.dosage} - {item.frequency} - {item.duration}</div>{item.instructions ? <div className="text-muted-foreground">{item.instructions}</div> : null}</div>)}</div></Card>),
   ];
   return <ListState empty="No prescriptions issued." action={canCreate ? <Button onClick={onCreate}><Plus className="size-4" />New prescription</Button> : undefined} items={items} />;

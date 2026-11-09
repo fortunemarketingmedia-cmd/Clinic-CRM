@@ -6,12 +6,12 @@ type PatientInput = {
   personId?: string;
   fullName: string;
   mobile: string;
-  email?: string;
-  age?: number;
-  sex?: Sex;
-  address?: string;
-  occupation?: string;
-  maritalStatus?: string;
+  email?: string | null;
+  age?: number | null;
+  sex?: Sex | null;
+  address?: string | null;
+  occupation?: string | null;
+  maritalStatus?: string | null;
 };
 
 export type MedicalProfileData = Partial<{
@@ -52,12 +52,12 @@ export const patientRepository = {
       where: { id },
       include: {
         branch: true,
-        lead: { include: { appointments: true } },
+        lead: { include: { appointments: { where: { deletedAt: null } } } },
         medicalProfile: true,
-        sessions: { orderBy: { visitDate: 'desc' } },
-        packages: { orderBy: { createdAt: 'desc' } },
-        invoices: { orderBy: { invoiceDate: 'desc' } },
-        files: { orderBy: { createdAt: 'desc' } },
+        sessions: { where: { deletedAt: null }, orderBy: { visitDate: 'desc' } },
+        packages: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
+        invoices: { where: { deletedAt: null }, orderBy: { invoiceDate: 'desc' } },
+        files: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' } },
       },
     });
   },

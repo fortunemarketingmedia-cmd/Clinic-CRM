@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { DeleteRecordButton } from '@/components/ui/record-actions';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -1091,6 +1092,9 @@ export function AppointmentsView() {
                   onReschedule={() => startEdit(appointment)}
                   onAction={(action) => updateAppointment.mutate({ id: appointment.id, values: appointmentActionPayload(action) })}
                 />
+                <div className="flex lg:justify-end" onClick={(event) => event.stopPropagation()}>
+                  <DeleteRecordButton kind="appointment" id={appointment.id} what="appointment" name={`${appointment.lead?.name ?? 'Patient'} · ${formatDate(localDateKey(new Date(appointment.appointmentAt)))} ${formatTime(appointment.appointmentAt)}`} />
+                </div>
               </div>
             ))}
             {!appointmentsQuery.isLoading && selectedDayAppointments.length === 0 ? (
@@ -1148,12 +1152,13 @@ export function AppointmentsView() {
               />
               <AppointmentDetail label="Notes" value={selectedAppointment.notes ?? '-'} />
             </div>
-            {isReceptionist ? <div className="mt-5 flex gap-2">
-              <Button type="button" onClick={() => startEdit(selectedAppointment)}>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {isReceptionist || session?.user.role === 'ADMIN' ? <Button type="button" onClick={() => startEdit(selectedAppointment)}>
                 <RotateCcw className="size-4" />
-                Reschedule
-              </Button>
-            </div> : null}
+                Edit / reschedule
+              </Button> : null}
+              <DeleteRecordButton kind="appointment" id={selectedAppointment.id} what="appointment" className="h-10 px-4 text-sm" name={`${selectedAppointment.lead?.name ?? 'Appointment'} · ${formatDate(localDateKey(new Date(selectedAppointment.appointmentAt)))} ${formatTime(selectedAppointment.appointmentAt)}`} onDeleted={() => setSelectedAppointment(null)} />
+            </div>
           </Card>
         </div>
       ) : null}
@@ -1518,6 +1523,9 @@ function AppointmentList({
             onReschedule={() => onEdit(appointment)}
             onAction={(action) => onAction(appointment, action)}
           />
+          <div className="flex lg:justify-end" onClick={(event) => event.stopPropagation()}>
+            <DeleteRecordButton kind="appointment" id={appointment.id} what="appointment" name={`${appointment.lead?.name ?? 'Patient'} · ${formatDate(localDateKey(new Date(appointment.appointmentAt)))} ${formatTime(appointment.appointmentAt)}`} />
+          </div>
         </div>
       ))}
       {!appointments.length ? (

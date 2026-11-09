@@ -15,11 +15,13 @@ const patientFileQueries = [['patient-files'], ['patient-gallery'], ['secure-pat
 function relatedQueries(path: string) {
   const resource = path.split('?')[0];
 
+  if (resource.startsWith('/billing')) return [...patientQueries, ...dashboardQueries];
+  if (resource.startsWith('/records/')) return [['patient-follow-ups'], ...leadQueries, ...appointmentQueries, ...patientQueries, ...patientFileQueries, ...dashboardQueries, ['follow-ups'], ['tasks'], ['notification-follow-ups'], ['notification-tasks'], ['follow-up-worklist'], ['header-reminders']];
   if (resource.startsWith('/leads') || resource.startsWith('/ad-leads')) return [...leadQueries, ...dashboardQueries];
   if (resource.startsWith('/appointments') || resource.startsWith('/waitlist') || resource.startsWith('/front-desk/')) return [...appointmentQueries, ...leadQueries, ...dashboardQueries];
   if (resource.startsWith('/files') || resource.startsWith('/forms/') || resource.startsWith('/consents/')) return [...patientFileQueries, ['patient-360']];
   if (resource.startsWith('/patients') || resource.startsWith('/clinical/')) return [...patientQueries, ...patientFileQueries, ...appointmentQueries, ...dashboardQueries];
-  if (resource.startsWith('/follow-ups') || resource.startsWith('/tasks')) return [['follow-ups'], ['tasks'], ['notification-follow-ups'], ['notification-tasks'], ['follow-up-worklist'], ['header-reminders'], ['lead-profile'], ['lead-timeline'], ['dashboard-overview']];
+  if (resource.startsWith('/follow-ups') || resource.startsWith('/tasks')) return [['follow-ups'], ['patient-follow-ups'], ['tasks'], ['notification-follow-ups'], ['notification-tasks'], ['follow-up-worklist'], ['header-reminders'], ['lead-profile'], ['lead-timeline'], ['dashboard-overview']];
   if (resource.startsWith('/settings')) return [['settings'], ['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports']];
   if (resource.startsWith('/branches') || resource.startsWith('/users')) return [['branches'], ['appointment-staff'], ['clinical-staff'], ['schedule-staff'], ['task-assignees']];
   if (resource.startsWith('/automations')) return [['automations'], ['dashboard-overview'], ['analytics']];

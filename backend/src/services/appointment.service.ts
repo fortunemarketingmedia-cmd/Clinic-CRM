@@ -318,8 +318,4 @@ export const appointmentService = {
   async cancelAppointment(id: string, reason = 'Cancelled by clinic', audit?: AuditContext) {
     return this.updateAppointment(id, { status: AppointmentStatusEnum.CANCELLED, cancellationReason: reason }, audit);
   },
-
-  async deleteAppointment(id: string) {
-    await this.cancelAppointment(id, 'Removed from calendar');
-  },
 };

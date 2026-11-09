@@ -47,7 +47,7 @@ export const leadScoringRepository = {
   findLead(id: string) {
     return prisma.lead.findUnique({
       where: { id },
-      include: { appointments: true, person: { include: { _count: { select: { leads: true } } } } },
+      include: { appointments: { where: { deletedAt: null } }, person: { include: { _count: { select: { leads: { where: { deletedAt: null } } } } } } },
     });
   },
   listLeadIds(branchId?: string) {

@@ -218,12 +218,12 @@ export const patientService = {
     input: Partial<{
       fullName: string;
       mobile: string;
-      email: string;
-      age: number;
-      sex: Sex;
-      address: string;
-      occupation: string;
-      maritalStatus: string;
+      email: string | null;
+      age: number | null;
+      sex: Sex | null;
+      address: string | null;
+      occupation: string | null;
+      maritalStatus: string | null;
     }>,
   ) {
     await this.getPatient(id);

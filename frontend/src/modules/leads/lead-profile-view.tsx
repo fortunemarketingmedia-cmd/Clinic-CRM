@@ -3,14 +3,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CalendarDays, CheckSquare, Clock3, Phone, UserRound } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { DeleteRecordButton, EditButton } from '@/components/ui/record-actions';
 import { PageSkeleton, RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import type { Lead, TimelineEvent } from '@/types/lead';
+import { LeadEditDialog } from './lead-record-actions';
 
 const profileStageOptions = [
   { label: 'New enquiry', value: 'ASSIGNED' },
@@ -22,6 +25,8 @@ const profileStageOptions = [
 
 export function LeadProfileView({ leadId }: { leadId: string }) {
   const client = useQueryClient();
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
   const [stage, setStage] = useState(''); const [stageNotes, setStageNotes] = useState(''); const [manualScore, setManualScore] = useState('50');
   const leadQuery = useQuery({ queryKey: ['lead-profile', leadId], queryFn: () => apiRequest<{ data: Lead }>(`/leads/${leadId}`) });
   const timelineQuery = useQuery({ queryKey: ['lead-timeline', leadId], queryFn: () => apiRequest<{ data: TimelineEvent[] }>(`/leads/${leadId}/timeline`) });
@@ -30,7 +35,8 @@ export function LeadProfileView({ leadId }: { leadId: string }) {
   if (leadQuery.isError || !leadQuery.data) return <State text="Lead profile could not be loaded." />;
   const lead = leadQuery.data.data;
   return <section className="space-y-5">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><Link href="/leads" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Leads</Link><h1 className="text-2xl font-semibold">{lead.name}</h1><p className="text-sm text-muted-foreground">{lead.mobile} - {lead.branch?.name}</p></div></div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><Link href="/leads" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Leads</Link><h1 className="text-2xl font-semibold">{lead.name}</h1><p className="text-sm text-muted-foreground">{lead.mobile} - {lead.branch?.name}</p></div><div className="flex flex-wrap gap-2"><EditButton label="Edit details" className="h-10 px-3 text-sm" onClick={() => setEditing(true)} /><DeleteRecordButton kind="lead" id={lead.id} what="lead" name={`${lead.name} · ${lead.mobile}`} className="h-10 px-3 text-sm" warning="Its open follow-ups, tasks and upcoming appointments are removed as well." onDeleted={() => router.push('/leads')} /></div></div>
+    {editing ? <LeadEditDialog lead={lead} onClose={() => setEditing(false)} onSaved={() => { client.invalidateQueries({ queryKey: ['lead-profile', leadId] }); client.invalidateQueries({ queryKey: ['lead-timeline', leadId] }); }} /> : null}
     <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
       <div className="space-y-4"><Card><h2 className="font-semibold">Lead summary</h2><div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"><Detail label="CRM stage" value={lead.status.replaceAll('_', ' ')} /><Detail label="Owner" value={lead.owner?.name ?? 'Unassigned'} /><Detail label="Priority" value={lead.priority} /><Detail label="Treatment interest" value={lead.interestedTreatment ?? 'Not recorded'} /><Detail label="Source" value={lead.source.replaceAll('_', ' ')} /><Detail label="Created" value={new Date(lead.createdAt).toLocaleString()} /></div></Card>
       <Card><h2 className="font-semibold">Next action</h2><div className="mt-3 flex items-start gap-3"><Clock3 className="mt-0.5 size-5 text-primary" /><div><div className="font-medium">{lead.nextAction ?? 'No next action'}</div><div className="text-sm text-muted-foreground">{lead.nextActionDueAt ? new Date(lead.nextActionDueAt).toLocaleString() : 'No due date'}</div></div></div></Card>

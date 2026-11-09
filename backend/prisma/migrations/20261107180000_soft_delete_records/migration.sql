@@ -1,0 +1,27 @@
+-- Admin soft delete: records are hidden (deletedAt set) instead of erased; a snapshot is kept in the audit log.
+ALTER TABLE "Patient" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "Patient_deletedAt_idx" ON "Patient"("deletedAt");
+ALTER TABLE "Lead" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "Lead_deletedAt_idx" ON "Lead"("deletedAt");
+ALTER TABLE "FollowUp" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "FollowUp_deletedAt_idx" ON "FollowUp"("deletedAt");
+ALTER TABLE "Task" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "Task_deletedAt_idx" ON "Task"("deletedAt");
+ALTER TABLE "WaitlistEntry" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "WaitlistEntry_deletedAt_idx" ON "WaitlistEntry"("deletedAt");
+ALTER TABLE "Appointment" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "Appointment_deletedAt_idx" ON "Appointment"("deletedAt");
+ALTER TABLE "Session" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "Session_deletedAt_idx" ON "Session"("deletedAt");
+ALTER TABLE "ClinicalEncounter" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "ClinicalEncounter_deletedAt_idx" ON "ClinicalEncounter"("deletedAt");
+ALTER TABLE "ProcedureSession" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "ProcedureSession_deletedAt_idx" ON "ProcedureSession"("deletedAt");
+ALTER TABLE "PatientFile" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "PatientFile_deletedAt_idx" ON "PatientFile"("deletedAt");
+ALTER TABLE "Invoice" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "Invoice_deletedAt_idx" ON "Invoice"("deletedAt");
+ALTER TABLE "Payment" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "Payment_deletedAt_idx" ON "Payment"("deletedAt");
+ALTER TABLE "TreatmentPackage" ADD COLUMN "deletedAt" TIMESTAMP(3), ADD COLUMN "deletedById" TEXT;
+CREATE INDEX "TreatmentPackage_deletedAt_idx" ON "TreatmentPackage"("deletedAt");

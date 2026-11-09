@@ -77,7 +77,7 @@ export const leadRepository = {
   },
 
   findById(id: string) {
-    return prisma.lead.findUnique({ where: { id }, include: { branch: true, adLeads: true, patient: true, person: { include: { patient: true } }, owner: { select: { id: true, name: true } }, appointments: { include: { service: true, doctor: { select: { id: true, name: true } }, resource: true }, orderBy: { appointmentAt: 'desc' } }, followUps: { include: { assignedUser: { select: { id: true, name: true } } }, orderBy: { dueAt: 'desc' } }, tasks: { include: { assignedUser: { select: { id: true, name: true } } }, orderBy: { dueAt: 'desc' } }, callLogs: { orderBy: { startedAt: 'desc' } }, scoreHistory: { orderBy: { createdAt: 'desc' } } } });
+    return prisma.lead.findUnique({ where: { id }, include: { branch: true, adLeads: true, patient: true, person: { include: { patient: true } }, owner: { select: { id: true, name: true } }, appointments: { where: { deletedAt: null }, include: { service: true, doctor: { select: { id: true, name: true } }, resource: true }, orderBy: { appointmentAt: 'desc' } }, followUps: { where: { deletedAt: null }, include: { assignedUser: { select: { id: true, name: true } } }, orderBy: { dueAt: 'desc' } }, tasks: { where: { deletedAt: null }, include: { assignedUser: { select: { id: true, name: true } } }, orderBy: { dueAt: 'desc' } }, callLogs: { orderBy: { startedAt: 'desc' } }, scoreHistory: { orderBy: { createdAt: 'desc' } } } });
   },
 
   findOpenByMobile(mobile: string) {

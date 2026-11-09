@@ -8,20 +8,28 @@ export const workQuerySchema = z.object({
   dueFrom: z.coerce.date().optional(),
   dueTo: z.coerce.date().optional(),
   scope: z.enum(['ACTIVE_LEADS', 'ALL']).default('ACTIVE_LEADS'),
+  patientId: z.string().optional(),
 });
 
 export const createFollowUpSchema = z.object({
-  personId: z.string().min(1), leadId: z.string().optional(), patientId: z.string().optional(),
+  // personId may be left out for a patient follow-up: it is taken from (or created for) the patient.
+  personId: z.string().min(1).optional(), leadId: z.string().optional(), patientId: z.string().optional(),
   assignedUserId: z.string().min(1), branchId: z.string().min(1), activityType: z.string().min(1),
   channel: z.nativeEnum(ActivityChannel), direction: z.nativeEnum(ActivityDirection).default(ActivityDirection.OUTBOUND),
   dueAt: z.coerce.date(), notes: z.string().optional(), reminderAt: z.coerce.date().optional(),
   priority: z.nativeEnum(WorkPriority).default(WorkPriority.MEDIUM), source: z.string().optional(),
   relatedAppointmentId: z.string().optional(),
-});
+}).refine((value) => Boolean(value.personId || value.patientId), { message: 'Select the person or patient for this follow-up', path: ['personId'] });
+
+export const updateFollowUpSchema = z.object({
+  activityType: z.string().min(1).optional(), channel: z.nativeEnum(ActivityChannel).optional(),
+  dueAt: z.coerce.date().optional(), reminderAt: z.coerce.date().optional(), notes: z.string().optional(),
+  priority: z.nativeEnum(WorkPriority).optional(), assignedUserId: z.string().min(1).optional(), status: z.nativeEnum(WorkStatus).optional(),
+}).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 
 export const completeFollowUpSchema = z.object({
   outcome: z.string().min(1), notes: z.string().optional(), nextAction: z.string().optional(),
-  nextFollowUpAt: z.coerce.date().optional(), resolution: z.enum(['NEXT_ACTION', 'APPOINTMENT_BOOKED', 'CONVERTED', 'LOST', 'DISQUALIFIED', 'CLOSED']),
+  nextFollowUpAt: z.coerce.date().optional(), nextReminderAt: z.coerce.date().optional(), resolution: z.enum(['NEXT_ACTION', 'APPOINTMENT_BOOKED', 'CONVERTED', 'LOST', 'DISQUALIFIED', 'CLOSED']),
 }).superRefine((value, context) => {
   if (value.resolution === 'NEXT_ACTION' && (!value.nextAction || !value.nextFollowUpAt)) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Next action and due date are required', path: ['nextAction'] });
@@ -37,7 +45,7 @@ export const createTaskSchema = z.object({
 });
 
 export const updateTaskSchema = z.object({
-  title: z.string().min(2).optional(), description: z.string().optional(), priority: z.nativeEnum(WorkPriority).optional(),
+  title: z.string().min(2).optional(), description: z.string().optional(), type: z.string().min(1).optional(), priority: z.nativeEnum(WorkPriority).optional(),
   assignedUserId: z.string().optional(), dueAt: z.coerce.date().optional(), reminderAt: z.coerce.date().optional(),
   status: z.nativeEnum(WorkStatus).optional(), completionNotes: z.string().optional(),
 }).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
