@@ -990,14 +990,14 @@ export function AppointmentsView() {
                   aria-pressed={isSelected}
                   aria-label={`${formatDate(key)}${isToday ? ', today' : ''}${isSelected ? ', selected' : ''}`}
                   className={[
-                    'relative min-h-32 border-b border-r border-border p-2 text-left transition hover:bg-muted/60',
+                    'relative min-h-14 min-w-0 border-b border-r border-border p-1 text-left transition hover:bg-muted/60 sm:min-h-32 sm:p-2',
                     !isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : 'bg-surface',
                     isToday && !isSelected ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-400' : '',
                     isSelected ? '!bg-primary/10 ring-2 ring-inset ring-primary shadow-sm' : '',
                   ].join(' ')}
                   onClick={() => setSelectedDate(key)}
                 >
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="flex flex-col items-center gap-1 sm:mb-2 sm:flex-row sm:justify-between">
                     <span
                       className={[
                         'inline-flex size-7 items-center justify-center rounded-full text-xs font-semibold',
@@ -1009,7 +1009,7 @@ export function AppointmentsView() {
                     </span>
                     <div className="flex items-center gap-1">
                       {isToday ? (
-                        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        <span className="hidden rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 sm:inline">
                           Today
                         </span>
                       ) : null}
@@ -1020,7 +1020,7 @@ export function AppointmentsView() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="space-y-1">
+                  <div className="hidden space-y-1 sm:block">
                     {dayAppointments.slice(0, 4).map((appointment) => (
                       <div
                         key={appointment.id}

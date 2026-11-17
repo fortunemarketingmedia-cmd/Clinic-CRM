@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --background: 36 100% 98%;
-  --foreground: 352 34% 16%;
+  --background: 32 33% 98%;
+  --foreground: 348 25% 17%;
   --surface: 0 0% 100%;
-  --border: 20 38% 88%;
-  --primary: 358 88% 55%;
+  --border: 25 20% 88%;
+  --primary: 355 79% 46%;
   --primary-foreground: 0 0% 100%;
-  --muted: 32 83% 94%;
-  --muted-foreground: 354 18% 38%;
+  --muted: 30 28% 95%;
+  --muted-foreground: 350 12% 37%;
   --accent: 31 96% 55%;
   --deep: 352 71% 24%;
 }
@@ -26,8 +26,21 @@ html {
 
 body {
   margin: 0;
-  background: linear-gradient(180deg, hsl(36 100% 98%) 0%, hsl(24 100% 97%) 100%);
+  background: hsl(var(--background));
   color: hsl(var(--foreground));
+}
+
+img, svg { max-width: 100%; }
+
+main, section, article { min-width: 0; }
+
+/* Keep wide clinical tables and charts inside their own scroll area. */
+.overflow-x-auto { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+
+/* Mobile browser chrome changes the visible height while a form is open. */
+@supports (height: 100dvh) {
+  .fixed.inset-0[role='dialog'],
+  .fixed.inset-0[role='alertdialog'] { height: 100dvh; }
 }
 
 table th {
@@ -58,7 +71,7 @@ textarea::placeholder {
 input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--foreground));
 }
 
 input:not([type='checkbox']):not([type='radio']):disabled,
@@ -78,6 +91,9 @@ label > span:first-child {
 
 /* Phones: iOS zooms the page when a field under 16px is focused, which shifts the layout mid-form. */
 @media (max-width: 767px) {
+  .overflow-x-auto { overflow-wrap: normal; }
+  table { min-width: max-content; }
+  table td, table th { overflow-wrap: normal; }
   input:not([type='checkbox']):not([type='radio']):not([type='range']),
   select,
   textarea {

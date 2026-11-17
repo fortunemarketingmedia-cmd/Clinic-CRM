@@ -101,7 +101,7 @@ export function Sidebar({ role, collapsed, onToggle }: { role: Role; collapsed: 
   return (
     <aside
       ref={sidebarRef}
-      className={cn('sticky top-0 hidden h-screen shrink-0 overflow-y-auto border-r border-border bg-surface py-5 shadow-sm transition-[width] duration-200 md:block', collapsed ? 'w-20 px-3' : 'w-64 px-4')}
+      className={cn('sticky top-0 hidden h-screen shrink-0 overflow-y-auto border-r border-border bg-surface py-5 shadow-sm transition-[width] duration-200 lg:block', collapsed ? 'w-20 px-3' : 'w-64 px-4')}
     >
       <div className={cn('mb-7 flex items-center gap-3', collapsed && 'justify-center')}>
         <div className="flex size-12 items-center justify-center rounded-md border border-border bg-white p-1 shadow-sm">

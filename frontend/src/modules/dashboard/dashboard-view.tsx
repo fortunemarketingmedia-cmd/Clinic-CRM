@@ -356,7 +356,7 @@ export function DashboardView() {
               Open calendar
             </a>
           </div>
-          <div className="mt-4 overflow-hidden rounded-md border border-border">
+          <div className="mt-4 overflow-x-auto rounded-md border border-border">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-muted text-muted-foreground">
                 <tr>
