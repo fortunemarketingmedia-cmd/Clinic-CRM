@@ -24,7 +24,7 @@ export function UsersView() {
       </Card>
       <Card>
           <div className="flex items-center justify-between"><div><h2 className="text-base font-semibold">Team & access</h2><p className="mt-1 text-sm text-muted-foreground">Read-only view of licensed accounts and their assigned roles.</p></div><ShieldCheck className="size-5 text-primary" /></div>
-          <div className="mt-4 overflow-hidden rounded-md border border-border">
+          <div className="mt-4 overflow-x-auto rounded-md border border-border">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-muted text-muted-foreground">
                 <tr>

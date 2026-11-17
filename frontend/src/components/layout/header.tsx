@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, CheckCircle2, Clock3, LogOut, X } from 'lucide-react';
+import { Bell, CheckCircle2, Clock3, LogOut, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { REMINDER_POPUP_EVENT, useReminderNotifications, type ReminderAlert } fr
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 
-export function Header() {
+export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
   const { session, setSession } = useSessionStore();
   const [popup, setPopup] = useState<ReminderAlert | null>(null);
   const reminderQuery = useReminderNotifications();
@@ -34,13 +34,14 @@ export function Header() {
   }, [popup, reminderQuery.data]);
 
   return (
-    <header className="flex min-h-16 items-center justify-between border-b border-border bg-surface px-4 md:px-6">
-      <div className="hidden min-w-0 sm:block">
+    <header className="flex min-h-16 items-center justify-between gap-2 border-b border-border bg-surface px-3 sm:px-5 md:px-6">
+      <button type="button" onClick={onOpenMenu} aria-label="Open navigation" className="grid size-11 shrink-0 place-items-center rounded-lg text-foreground hover:bg-muted lg:hidden"><Menu className="size-5" /></button>
+      <div className="hidden min-w-0 flex-1 sm:block">
         <div className="text-sm text-muted-foreground">Signed in as</div>
-        <div className="font-medium">{session?.user.name ?? 'Team member'}</div>
+        <div className="truncate font-medium">{session?.user.name ?? 'Team member'}</div>
       </div>
-      <div className="flex items-center gap-3">
-        <BranchToggle className="w-36 sm:w-44" />
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <BranchToggle className="w-28 sm:w-44" />
         <Link href="/notifications" aria-label="Open notifications and followups" title="Notifications and followups" className="relative grid size-10 place-items-center rounded-md border border-border bg-surface text-muted-foreground transition hover:bg-muted hover:text-foreground">
           <Bell className="size-4" />
           {(reminderQuery.data?.count ?? 0) > 0 ? <span className="absolute -right-1 -top-1 grid min-w-5 place-items-center rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-5 text-white">{Math.min(reminderQuery.data?.count ?? 0, 99)}</span> : null}

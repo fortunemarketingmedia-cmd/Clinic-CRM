@@ -568,8 +568,8 @@ function RoomCalendar({ appointments, selectedDate, onSelectDate }: { appointmen
     return result;
   }, {});
   return (
-    <div className="p-4">
-      <div className="grid grid-cols-7 overflow-hidden rounded-lg border border-border text-sm">
+    <div className="overflow-x-auto p-4">
+      <div className="grid min-w-[700px] grid-cols-7 overflow-hidden rounded-lg border border-border text-sm">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div key={day} className="border-b border-border bg-muted/50 p-2 text-center text-xs font-medium text-muted-foreground">{day}</div>)}
         {days.map((day) => {
           const key = localDateKey(day);

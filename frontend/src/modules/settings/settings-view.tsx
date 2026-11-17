@@ -280,7 +280,7 @@ export function SettingsView() {
 
         <Card>
           <h2 className="text-base font-semibold">Patient Form Builder</h2>
-          <div className="mt-4 overflow-hidden rounded-md border border-border">
+          <div className="mt-4 overflow-x-auto rounded-md border border-border">
             <table className="w-full border-collapse text-left text-sm">
               <thead className="bg-muted text-muted-foreground">
                 <tr><th className="px-4 py-3 font-medium">Field</th><th className="px-4 py-3 font-medium">Visibility</th></tr>
