@@ -50,7 +50,11 @@ export function PatientFollowUpsPanel({ patient }: { patient: Patient360 }) {
     queryKey: ['patient-follow-ups', patient.id],
     queryFn: () => apiRequest<{ data: FollowUp[] }>(`/follow-ups?${new URLSearchParams({ patientId: patient.id, branchId: patient.branchId, scope: 'ALL' })}`),
   });
-  const refresh = () => client.invalidateQueries({ queryKey: ['patient-follow-ups', patient.id] });
+  const refresh = () => {
+    void client.invalidateQueries({ queryKey: ['patient-follow-ups', patient.id] });
+    void client.invalidateQueries({ queryKey: ['notification-follow-ups'] });
+    void client.invalidateQueries({ queryKey: ['header-reminders'] });
+  };
   const items = useMemo(() => query.data?.data ?? [], [query.data]);
   const open = items.filter((item) => !closed(item)).sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt));
   const done = items.filter(closed).sort((a, b) => +new Date(b.completedAt ?? b.dueAt) - +new Date(a.completedAt ?? a.dueAt));

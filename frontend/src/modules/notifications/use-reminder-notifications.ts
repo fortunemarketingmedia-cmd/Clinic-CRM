@@ -43,20 +43,28 @@ export function useReminderNotifications() {
       const now = Date.now();
       const activeFollowUps = followUps.data.filter((item) => isOpen(item.status));
       const activeTasks = tasks.data.filter((item) => isOpen(item.status));
-      const followUpsDue = activeFollowUps.filter((item) => new Date(item.reminderAt || item.dueAt).getTime() <= now);
+      const followUpsDueNow = activeFollowUps.filter((item) => new Date(item.dueAt).getTime() <= now);
+      const followUpsReminderDue = activeFollowUps.filter((item) => {
+        if (!item.reminderAt) return false;
+        return new Date(item.reminderAt).getTime() <= now && new Date(item.dueAt).getTime() > now;
+      });
       const tasksDue = activeTasks.filter((item) => new Date(item.reminderAt || item.dueAt).getTime() <= now);
-      const followUpDueIds = new Set(followUpsDue.map((item) => item.id));
+      const followUpAlertIds = new Set([...followUpsReminderDue, ...followUpsDueNow].map((item) => item.id));
       const taskDueIds = new Set(tasksDue.map((item) => item.id));
       const alerts: ReminderAlert[] = [
-        ...followUpsDue.map((item) => ({
-          key: `due-followup-${item.id}`, kind: 'Followup' as const, title: item.activityType,
+        ...followUpsReminderDue.map((item) => ({
+          key: `reminder-followup-${item.id}`, kind: 'Followup' as const, title: `Due soon: ${item.activityType}`,
+          detail: `${item.person.fullName} · ${item.notes || 'Scheduled follow-up is approaching'}`, dueAt: item.dueAt,
+        })),
+        ...followUpsDueNow.map((item) => ({
+          key: `due-followup-${item.id}`, kind: 'Followup' as const, title: `Due now: ${item.activityType}`,
           detail: `${item.person.fullName} · ${item.notes || 'Scheduled follow-up is ready'}`, dueAt: item.dueAt,
         })),
         ...tasksDue.map((item) => ({
           key: `due-task-${item.id}`, kind: 'Task' as const, title: item.title,
           detail: item.description || 'Assigned task is ready for action', dueAt: item.dueAt,
         })),
-        ...activeFollowUps.filter((item) => !followUpDueIds.has(item.id) && item.assignedUser.id === session?.user.id && isRecent(item.createdAt, now)).map((item) => ({
+        ...activeFollowUps.filter((item) => !followUpAlertIds.has(item.id) && item.assignedUser.id === session?.user.id && isRecent(item.createdAt, now)).map((item) => ({
           key: `assigned-followup-${item.id}`, kind: 'Followup' as const, title: 'New follow-up scheduled',
           detail: `${item.person.fullName} · ${item.activityType}`, dueAt: item.dueAt,
         })),
@@ -66,7 +74,7 @@ export function useReminderNotifications() {
         })),
       ].sort((first, second) => new Date(first.dueAt).getTime() - new Date(second.dueAt).getTime());
 
-      return { count: followUpsDue.length + tasksDue.length, alerts };
+      return { count: followUpsReminderDue.length + followUpsDueNow.length + tasksDue.length, alerts };
     },
     enabled: Boolean(session && (session.user.role === 'ADMIN' || selectedBranchId)),
     refetchInterval: 30_000,
