@@ -7,6 +7,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ClientPagination, usePagedList } from '@/components/ui/client-pagination';
+import { EmptyState } from '@/components/ui/empty-state';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { DeleteRecordButton, EditButton, LockedBadge } from '@/components/ui/record-actions';
@@ -24,17 +27,16 @@ import { RoomBookingDialog } from '../front-desk/schedules-view';
 import { PatientFollowUpsPanel } from './patient-follow-ups-panel';
 import { PatientDocumentsPanel, PatientGalleryPanel } from './patient-forms-files-panel';
 import { EncounterEditDialog, InvoiceEditDialog, PackageEditDialog, PatientEditDialog, TreatmentRecordEditDialog } from './patient-record-actions';
-import { PatientStagesPanel } from './patient-stages-panel';
 import { PatientTreatmentPanel } from './patient-treatment-panel';
 import { TreatmentConsentsCard } from './signed-consents';
 
-const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Treatment Stages', 'Documents', 'Follow-ups'] as const;
+const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Documents', 'Follow-ups'] as const;
 type Tab = typeof tabs[number];
 type MedicineOption = { id: string; name: string; genericName?: string | null; strength?: string | null; form?: string | null };
 type PackageMasterOption = { id: string; branchId?: string | null; name: string; totalSessions: number; validityDays: number; price: string; taxPercent: string; active: boolean };
 const clinicalRoles = ['ADMIN'];
 const prescriberRoles = ['ADMIN'];
-const billingRoles = ['ADMIN', 'RECEPTIONIST'];
+const billingRoles = ['ADMIN'];
 const operationalRoles = ['ADMIN', 'RECEPTIONIST'];
 const format = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
@@ -91,35 +93,36 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
   if (patientQuery.isError || !patient) return <Card className="border-red-200 text-sm text-red-700">{patientQuery.error?.message ?? 'Patient record could not be loaded.'}</Card>;
 
   const allergy = patient.medicalProfile?.allergyToDrugs || patient.medicalProfile?.productAllergies || patient.medicalProfile?.foodAllergies;
+  const initials = patient.fullName.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
   return <section className="space-y-5">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>{!embedded ? <Link href="/clients" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Master records</Link> : null}<h1 className="text-2xl font-semibold">{patient.fullName}</h1><p className="text-sm text-muted-foreground">{patient.patientNo} - {patient.mobile} - {patient.branch?.name}</p></div>
+    {!embedded ? <Link href="/clients" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" />Master records</Link> : null}
+    <Card className="flex flex-wrap items-center justify-between gap-4 sm:p-6">
+      <div className="flex min-w-0 items-center gap-4"><span aria-hidden className="grid size-14 shrink-0 place-items-center rounded-2xl bg-primary-soft text-lg font-semibold text-primary">{initials}</span><div className="min-w-0"><h1 className="break-words text-2xl font-semibold">{patient.fullName}</h1><div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground"><span className="rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">{patient.patientNo}</span><span>{patient.mobile}</span>{patient.branch?.name ? <span>{patient.branch.name}</span> : null}</div></div></div>
       <div className="flex flex-wrap items-center gap-2">
         {canOperate ? <EditButton label="Edit details" className="h-10 px-3 text-sm" onClick={() => setEditingPatient(true)} /> : null}
         <DeleteRecordButton kind="patient" id={patient.id} what="patient" name={`${patient.fullName} · ${patient.patientNo}`} className="h-10 px-3 text-sm" warning="Their open follow-ups, tasks, waitlist entries and upcoming appointments are removed as well. Bills, signed consents and prescriptions stay in the audit records." onDeleted={() => router.push('/clients')} />
         {canStartConsultation && activeConsultation ? <Button type="button" disabled={startConsultation.isPending} onClick={() => startConsultation.mutate()}><Stethoscope className="size-4" />{startConsultation.isPending ? 'Starting...' : activeConsultation.status === 'IN_CONSULTATION' ? 'Continue consultancy' : 'Start consultancy'}</Button> : null}
       </div>
-    </div>
+    </Card>
 
     {patient.medicalProfile?.criticalAlert ? <Card className="border-red-300 bg-red-50 text-red-900"><div className="flex gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0" /><div><div className="font-semibold">Critical medical alert</div><div className="text-sm">{patient.medicalProfile.clinicalAlerts || allergy || 'Review the medical profile before treatment.'}</div></div></div></Card> : null}
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <Card className="grid p-0 sm:grid-cols-2 sm:p-0 xl:grid-cols-4 [&>*]:border-b [&>*]:border-border [&>*:last-child]:border-b-0 xl:[&>*]:border-b-0 xl:[&>*]:border-r xl:[&>*:last-child]:border-r-0">
       <Metric title="Allergies" value={allergy ?? 'None recorded'} warning={Boolean(allergy)} />
       <Metric title="Last visit" value={format(patient.summary.lastVisit?.appointmentAt)} />
       <Metric title="Next appointment" value={format(patient.summary.nextAppointment?.appointmentAt)} />
       <Metric title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} />
-    </div>
+    </Card>
 
-    <div className="overflow-x-auto border-b"><div className="flex min-w-max gap-1">{tabs.map((item) => <button key={item} className={`border-b-2 px-3 py-2 text-sm ${tab === item ? 'border-primary font-medium text-primary' : 'border-transparent text-muted-foreground'}`} onClick={() => setTab(item)}>{item}</button>)}</div></div>
+    <div className="overflow-x-auto pb-1"><div role="tablist" className="inline-flex min-w-max gap-1 rounded-full bg-white/70 p-1 ring-1 ring-white">{tabs.filter((item) => canBill || item !== 'Billing').map((item) => <button key={item} role="tab" aria-selected={tab === item} className={`rounded-full px-4 py-2 text-[13.5px] font-medium transition-colors ${tab === item ? 'bg-deep text-white shadow-sm' : 'text-muted-foreground hover:bg-white hover:text-foreground'}`} onClick={() => setTab(item)}>{item}</button>)}</div></div>
 
-    {tab === 'Overview' ? <Overview patient={patient} onChooseTreatment={() => setTab('Treatment')} /> : null}
+    {tab === 'Overview' ? <Overview patient={patient} canSeeFinance={canBill} onChooseTreatment={() => setTab('Treatment')} /> : null}
     {tab === 'Appointments' ? <AppointmentsPanel patient={patient} canEdit={canOperate} invalidate={invalidate} /> : null}
-    {tab === 'Care History' ? <CareHistoryPanel patient={patient} canEditRecords={canOperate} canEditNotes={canClinical} canEditPackages={canBill} invalidate={invalidate} onChooseTreatment={() => setTab('Treatment')} /> : null}
+    {tab === 'Care History' ? <CareHistoryPanel patient={patient} canEditRecords={canOperate} canEditNotes={canClinical} canEditPackages={canBill} canSeeFinance={canBill} invalidate={invalidate} onChooseTreatment={() => setTab('Treatment')} /> : null}
     {tab === 'Billing' ? <BillingPanel patient={patient} canBill={canBill} invalidate={invalidate} /> : null}
     {tab === 'Prescriptions' ? <Prescriptions patient={patient} canCreate={canPrescribe} onCreate={() => setComposer('prescription')} /> : null}
     {tab === 'Medical Profile' ? <MedicalProfile patient={patient} canEdit={canClinical} invalidate={invalidate} /> : null}
-    {tab === 'Treatment' ? <PatientTreatmentPanel patient={patient} /> : null}
-    {tab === 'Treatment Stages' ? <PatientStagesPanel patient={patient} canRecord={canClinical} /> : null}
+    {tab === 'Treatment' ? <PatientTreatmentPanel patient={patient} canRecord={canClinical} /> : null}
     {tab === 'Documents' ? <div className="space-y-6"><PatientGalleryPanel patient={patient} /><PatientDocumentsPanel patient={patient} /></div> : null}
     {tab === 'Follow-ups' ? <PatientFollowUpsPanel patient={patient} /> : null}
 
@@ -128,8 +131,8 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
   </section>;
 }
 
-function Metric({ title, value, warning }: { title: string; value: string; warning?: boolean }) { return <Card className="p-4"><div className="text-xs text-muted-foreground">{title}</div><div className={`mt-1 text-sm font-semibold ${warning ? 'text-red-700' : ''}`}>{value}</div></Card>; }
-function ListState({ items, empty, action }: { items: React.ReactNode[]; empty: string; action?: React.ReactNode }) { return <Card><div className="mb-3 flex justify-end">{action}</div>{items.length ? <div className="space-y-2">{items}</div> : <div className="py-8 text-center text-sm text-muted-foreground">{empty}</div>}</Card>; }
+function Metric({ title, value, warning }: { title: string; value: string; warning?: boolean }) { return <div className="px-5 py-4"><div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</div><div className={`mt-1.5 text-[15px] font-semibold ${warning ? 'text-red-700' : ''}`}>{value}</div></div>; }
+function ListState({ items, empty, action }: { items: React.ReactNode[]; empty: string; action?: React.ReactNode }) { const paged = usePagedList(items, 5); return <Card><div className="mb-3 flex justify-end">{action}</div>{items.length ? <><div className="space-y-2">{paged.visible}</div><ClientPagination page={paged.page} totalPages={paged.totalPages} total={paged.total} pageSize={paged.pageSize} onPageChange={paged.setPage} /></> : <EmptyState title={empty.replace(/\.$/, '')} description="Records you add will be listed here." />}</Card>; }
 
 function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient360; canEdit: boolean; invalidate: () => void }) {
   const [roomEdit, setRoomEdit] = useState<Appointment | null>(null);
@@ -188,9 +191,9 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
   </div>;
 }
 
-function AppointmentGroup({ title, empty, items, warning = false }: { title: string; empty: string; items: React.ReactNode[]; warning?: boolean }) { return <Card className={warning && items.length ? 'border-red-200' : ''}><h2 className="font-semibold">{title}</h2>{items.length ? <div className="mt-3 space-y-2">{items}</div> : <div className="py-7 text-center text-sm text-muted-foreground">{empty}</div>}</Card>; }
+function AppointmentGroup({ title, empty, items, warning = false }: { title: string; empty: string; items: React.ReactNode[]; warning?: boolean }) { const paged = usePagedList(items, 4); return <Card className={warning && items.length ? 'border-red-200' : ''}><h2 className="font-semibold">{title}</h2>{items.length ? <><div className="mt-3 space-y-2">{paged.visible}</div><ClientPagination page={paged.page} totalPages={paged.totalPages} total={paged.total} pageSize={paged.pageSize} onPageChange={paged.setPage} /></> : <div className="py-7 text-center text-sm text-muted-foreground">{empty}</div>}</Card>; }
 
-function CareHistoryPanel({ patient, canEditRecords, canEditNotes, canEditPackages, invalidate, onChooseTreatment }: { patient: Patient360; canEditRecords: boolean; canEditNotes: boolean; canEditPackages: boolean; invalidate: () => void; onChooseTreatment: () => void }) {
+function CareHistoryPanel({ patient, canEditRecords, canEditNotes, canEditPackages, canSeeFinance, invalidate, onChooseTreatment }: { patient: Patient360; canSeeFinance: boolean; canEditRecords: boolean; canEditNotes: boolean; canEditPackages: boolean; invalidate: () => void; onChooseTreatment: () => void }) {
   const [editingRecord, setEditingRecord] = useState<PatientSession | null>(null);
   const [editingEncounter, setEditingEncounter] = useState<ClinicalEncounter | null>(null);
   const [editingPackage, setEditingPackage] = useState<TreatmentPackage | null>(null);
@@ -201,11 +204,11 @@ function CareHistoryPanel({ patient, canEditRecords, canEditNotes, canEditPackag
   const completedCare = (patient.sessions?.length ?? 0) + (patient.clinicalEncounters?.filter((item) => ['COMPLETED', 'SIGNED', 'LOCKED'].includes(item.status)).length ?? 0) + (patient.procedureSessions?.filter((item) => item.status === 'COMPLETED').length ?? 0);
   return <div className="space-y-4">
     <div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Complete patient journey</p><h2 className="text-xl font-semibold">Treatments & consultations</h2><p className="text-sm text-muted-foreground">Care taken, package progress, amounts paid, and the next scheduled visit in one place.</p></div>
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric title="Care visits recorded" value={String(completedCare)} /><Metric title="Money paid" value={`Rs ${paid.toLocaleString('en-IN')}`} /><Metric title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} /><Metric title="Next session / visit" value={format(patient.summary.nextAppointment?.appointmentAt)} /></div>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric title="Care visits recorded" value={String(completedCare)} />{canSeeFinance ? <Metric title="Money paid" value={`Rs ${paid.toLocaleString('en-IN')}`} /> : null}<Metric title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} /><Metric title="Next session / visit" value={format(patient.summary.nextAppointment?.appointmentAt)} /></div>
     <TreatmentConsentsCard patient={patient} title="Treatments chosen & consents" description="Treatments the patient has opted for, each with its signed consent form." onOpenTreatmentTab={onChooseTreatment} />
     <Card><div className="flex items-center gap-2"><CalendarCheck2 className="size-5 text-primary" /><h3 className="font-semibold">Packages & session progress</h3></div>{packages.length ? <div className="mt-3 grid gap-3 lg:grid-cols-2">{packages.map((item) => { const remaining = Math.max(0, item.totalSessions - item.completedSessions); return <div key={item.id} className="rounded-xl border p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-semibold">{item.name}</div><div className="mt-1 text-xs text-muted-foreground">Purchased {format(item.purchaseDate)} · {label(item.status ?? 'ACTIVE')}</div></div><div className="flex flex-col items-end gap-2"><span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">{remaining} remaining</span><div className="flex gap-1.5">{canEditPackages ? <EditButton onClick={() => setEditingPackage(item)} /> : null}<DeleteRecordButton kind="package" id={item.id} what="package" name={item.name} warning="Sittings already recorded against this package are not changed." onDeleted={invalidate} /></div></div></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${item.totalSessions ? Math.min(100, item.completedSessions / item.totalSessions * 100) : 0}%` }} /></div><div className="mt-2 flex justify-between text-xs text-muted-foreground"><span>{item.completedSessions}/{item.totalSessions} completed</span><span>Paid Rs {Number(item.paidAmount).toLocaleString('en-IN')}</span></div>{item.expiryDate ? <p className="mt-2 text-xs text-muted-foreground">Valid until {format(item.expiryDate)}</p> : null}</div>; })}</div> : <div className="py-8 text-center text-sm text-muted-foreground">No packages purchased.</div>}</Card>
     <div className="grid gap-4 xl:grid-cols-2"><Card><div className="flex items-center gap-2"><Stethoscope className="size-5 text-primary" /><h3 className="font-semibold">Consultations & treatment records</h3></div><div className="mt-3 space-y-2">{(patient.sessions ?? []).map((session) => <div key={session.id} className="rounded-lg border p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="font-medium">{label(session.treatmentType)}</div><div className="flex gap-1.5">{canEditRecords ? <EditButton onClick={() => setEditingRecord(session)} /> : null}<DeleteRecordButton kind="treatment-record" id={session.id} what="treatment record" name={`${label(session.treatmentType)} · ${format(session.visitDate)}`} onDeleted={invalidate} /></div></div><div className="mt-1 text-xs text-muted-foreground">{format(session.visitDate)} · {session.doctorConsulted || 'Provider not recorded'}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment taken" value={session.treatmentTaken || session.treatmentSuggested} /><Detail title="Diagnosis" value={session.diagnosis} /></dl></div>)}{(patient.clinicalEncounters ?? []).map((encounter) => <div key={encounter.id} className="rounded-lg border p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div className="font-medium">{label(encounter.type)}</div>{encounterLocked(encounter) ? <LockedBadge /> : <div className="flex gap-1.5">{canEditNotes ? <EditButton onClick={() => setEditingEncounter(encounter)} /> : null}<DeleteRecordButton kind="encounter" id={encounter.id} what="consultation note" name={`${label(encounter.type)} · ${format(encounter.visitDate)}`} onDeleted={invalidate} /></div>}</div><div className="mt-1 text-xs text-muted-foreground">{format(encounter.visitDate)} · Dr. {encounter.doctor.name}</div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><Detail title="Treatment advised" value={encounter.treatmentAdvised} /><Detail title="Diagnosis" value={encounter.diagnosis} /></dl></div>)}{!(patient.sessions?.length || patient.clinicalEncounters?.length) ? <div className="py-8 text-center text-sm text-muted-foreground">No consultation or treatment records.</div> : null}</div></Card>
-    <Card><div className="flex items-center gap-2"><CircleDollarSign className="size-5 text-primary" /><h3 className="font-semibold">Charges & payments</h3></div><div className="mt-3 space-y-2">{invoices.map((invoice) => { const invoicePaid = Number(invoice.paidAmount ?? invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0)); return <div key={invoice.id} className="rounded-lg border p-3"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{invoice.items?.map((item) => item.description).join(', ') || invoice.invoiceNo}</div><div className="mt-1 text-xs text-muted-foreground">{invoice.invoiceNo} · {format(invoice.invoiceDate)}</div></div><span className="text-sm font-semibold">Rs {Number(invoice.totalAmount).toLocaleString('en-IN')}</span></div><div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"><span>Paid: Rs {invoicePaid.toLocaleString('en-IN')}</span><span>Method: {invoice.payments[0]?.mode ? label(invoice.payments[0].mode) : 'Not recorded'}</span><span>Status: {label(invoice.status)}</span></div></div>; })}{!invoices.length ? <div className="py-8 text-center text-sm text-muted-foreground">No charges or payments recorded.</div> : null}</div></Card></div>
+    {canSeeFinance ? <Card><div className="flex items-center gap-2"><CircleDollarSign className="size-5 text-primary" /><h3 className="font-semibold">Charges & payments</h3></div><div className="mt-3 space-y-2">{invoices.map((invoice) => { const invoicePaid = Number(invoice.paidAmount ?? invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0)); return <div key={invoice.id} className="rounded-lg border p-3"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{invoice.items?.map((item) => item.description).join(', ') || invoice.invoiceNo}</div><div className="mt-1 text-xs text-muted-foreground">{invoice.invoiceNo} · {format(invoice.invoiceDate)}</div></div><span className="text-sm font-semibold">Rs {Number(invoice.totalAmount).toLocaleString('en-IN')}</span></div><div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground"><span>Paid: Rs {invoicePaid.toLocaleString('en-IN')}</span><span>Method: {invoice.payments[0]?.mode ? label(invoice.payments[0].mode) : 'Not recorded'}</span><span>Status: {label(invoice.status)}</span></div></div>; })}{!invoices.length ? <div className="py-8 text-center text-sm text-muted-foreground">No charges or payments recorded.</div> : null}</div></Card> : null}</div>
     {editingRecord ? <TreatmentRecordEditDialog patientId={patient.id} session={editingRecord} onClose={() => setEditingRecord(null)} onSaved={invalidate} /> : null}
     {editingEncounter ? <EncounterEditDialog encounter={editingEncounter} onClose={() => setEditingEncounter(null)} onSaved={invalidate} /> : null}
     {editingPackage ? <PackageEditDialog item={editingPackage} onClose={() => setEditingPackage(null)} onSaved={invalidate} /> : null}
@@ -282,58 +285,17 @@ function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appoint
   </div>;
 }
 
-function Overview({ patient, onChooseTreatment }: { patient: Patient360; onChooseTreatment: () => void }) {
+function Overview({ patient, canSeeFinance, onChooseTreatment }: { patient: Patient360; canSeeFinance: boolean; onChooseTreatment: () => void }) {
   const latestAppointment = patient.summary.lastVisit ?? patient.appointments[0];
   const profile = patient.medicalProfile;
   const registrationSource = patient.registrationSource ?? patient.lead?.source;
-  return <div className="space-y-4">
-    <TreatmentConsentsCard patient={patient} description="What the patient is going for, with the signed consent beside each treatment." onOpenTreatmentTab={onChooseTreatment} />
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card>
-        <h2 className="font-semibold">Personal details</h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Detail title="Full name" value={patient.fullName} />
-          <Detail title="Client no." value={patient.patientNo} />
-          <Detail title="Age" value={patient.age ? String(patient.age) : undefined} />
-          <Detail title="Sex" value={patient.sex ? label(patient.sex) : undefined} />
-          <Detail title="Marital status" value={patient.maritalStatus} />
-          <Detail title="Occupation" value={patient.occupation} />
-          <Detail title="Address" value={patient.address} />
-        </dl>
-      </Card>
-
-      <Card>
-        <h2 className="font-semibold">Contact & registration</h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Detail title="Mobile" value={patient.mobile} />
-          <Detail title="Email" value={patient.email} />
-          <Detail title="Branch" value={patient.branch?.name} />
-          <Detail title="Branch phone" value={patient.branch?.phone} />
-          <Detail title="Branch address" value={patient.branch?.address} />
-          <Detail title="Registration source" value={registrationSource ? label(registrationSource) : undefined} />
-          <Detail title="Registered on" value={format(patient.registeredAt ?? patient.createdAt)} />
-          <Detail title="Last updated" value={format(patient.updatedAt)} />
-        </dl>
-      </Card>
-    </div>
-
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card>
-        <h2 className="font-semibold">Clinic status</h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Detail title="Client status" value={patient.status ? label(patient.status) : undefined} />
-          <Detail title="Primary concern" value={patient.primaryConcern ?? profile?.skinConcern ?? profile?.hairConcern} />
-          <Detail title="Active treatment" value={patient.summary.activeTreatmentPlan?.concern} />
-          <Detail title="Latest visit" value={format(latestAppointment?.appointmentAt ?? patient.lastVisitAt)} />
-          <Detail title="Next appointment" value={format(patient.summary.nextAppointment?.appointmentAt ?? patient.nextVisitAt)} />
-          <Detail title="Sessions remaining" value={String(patient.summary.sessionsRemaining)} />
-          <Detail title="Outstanding amount" value={`?${patient.summary.outstandingAmount.toLocaleString('en-IN')}`} />
-        </dl>
-      </Card>
-
-      <Card>
-        <h2 className="font-semibold">Medical background</h2>
-        <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+  const consent = (allowed?: boolean) => <StatusBadge tone={allowed ? 'success' : 'neutral'}>{allowed ? 'Allowed' : 'Not recorded'}</StatusBadge>;
+  return <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+    <div className="min-w-0 space-y-4">
+      <TreatmentConsentsCard patient={patient} description="What the patient is going for, with the signed consent beside each treatment." onOpenTreatmentTab={onChooseTreatment} />
+      <Card className="sm:p-6">
+        <h2 className="text-[15px] font-semibold">Medical background</h2>
+        <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
           <Detail title="Skin concern" value={profile?.skinConcern} />
           <Detail title="Hair concern" value={profile?.hairConcern} />
           <Detail title="Medical history" value={profile?.medicalHistory} />
@@ -342,28 +304,65 @@ function Overview({ patient, onChooseTreatment }: { patient: Patient360; onChoos
           <Detail title="Drug allergies" value={profile?.allergyToDrugs} />
           <Detail title="Product allergies" value={profile?.productAllergies} />
           <Detail title="Food allergies" value={profile?.foodAllergies} />
-          <Detail title="Clinical alerts" value={profile?.clinicalAlerts} />
           <Detail title="Pregnancy status" value={profile?.pregnancyStatus} />
+          <Detail title="Clinical alerts" value={profile?.clinicalAlerts} />
+        </dl>
+      </Card>
+      <Card className="sm:p-6">
+        <h2 className="text-[15px] font-semibold">Personal details</h2>
+        <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
+          <Detail title="Full name" value={patient.fullName} />
+          <Detail title="Client no." value={patient.patientNo} />
+          <Detail title="Age" value={patient.age ? String(patient.age) : undefined} />
+          <Detail title="Sex" value={patient.sex ? label(patient.sex) : undefined} />
+          <Detail title="Marital status" value={patient.maritalStatus} />
+          <Detail title="Occupation" value={patient.occupation} />
+          <div className="sm:col-span-2"><Detail title="Address" value={patient.address} /></div>
         </dl>
       </Card>
     </div>
-
-    <Card>
-      <h2 className="font-semibold">Consent & communication</h2>
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Detail title="Transactional messages" value={patient.person?.transactionalConsent ? 'Allowed' : 'Not recorded'} />
-        <Detail title="Appointment notifications" value={patient.person?.appointmentNotificationConsent ? 'Allowed' : 'Not recorded'} />
-        <Detail title="Marketing messages" value={patient.person?.marketingConsent ? 'Allowed' : 'Not recorded'} />
-        <Detail title="Data processing consent" value={patient.person?.dataProcessingConsent ? 'Allowed' : 'Not recorded'} />
-      </dl>
-    </Card>
+    <aside className="min-w-0 space-y-4">
+      <Card>
+        <h2 className="text-[15px] font-semibold">Clinic status</h2>
+        <dl className="mt-2">
+          <Row title="Client status" value={patient.status ? <StatusBadge tone={patient.status === 'ACTIVE' ? 'success' : 'neutral'}>{label(patient.status)}</StatusBadge> : undefined} />
+          <Row title="Primary concern" value={patient.primaryConcern ?? profile?.skinConcern ?? profile?.hairConcern} />
+          <Row title="Active treatment" value={patient.summary.activeTreatmentPlan?.concern} />
+          <Row title="Latest visit" value={format(latestAppointment?.appointmentAt ?? patient.lastVisitAt)} />
+          {canSeeFinance ? <Row title="Outstanding" value={`Rs ${patient.summary.outstandingAmount.toLocaleString('en-IN')}`} /> : null}
+        </dl>
+      </Card>
+      <Card>
+        <h2 className="text-[15px] font-semibold">Contact & registration</h2>
+        <dl className="mt-2">
+          <Row title="Mobile" value={patient.mobile} />
+          <Row title="Email" value={patient.email} />
+          <Row title="Branch" value={patient.branch?.name} />
+          <Row title="Branch phone" value={/[1-9]/.test((patient.branch?.phone ?? '').replace(/^\+91/, '')) ? patient.branch?.phone : undefined} />
+          <Row title="Source" value={registrationSource ? label(registrationSource) : undefined} />
+          <Row title="Registered" value={format(patient.registeredAt ?? patient.createdAt)} />
+          <Row title="Last updated" value={format(patient.updatedAt)} />
+        </dl>
+      </Card>
+      <Card>
+        <h2 className="text-[15px] font-semibold">Consent & communication</h2>
+        <dl className="mt-2">
+          <Row title="Transactional messages" value={consent(patient.person?.transactionalConsent)} />
+          <Row title="Appointment notifications" value={consent(patient.person?.appointmentNotificationConsent)} />
+          <Row title="Marketing messages" value={consent(patient.person?.marketingConsent)} />
+          <Row title="Data processing" value={consent(patient.person?.dataProcessingConsent)} />
+        </dl>
+      </Card>
+    </aside>
   </div>;
 }
+function Row({ title, value }: { title: string; value?: React.ReactNode }) { return <div className="flex items-start justify-between gap-4 border-b border-border py-2.5 text-[13px] last:border-b-0"><dt className="shrink-0 text-muted-foreground">{title}</dt><dd className="min-w-0 break-words text-right font-medium">{value || <span className="font-normal text-muted-foreground">Not recorded</span>}</dd></div>; }
 function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; canBill: boolean; invalidate: () => void }) {
   const [payingInvoice, setPayingInvoice] = useState<Patient360['invoices'][number] | null>(null);
   const [showInvoice, setShowInvoice] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Patient360['invoices'][number] | null>(null);
   const invoicePdf = usePdfActions((id) => `/billing/invoices/${id}/pdf`, (id) => `invoice-${id}.pdf`);
+  const pagedInvoices = usePagedList(patient.invoices ?? [], 4);
   const invoices = patient.invoices ?? [];
   return <div className="space-y-4">
     <div className="grid gap-4 lg:grid-cols-3">
@@ -384,7 +383,7 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Invoices and payments</h2><p className="mt-1 text-xs text-muted-foreground">Create GST or non-GST bills, collect payments, and print professional invoices.</p></div>{canBill ? <Button onClick={() => setShowInvoice(true)}><ReceiptText className="size-4" />Generate invoice</Button> : null}</div>
       <div className="mt-3 space-y-3">
-        {invoices.length ? invoices.map((invoice) => {
+        {invoices.length ? pagedInvoices.visible.map((invoice) => {
           const paid = Number(invoice.paidAmount ?? invoice.payments.reduce((sum, payment) => sum + Number(payment.amount), 0));
           const outstanding = Number(invoice.outstandingAmount ?? Math.max(0, Number(invoice.totalAmount) - paid));
           return <div key={invoice.id} className="rounded-md border p-3">
@@ -397,14 +396,13 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
               <div className="text-left sm:text-right">
                 <div className="text-sm font-semibold">Rs {Number(invoice.totalAmount).toLocaleString('en-IN')}</div>
                 <div className={outstanding > 0 ? 'text-xs text-red-700' : 'text-xs text-emerald-700'}>{outstanding > 0 ? `Outstanding Rs ${outstanding.toLocaleString('en-IN')}` : 'Paid'}</div>
-                <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end"><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.preview.isPending} onClick={() => invoicePdf.preview.mutate(invoice.id)}>Preview</Button><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.download.isPending} onClick={() => invoicePdf.download.mutate(invoice.id)}><Download className="size-3.5" />Download</Button><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.print.isPending} onClick={() => invoicePdf.print.mutate(invoice.id)}><Printer className="size-3.5" />Print</Button></div>
-                {canBill && outstanding > 0 && ['ISSUED', 'PARTIAL', 'OVERDUE'].includes(invoice.status) ? <Button className="mt-2" variant="secondary" onClick={() => setPayingInvoice(invoice)}>Record payment</Button> : null}
-                <div className="mt-2 flex flex-wrap gap-1.5 sm:justify-end">{canBill ? <EditButton onClick={() => setEditingInvoice(invoice)} /> : null}<DeleteRecordButton kind="invoice" id={invoice.id} what="invoice" name={`${invoice.invoiceNo} · Rs ${Number(invoice.totalAmount).toLocaleString('en-IN')}`} warning="Payments recorded only against this invoice are removed from collections too." onDeleted={invalidate} /></div>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:justify-end"><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.preview.isPending} onClick={() => invoicePdf.preview.mutate(invoice.id)}>Preview</Button><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.download.isPending} onClick={() => invoicePdf.download.mutate(invoice.id)}><Download className="size-3.5" />Download</Button><Button className="h-8 px-2 text-xs" variant="secondary" disabled={invoicePdf.print.isPending} onClick={() => invoicePdf.print.mutate(invoice.id)}><Printer className="size-3.5" />Print</Button>{canBill && outstanding > 0 && ['ISSUED', 'PARTIAL', 'OVERDUE'].includes(invoice.status) ? <Button className="h-8 px-3 text-xs" variant="primary" onClick={() => setPayingInvoice(invoice)}>Record payment</Button> : null}{canBill ? <EditButton onClick={() => setEditingInvoice(invoice)} /> : null}<DeleteRecordButton kind="invoice" id={invoice.id} what="invoice" name={`${invoice.invoiceNo} · Rs ${Number(invoice.totalAmount).toLocaleString('en-IN')}`} warning="Payments recorded only against this invoice are removed from collections too." onDeleted={invalidate} /></div>
               </div>
             </div>
           </div>;
-        }) : <p className="py-6 text-center text-sm text-muted-foreground">No invoices generated yet.</p>}
+        }) : <EmptyState icon={ReceiptText} title="No invoices yet" description="Generated invoices and payments for this patient will appear here." />}
       </div>
+      <ClientPagination page={pagedInvoices.page} totalPages={pagedInvoices.totalPages} total={pagedInvoices.total} pageSize={pagedInvoices.pageSize} onPageChange={pagedInvoices.setPage} />
     </Card>
     {payingInvoice ? <PaymentModal patient={patient} invoice={payingInvoice} onClose={() => setPayingInvoice(null)} onSaved={() => { setPayingInvoice(null); invalidate(); }} /> : null}
     {editingInvoice ? <InvoiceEditDialog invoice={editingInvoice} onClose={() => setEditingInvoice(null)} onSaved={invalidate} /> : null}

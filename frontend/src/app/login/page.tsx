@@ -29,7 +29,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top_left,hsl(var(--accent)/0.18),transparent_28rem),linear-gradient(180deg,hsl(36_100%_98%),hsl(24_100%_96%))] px-4">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4">
       <LoginForm />
     </main>
   );

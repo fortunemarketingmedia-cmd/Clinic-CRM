@@ -76,7 +76,7 @@ export function FollowUpWorklistView() {
   ];
 
   return <section className="space-y-5">
-    <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Reception worklist</p><h1 className="mt-1 text-2xl font-semibold">Follow-up Worklist</h1><p className="text-sm text-muted-foreground">All lead follow-ups and reminder times in one dedicated queue.</p></div>
+    <div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Reception worklist</p><h1 className="mt-1 text-2xl font-semibold">Follow-up Worklist</h1><p className="text-sm text-muted-foreground">All lead follow-ups and reminder times in one dedicated queue.</p></div>
     <div className="grid gap-3 sm:grid-cols-4">{tabs.map((item) => <Card key={item.value} className="flex items-center justify-between p-4"><div><p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p><p className="mt-1 text-2xl font-semibold">{counts[item.value]}</p></div>{item.value === 'COMPLETED' ? <CheckCircle2 className="size-5 text-emerald-600" /> : item.value === 'PAST' ? <Clock3 className="size-5 text-red-600" /> : <CalendarClock className="size-5 text-primary" />}</Card>)}</div>
     <Card className="p-3"><div className="grid gap-3 lg:grid-cols-[auto_minmax(260px,1fr)_220px]">
       <div className="flex flex-wrap gap-2">{tabs.map((item) => <Button key={item.value} type="button" variant={tab === item.value ? 'primary' : 'secondary'} onClick={() => setTab(item.value)}>{item.label} ({counts[item.value]})</Button>)}</div>

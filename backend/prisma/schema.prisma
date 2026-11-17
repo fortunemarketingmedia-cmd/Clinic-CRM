@@ -3656,3 +3656,9 @@ model ClinicSettings {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
+
+/// Per-year counter behind client numbers such as 2026-0001.
+model PatientNumberCounter {
+  year      Int @id
+  lastValue Int @default(0)
+}

@@ -34,14 +34,14 @@ function ConsentDocument({ token, consent }: { token: string; consent: Extract<P
 
   if (submit.isSuccess) return <StateCard title="Consent submitted" message="Thank you. The clinic has received your signed consent and will complete it with the treating doctor." success />;
 
-  return <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border bg-white shadow-xl">
-    <div className="border-b bg-white px-5 py-5 text-center sm:px-10">
+  return <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-border bg-white shadow-lg shadow-primary/5">
+    <div className="border-b border-border bg-primary-soft/60 px-5 py-5 text-center sm:px-10">
       <img src="/revive-logo.png" alt="Revive Skin & Hair Clinic" className="mx-auto h-16 w-auto object-contain" />
-      <h1 className="mt-4 text-lg font-bold uppercase tracking-wide text-[#241417]">{consent.template.name}</h1>
+      <h1 className="mt-4 text-lg font-bold uppercase tracking-wide text-[#263743]">{consent.template.name}</h1>
       <p className="mt-1 text-xs text-neutral-500">Version {consent.template.version} · Link valid until {formatDate(consent.expiresAt)}</p>
     </div>
     <div className="space-y-5 p-5 sm:p-10">
-      <dl className="grid gap-3 rounded-xl border border-[#241417]/60 p-4 text-sm sm:grid-cols-3">
+      <dl className="grid gap-3 rounded-xl border border-[#263743]/60 p-4 text-sm sm:grid-cols-3">
         <div className="sm:col-span-3"><dt className="text-xs text-neutral-500">Patient</dt><dd className="font-semibold">{consent.patient.fullName} ({consent.patient.patientNo})</dd></div>
         <div><dt className="text-xs text-neutral-500">Date</dt><dd className="font-semibold">{formatDate(new Date())}</dd></div>
         <div><dt className="text-xs text-neutral-500">Age</dt><dd className="font-semibold">{consent.patient.age ?? 'Not recorded'}</dd></div>

@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Edit3, FileUp, Plus, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PaginationControls, type PaginationMeta } from '@/components/ui/pagination-controls';
@@ -94,7 +95,7 @@ export function MedicinesView() {
         </div>
         <div className="mt-4 overflow-x-auto rounded-md border border-border">
           <table className="w-full border-collapse text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr><th className="px-4 py-3 font-medium">Medicine / Product</th><th className="px-4 py-3 font-medium">Generic Name</th><th className="px-4 py-3 font-medium">Strength</th><th className="px-4 py-3 font-medium">Form</th><th className="px-4 py-3 font-medium">Status</th>{isAdmin ? <th className="px-4 py-3 text-right font-medium">Actions</th> : null}</tr></thead>
-            <tbody>{medicines.data?.data.map((medicine) => <tr key={medicine.id} className="border-t border-border"><td className="px-4 py-3 font-medium">{medicine.name}</td><td className="px-4 py-3 text-muted-foreground">{medicine.genericName || '—'}</td><td className="px-4 py-3 text-muted-foreground">{medicine.strength || '—'}</td><td className="px-4 py-3 text-muted-foreground">{medicine.form || '—'}</td><td className="px-4 py-3"><StatusBadge status={medicine.status} /></td>{isAdmin ? <td className="px-4 py-3"><div className="flex justify-end gap-2"><Button type="button" variant="secondary" className="h-8 px-2" onClick={() => setEditing(medicine)} aria-label={`Edit ${medicine.name}`}><Edit3 className="size-3.5" /></Button><Button type="button" variant="secondary" className="h-8 px-2 text-red-700" disabled={remove.isPending} onClick={() => { if (window.confirm(`Remove ${medicine.name}? Used medicines will be kept and marked inactive.`)) remove.mutate(medicine); }} aria-label={`Remove ${medicine.name}`}><Trash2 className="size-3.5" /></Button></div></td> : null}</tr>)}
+            <tbody>{medicines.data?.data.map((medicine) => <tr key={medicine.id} className="border-t border-border"><td className="px-4 py-3 font-medium">{medicine.name}</td><td className="px-4 py-3 text-muted-foreground">{medicine.genericName || '—'}</td><td className="px-4 py-3 text-muted-foreground">{medicine.strength || '—'}</td><td className="px-4 py-3 text-muted-foreground">{medicine.form || '—'}</td><td className="px-4 py-3"><MedicineStatusBadge status={medicine.status} /></td>{isAdmin ? <td className="px-4 py-3"><div className="flex justify-end gap-2"><Button type="button" variant="secondary" className="h-8 px-2" onClick={() => setEditing(medicine)} aria-label={`Edit ${medicine.name}`}><Edit3 className="size-3.5" /></Button><Button type="button" variant="secondary" className="h-8 px-2 text-red-700" disabled={remove.isPending} onClick={() => { if (window.confirm(`Remove ${medicine.name}? Used medicines will be kept and marked inactive.`)) remove.mutate(medicine); }} aria-label={`Remove ${medicine.name}`}><Trash2 className="size-3.5" /></Button></div></td> : null}</tr>)}
               {!medicines.data?.data.length ? <tr><td className="px-4 py-10 text-center text-muted-foreground" colSpan={isAdmin ? 6 : 5}>No medicines match the current filters.</td></tr> : null}</tbody>
           </table>
         </div>
@@ -106,7 +107,7 @@ export function MedicinesView() {
   );
 }
 
-function StatusBadge({ status }: { status: MedicineStatus }) { return <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{status === 'ACTIVE' ? 'Active' : 'Inactive'}</span>; }
+function MedicineStatusBadge({ status }: { status: MedicineStatus }) { return <StatusBadge tone={status === 'ACTIVE' ? 'success' : 'neutral'}>{status === 'ACTIVE' ? 'Active' : 'Inactive'}</StatusBadge>; }
 
 function MedicineDialog({ medicine, pending, onClose, onSubmit }: { medicine: Medicine | null; pending: boolean; onClose: () => void; onSubmit: (values: MedicineInput) => void }) {
   const [values, setValues] = useState<MedicineInput>(medicine ? { name: medicine.name, genericName: medicine.genericName ?? '', strength: medicine.strength ?? '', form: medicine.form ?? '', status: medicine.status } : emptyMedicine);

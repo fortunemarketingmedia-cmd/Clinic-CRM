@@ -36,7 +36,7 @@ async function main() {
     create: {
       name: 'Sharanpur Road',
       address: 'Sharanpur Road, Nashik',
-      phone: '+91-0000000000',
+      phone: '',
     },
   });
 
@@ -46,7 +46,7 @@ async function main() {
     create: {
       name: 'Nashik Road',
       address: 'Nashik Road, Nashik',
-      phone: '+91-0000000000',
+      phone: '',
     },
   });
 

@@ -5,6 +5,9 @@ import { CheckCircle2, CircleDot, Clock3, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { ClientPagination, usePagedList } from '@/components/ui/client-pagination';
+import { MetricCard } from '@/components/ui/metric-card';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -126,6 +129,7 @@ export function TasksView() {
       new Date(task.dueAt).getTime() < Date.now(),
   ).length;
 
+  const pagedTasks = usePagedList(tasks, 8);
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -194,7 +198,7 @@ export function TasksView() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <TaskMetric icon={CircleDot} label="Visible tasks" value={tasks.length} />
+        <TaskMetric icon={CircleDot} label="Visible tasks" value={tasks.length} highlight />
         <TaskMetric
           icon={Clock3}
           label="In progress"
@@ -246,13 +250,13 @@ export function TasksView() {
           <Empty text="You have no assigned tasks in this filter." />
         ) : (
           <div className="divide-y">
-            {tasks.map((task) => (
+            {pagedTasks.visible.map((task) => (
               <article
                 key={task.id}
                 className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"
               >
                 <div className="min-w-0">
-                  <div className="font-medium">{task.title}</div>
+                  <div className="flex flex-wrap items-center gap-2 font-medium">{task.title}<StatusBadge tone={task.priority === 'URGENT' ? 'danger' : task.priority === 'HIGH' ? 'warning' : 'neutral'} className="font-normal capitalize">{task.priority.toLowerCase()} priority</StatusBadge></div>
                   <div className="text-sm text-muted-foreground">
                     {task.description || task.type.replaceAll('_', ' ')}
                   </div>
@@ -273,10 +277,10 @@ export function TasksView() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span>{new Date(task.dueAt).toLocaleString('en-IN')}</span>
-                  <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">
-                    {task.status.replaceAll('_', ' ')}
-                  </span>
+                  <span className={new Date(task.dueAt).getTime() < Date.now() && !['COMPLETED', 'CANCELLED'].includes(task.status) ? 'font-medium text-red-700' : 'text-muted-foreground'}>{new Date(task.dueAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  <StatusBadge tone={task.status === 'COMPLETED' ? 'success' : task.status === 'IN_PROGRESS' ? 'info' : task.status === 'CANCELLED' ? 'neutral' : task.status === 'OVERDUE' ? 'danger' : 'primary'} className="capitalize">
+                    {task.status.replaceAll('_', ' ').toLowerCase()}
+                  </StatusBadge>
                   {task.status === 'OPEN' ? (
                     <Button
                       type="button"
@@ -299,30 +303,13 @@ export function TasksView() {
           </div>
         )}
       </Card>
+      <ClientPagination page={pagedTasks.page} totalPages={pagedTasks.totalPages} total={pagedTasks.total} pageSize={pagedTasks.pageSize} onPageChange={pagedTasks.setPage} />
     </section>
   );
 }
 
-function TaskMetric({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: number;
-}) {
-  return (
-    <Card className="flex items-center gap-3">
-      <div className="rounded-md bg-primary/10 p-2 text-primary">
-        <Icon className="size-4" />
-      </div>
-      <div>
-        <div className="text-xl font-semibold">{value}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-      </div>
-    </Card>
-  );
+function TaskMetric({ icon, label, value, highlight }: { icon: React.ElementType; label: string; value: number; highlight?: boolean }) {
+  return <MetricCard icon={icon} label={label} value={value} highlight={highlight} />;
 }
 
 function Empty({ text }: { text: string }) {

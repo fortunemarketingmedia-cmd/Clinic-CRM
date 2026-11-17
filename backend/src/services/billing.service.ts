@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import type { Prisma, Role } from '@prisma/client';
 import { Role as RoleEnum } from '@prisma/client';
 import PDFDocument from 'pdfkit';
+import { amountInWords } from '../utils/amount-in-words.js';
+import { cleanPhone } from './pdf-theme.js';
 import type { z } from 'zod';
 import { env } from '../config/env.js';
 import { billingRepository } from '../repositories/billing.repository.js';
@@ -14,7 +16,8 @@ import { auditService, type AuditContext } from './audit.service.js';
 import { agingBucket, assertPackageAction, calculateDocument, discountLimit, money, requiredApproval } from './billing-policy.js';
 
 type Actor = AuditContext & { id: string; role: Role };
-const billingRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+// Financial records (invoices, payments, estimates) are administrator-only.
+const billingRoles: Role[] = [RoleEnum.ADMIN];
 const managerRoles: Role[] = [RoleEnum.ADMIN];
 const ownerRoles: Role[] = [RoleEnum.ADMIN];
 const adminRoles: Role[] = [RoleEnum.ADMIN];
@@ -32,7 +35,7 @@ function documentLines(items: z.infer<typeof invoiceSchema>['items']) {
 function legacyLines(input: z.infer<typeof invoiceSchema>) { const subtotal = money(input.consultationFee + input.packageFee); const totalAmount = money(subtotal - input.discount + input.gstAmount); if (input.discount > subtotal) throw new HttpError(400, 'Discount cannot exceed subtotal'); return { subtotal, discount: input.discount, taxAmount: input.gstAmount, totalAmount, items: [{ type: 'CUSTOM' as const, description: input.serviceName ?? 'Itemized services', quantity: 1, unitPrice: subtotal, discount: input.discount, taxPercent: 0, taxAmount: input.gstAmount, totalAmount, sortOrder: 10 }] }; }
 function approvalFor(total: { subtotal: number; discount: number }, reason: string | undefined, actor: Actor) { const percent = total.subtotal ? money(total.discount / total.subtotal * 100) : 0; if (total.discount > 0 && !reason?.trim()) throw new HttpError(400, 'A discount reason is required'); if (percent <= discountLimit(actor.role)) return undefined; return { requestedById: actor.id, discountAmount: total.discount, discountPercent: percent, reason: reason!, requiredLevel: requiredApproval(percent) }; }
 
-function pdfBuffer(render: (doc: PDFKit.PDFDocument) => void) { return new Promise<Buffer>((resolve, reject) => { const doc = new PDFDocument({ margin: 48 }); const chunks: Buffer[] = []; doc.on('data', (chunk: Buffer) => chunks.push(chunk)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject); render(doc); doc.end(); }); }
+function pdfBuffer(render: (doc: PDFKit.PDFDocument) => void) { return new Promise<Buffer>((resolve, reject) => { const doc = new PDFDocument({ size: 'A4', margin: 48 }); const chunks: Buffer[] = []; doc.on('data', (chunk: Buffer) => chunks.push(chunk)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject); render(doc); doc.end(); }); }
 
 export const billingService = {
   async listEstimates(query: z.infer<typeof estimateQuerySchema>, actor: Actor) { requireBilling(actor); await accessService.assertBranchAccess(actor.id, actor.role, query.branchId); return billingRepository.listEstimates(query); },
@@ -94,38 +97,39 @@ export const billingService = {
       const brand = settings.clinicName || 'Revive Clinic';
       const legalName = settings.legalName || brand;
       const address = settings.businessAddress || invoice.branch.address || invoice.branch.name;
-      const phone = settings.businessPhone || invoice.branch.phone || '';
-      const line = (y: number) => doc.moveTo(48, y).lineTo(548, y).strokeColor('#d8c7ca').lineWidth(0.7).stroke();
+      const phone = cleanPhone(settings.businessPhone) || cleanPhone(invoice.branch.phone);
+      const line = (y: number) => doc.moveTo(48, y).lineTo(548, y).strokeColor('#D5E2E4').lineWidth(0.7).stroke();
       const amount = (value: unknown) => `Rs ${Number(value ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-      doc.font('Helvetica-Bold').fontSize(22).fillColor('#a51d2d').text(brand, 48, 42, { width: 320 });
-      doc.font('Helvetica-Bold').fontSize(13).fillColor('#241719').text(hasGst ? 'TAX INVOICE' : 'INVOICE', 380, 45, { width: 168, align: 'right' });
-      doc.font('Helvetica').fontSize(9).fillColor('#5f5053').text(legalName, 48, 72).text(address, 48, 86, { width: 320 });
+      doc.font('Helvetica-Bold').fontSize(22).fillColor('#176B78').text(brand, 48, 42, { width: 320 });
+      doc.font('Helvetica-Bold').fontSize(13).fillColor('#253640').text(hasGst ? 'TAX INVOICE' : 'INVOICE', 380, 45, { width: 168, align: 'right' });
+      doc.font('Helvetica').fontSize(9).fillColor('#5F6F7B').text(legalName, 48, 72).text(address, 48, 86, { width: 320 });
       if (phone) doc.text(`Phone: ${phone}`, 48, 112);
       if (settings.clinicEmail) doc.text(`Email: ${settings.clinicEmail}`, 48, 126);
       if (hasGst && settings.gstNumber) doc.font('Helvetica-Bold').text(`GSTIN: ${settings.gstNumber}`, 380, 72, { width: 168, align: 'right' });
       if (settings.registrationNumber) doc.font('Helvetica').text(`Registration: ${settings.registrationNumber}`, 380, 88, { width: 168, align: 'right' });
       line(148);
 
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#241719').text('BILL TO', 48, 166);
-      doc.font('Helvetica').fontSize(10).text(invoice.patient.fullName, 48, 184).fontSize(9).fillColor('#5f5053').text(`Patient No: ${invoice.patient.patientNo}`, 48, 200).text(`Branch: ${invoice.branch.name}`, 48, 216);
-      doc.font('Helvetica-Bold').fontSize(9).fillColor('#241719').text('Invoice number', 350, 166).text('Invoice date', 350, 188).text('Status', 350, 210);
-      doc.font('Helvetica').fillColor('#5f5053').text(invoice.invoiceNo, 440, 166, { width: 108, align: 'right' }).text(invoice.invoiceDate.toLocaleDateString('en-IN'), 440, 188, { width: 108, align: 'right' }).text(invoice.status.replaceAll('_', ' '), 440, 210, { width: 108, align: 'right' });
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#253640').text('BILL TO', 48, 166);
+      doc.font('Helvetica').fontSize(10).text(invoice.patient.fullName, 48, 184).fontSize(9).fillColor('#5F6F7B').text(`Patient No: ${invoice.patient.patientNo}`, 48, 200).text(`Branch: ${invoice.branch.name}`, 48, 216);
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#253640').text('Invoice number', 350, 166).text('Invoice date', 350, 188).text('Status', 350, 210);
+      doc.font('Helvetica').fillColor('#5F6F7B').text(invoice.invoiceNo, 440, 166, { width: 108, align: 'right' }).text(invoice.invoiceDate.toLocaleDateString('en-IN'), 440, 188, { width: 108, align: 'right' }).text(invoice.status.replaceAll('_', ' '), 440, 210, { width: 108, align: 'right' });
 
       let y = 256;
-      doc.rect(48, y, 500, 26).fill('#a51d2d');
+      doc.rect(48, y, 500, 26).fill('#176B78');
       doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff').text('DESCRIPTION', 56, y + 9, { width: 210 }).text('QTY', 276, y + 9, { width: 36, align: 'right' }).text('RATE', 320, y + 9, { width: 68, align: 'right' }).text('DISC.', 396, y + 9, { width: 52, align: 'right' }).text(hasGst ? 'GST' : 'TAX', 454, y + 9, { width: 38, align: 'right' }).text('AMOUNT', 496, y + 9, { width: 46, align: 'right' });
       y += 26;
       invoice.items.forEach((item, index) => {
         const rowHeight = Math.max(30, doc.heightOfString(item.description, { width: 210 }) + 14);
         if (y + rowHeight > 650) { doc.addPage(); y = 56; }
-        if (index % 2 === 0) doc.rect(48, y, 500, rowHeight).fill('#faf6f6');
-        doc.font('Helvetica').fontSize(8.5).fillColor('#241719').text(item.description, 56, y + 8, { width: 210 }).text(String(item.quantity), 276, y + 8, { width: 36, align: 'right' }).text(amount(item.unitPrice).replace('Rs ', ''), 320, y + 8, { width: 68, align: 'right' }).text(amount(item.discount).replace('Rs ', ''), 396, y + 8, { width: 52, align: 'right' }).text(hasGst ? `${Number(item.taxPercent)}%` : '0%', 454, y + 8, { width: 38, align: 'right' }).text(amount(item.totalAmount).replace('Rs ', ''), 496, y + 8, { width: 46, align: 'right' });
+        if (index % 2 === 0) doc.rect(48, y, 500, rowHeight).fill('#F1F8F7');
+        doc.font('Helvetica').fontSize(8.5).fillColor('#253640').text(item.description, 56, y + 8, { width: 210 }).text(String(item.quantity), 276, y + 8, { width: 36, align: 'right' }).text(amount(item.unitPrice).replace('Rs ', ''), 320, y + 8, { width: 68, align: 'right' }).text(amount(item.discount).replace('Rs ', ''), 396, y + 8, { width: 52, align: 'right' }).text(hasGst ? `${Number(item.taxPercent)}%` : '0%', 454, y + 8, { width: 38, align: 'right' }).text(amount(item.totalAmount).replace('Rs ', ''), 496, y + 8, { width: 46, align: 'right' });
         y += rowHeight;
       });
       line(y);
       y += 16;
-      const totalRow = (title: string, value: unknown, bold = false) => { doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9).fillColor('#241719').text(title, 350, y, { width: 90 }).text(amount(value), 440, y, { width: 108, align: 'right' }); y += bold ? 20 : 16; };
+      const totalRow = (title: string, value: unknown, bold = false) => { doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9).fillColor('#253640').text(title, 350, y, { width: 90 }).text(amount(value), 440, y, { width: 108, align: 'right' }); y += bold ? 20 : 16; };
+      const totalsTop = y;
       totalRow('Subtotal', invoice.subtotal);
       totalRow('Discount', invoice.discount);
       if (hasGst) { totalRow('CGST', Number(invoice.taxAmount) / 2); totalRow('SGST', Number(invoice.taxAmount) / 2); }
@@ -133,10 +137,29 @@ export const billingService = {
       totalRow('Paid', invoice.paidAmount);
       totalRow('Balance due', invoice.outstandingAmount, true);
 
+      // Left column beside the totals: amount in words and the payments received against this invoice.
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#253640').text('Amount in words', 48, totalsTop, { width: 280 });
+      doc.font('Helvetica').fontSize(8.5).fillColor('#5F6F7B').text(amountInWords(Number(invoice.totalAmount)), 48, totalsTop + 13, { width: 280 });
+      const received = invoice.payments.filter((payment) => payment.status === 'COMPLETED').slice(0, 4);
+      if (received.length) {
+        let paymentY = totalsTop + 46;
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#253640').text('Payments received', 48, paymentY);
+        paymentY += 13;
+        received.forEach((payment) => {
+          doc.font('Helvetica').fontSize(8).fillColor('#5F6F7B').text(`${payment.paidAt.toLocaleDateString('en-IN')} · ${payment.mode.replaceAll('_', ' ')}${payment.reference ? ` · Ref ${payment.reference}` : ''}`, 48, paymentY, { width: 200, lineBreak: false }).text(amount(payment.amount), 250, paymentY, { width: 80, align: 'right' });
+          paymentY += 12;
+        });
+      }
+      y = Math.max(y, totalsTop + 46 + (received.length ? 13 + received.length * 12 : 0));
+
       const notesY = Math.max(y + 8, 570);
-      if (invoice.notes) doc.font('Helvetica-Bold').fontSize(9).text('Notes', 48, notesY).font('Helvetica').fontSize(8.5).fillColor('#5f5053').text(invoice.notes, 48, notesY + 14, { width: 280, height: 34, ellipsis: true });
-      if (invoice.terms || settings.invoiceTerms) doc.font('Helvetica-Bold').fontSize(9).fillColor('#241719').text('Terms & conditions', 48, notesY + 52).font('Helvetica').fontSize(8).fillColor('#5f5053').text(invoice.terms || settings.invoiceTerms || '', 48, notesY + 66, { width: 360, height: 42, ellipsis: true });
-      doc.font('Helvetica').fontSize(8).fillColor('#76666a').text(settings.invoiceFooter || 'Computer-generated invoice. No physical signature is required.', 48, 718, { width: 500, align: 'center', height: 20 });
+      if (invoice.notes) doc.font('Helvetica-Bold').fontSize(9).text('Notes', 48, notesY).font('Helvetica').fontSize(8.5).fillColor('#5F6F7B').text(invoice.notes, 48, notesY + 14, { width: 280, height: 34, ellipsis: true });
+      if (invoice.terms || settings.invoiceTerms) doc.font('Helvetica-Bold').fontSize(9).fillColor('#253640').text('Terms & conditions', 48, notesY + 52).font('Helvetica').fontSize(8).fillColor('#5F6F7B').text(invoice.terms || settings.invoiceTerms || '', 48, notesY + 66, { width: 360, height: 42, ellipsis: true });
+      // Authorised signatory block (legal name from the clinic profile).
+      doc.moveTo(388, 694).lineTo(548, 694).strokeColor('#253640').lineWidth(0.6).stroke();
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#253640').text(`For ${legalName}`, 388, 664, { width: 160, align: 'right' });
+      doc.font('Helvetica').fontSize(8).fillColor('#5F6F7B').text('Authorised signatory', 388, 699, { width: 160, align: 'right' });
+      doc.font('Helvetica').fontSize(8).fillColor('#6B7B86').text(settings.invoiceFooter || 'This is a computer-generated invoice.', 48, 724, { width: 500, align: 'center', height: 20 });
     });
   },
   async getPaymentReceiptPdf(id: string, actor: Actor) { requireBilling(actor); const payment = await billingRepository.findPayment(id); if (!payment) throw new HttpError(404, 'Payment not found'); await accessService.assertBranchAccess(actor.id, actor.role, payment.branchId); const settings = await settingsRepository.getOrCreate(); await audit(actor, { action: 'PAYMENT_RECEIPT_VIEWED', entity: 'Payment', entityId: id }); return pdfBuffer((doc) => { doc.fontSize(20).text(settings.clinicName, { align: 'center' }).fontSize(14).text('PAYMENT RECEIPT', { align: 'center' }).moveDown(); doc.fontSize(11).text(`Receipt: ${payment.paymentNo}`).text(`Patient: ${payment.patient.fullName}`).text(`Date: ${payment.paidAt.toLocaleString('en-IN')}`).text(`Mode: ${payment.mode.replaceAll('_', ' ')}`).text(`Amount: Rs ${payment.amount}`).text(`Allocated: Rs ${payment.allocatedAmount}`).text(`Advance / unallocated: Rs ${money(Number(payment.amount) - Number(payment.allocatedAmount))}`).text(`Reference: ${payment.reference ?? '-'}`).text(`Status: ${payment.status}`); }); },

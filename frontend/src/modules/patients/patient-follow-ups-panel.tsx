@@ -5,6 +5,7 @@ import { BellRing, CalendarClock, CheckCircle2, Plus, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -84,7 +85,7 @@ export function PatientFollowUpsPanel({ patient }: { patient: Patient360 }) {
         const alerting = !overdue && new Date(item.reminderAt ?? item.dueAt).getTime() <= now;
         return <div key={item.id} className={cn('flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3', overdue && 'border-red-200 bg-red-50/40', alerting && 'border-amber-200 bg-amber-50/40')}>
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.activityType}</span><span className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', overdue ? 'bg-red-100 text-red-700' : alerting ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700')}>{overdue ? 'Overdue' : alerting ? 'Due soon' : 'Upcoming'}</span></div>
+            <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.activityType}</span><StatusBadge tone={overdue ? 'danger' : alerting ? 'warning' : 'info'}>{overdue ? 'Overdue' : alerting ? 'Due soon' : 'Upcoming'}</StatusBadge></div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1"><CalendarClock className="size-3.5" />{formatWhen(item.dueAt)}</span><span className="inline-flex items-center gap-1"><BellRing className="size-3.5" />Reminder {formatWhen(item.reminderAt ?? item.dueAt)}</span><span>{channelLabel(item.channel)}</span><span>{item.assignedUser.name}</span></div>
             {item.notes ? <p className="mt-1 text-sm">{item.notes}</p> : null}
           </div>
@@ -100,7 +101,7 @@ export function PatientFollowUpsPanel({ patient }: { patient: Patient360 }) {
       <h3 className="font-semibold">Completed follow-ups</h3>
       {done.length ? <div className="mt-3 space-y-2">{done.map((item, index) => <div key={item.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.activityType}</span><span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">{item.status === 'CANCELLED' ? 'Cancelled' : 'Done'}</span></div>
+          <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.activityType}</span><StatusBadge tone={item.status === 'CANCELLED' ? 'neutral' : 'success'}>{item.status === 'CANCELLED' ? 'Cancelled' : 'Done'}</StatusBadge></div>
           <div className="mt-1 text-xs text-muted-foreground">Due {formatWhen(item.dueAt)} · Completed {formatWhen(item.completedAt)}</div>
           {item.outcome ? <p className="mt-1 text-sm"><span className="text-muted-foreground">Outcome:</span> {item.outcome}</p> : null}
         </div>

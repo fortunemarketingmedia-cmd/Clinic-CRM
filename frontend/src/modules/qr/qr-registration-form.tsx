@@ -105,8 +105,9 @@ export function QrRegistrationForm({ token, onSuccess, initialBranchId }: { toke
   const fields = (template?.fields ?? []).filter((field) => isVisible(field, currentValues)).sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
-    <Card className="w-full max-w-3xl">
-      <div className="mb-6">
+    <Card className="w-full max-w-3xl shadow-lg shadow-primary/5 sm:p-8">
+      <div className="mb-6 border-b border-border pb-5">
+        <img src="/revive-logo.png" alt="Revive Clinic" className="mb-4 h-12 w-auto object-contain" />
         <h1 className="text-2xl font-semibold">Revive Clinic Registration</h1>
         <p className="text-sm text-muted-foreground">
           {registrationQuery.data?.data.patientNo} - {registrationQuery.data?.data.branch?.name ?? 'Select branch'}

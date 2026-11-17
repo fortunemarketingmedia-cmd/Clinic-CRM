@@ -58,14 +58,14 @@ export function SignedConsentDocument({ record, patient, className }: { record: 
       <Button type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={pdf.isPending} onClick={download}><Download className="size-3.5" />{pdf.isPending ? 'Preparing…' : 'Download PDF'}</Button>
     </div>
     {pdf.isError ? <p role="alert" className="pb-2 text-right text-xs text-red-700">{pdf.error.message}</p> : null}
-    <article className="mx-auto w-full max-w-[720px] rounded-xl border bg-white px-5 py-7 text-[#241417] shadow-sm sm:px-10">
+    <article className="mx-auto w-full max-w-[720px] rounded-xl border bg-white px-5 py-7 text-[#263743] shadow-sm sm:px-10">
       <header className="text-center">
         <img src="/revive-logo.png" alt="Revive Skin & Hair Clinic, Laser Center" className="mx-auto h-16 w-auto object-contain sm:h-20" />
         <h3 className="mx-auto mt-4 max-w-xl text-base font-bold uppercase leading-snug tracking-wide sm:text-lg">{record.template.name}</h3>
-        <div className="mx-auto mt-3 h-px w-3/5 bg-[#241417]" />
+        <div className="mx-auto mt-3 h-px w-3/5 bg-[#263743]" />
         <p className="mt-2 text-[11px] text-neutral-500">Version {record.templateVersion}</p>
       </header>
-      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-[#241417]/70 px-4 py-3.5 text-sm sm:grid-cols-3">
+      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-[#263743]/70 px-4 py-3.5 text-sm sm:grid-cols-3">
         <PaperField label="Name of Patient" value={`${patient.fullName} (${patient.patientNo})`} className="col-span-2 sm:col-span-3" />
         <PaperField label="Date" value={signedDay} />
         <PaperField label="Age" value={patient.age != null ? `${patient.age} years` : 'Not recorded'} />

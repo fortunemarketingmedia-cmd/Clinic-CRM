@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { MetricCard } from '@/components/ui/metric-card';
 import { Card } from '@/components/ui/card';
 import {
   ColumnChart,
@@ -125,14 +126,13 @@ function friendly(value: string) {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function AnalyticsView() {
+export function AnalyticsView({ mode = 'CRM' }: { mode?: AnalyticsMode }) {
   const { session, selectedBranchId } = useSessionStore();
   const isAdmin = session?.user.role === 'ADMIN';
   const defaultRange = useMemo(() => initialRange(), []);
   const branchId = selectedBranchId ?? '';
   const [dateFrom, setDateFrom] = useState(defaultRange.from);
   const [dateTo, setDateTo] = useState(defaultRange.to);
-  const [mode, setMode] = useState<AnalyticsMode>('CRM');
   const [tab, setTab] = useState<AnalyticsTab>('EXECUTIVE');
 
   const queryString = useMemo(() => {
@@ -181,12 +181,12 @@ export function AnalyticsView() {
     <section className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
             Business intelligence
           </p>
-          <h1 className="mt-1 text-2xl font-semibold">Clinic Analytics Command Centre</h1>
+          <h1 className="mt-1 text-2xl font-semibold">{mode === 'FINANCE' ? 'Finance Analytics' : 'Clinic Analytics'}</h1>
           <p className="text-sm text-muted-foreground">
-            Switch between CRM operations and detailed finance performance with the same date and branch filters.
+            {mode === 'FINANCE' ? 'Billing, collections, GST and downloadable reports for the selected period and branch.' : 'Leads, patients, appointments and follow-ups for the selected period and branch.'}
           </p>
         </div>
         <div className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-muted-foreground">
@@ -246,7 +246,6 @@ export function AnalyticsView() {
         </div>
       </Card>
 
-      <Card className="p-2"><SegmentedTabs tabs={[{ label: 'CRM analytics', value: 'CRM' }, { label: 'Finance analytics', value: 'FINANCE' }]} value={mode} onChange={setMode} /></Card>
 
       {mode === 'CRM' ? <SegmentedTabs tabs={[{ label: 'Overview', value: 'EXECUTIVE' }, { label: 'Leads', value: 'LEADS' }, { label: 'Patients', value: 'PATIENTS' }, { label: 'Follow-ups', value: 'FOLLOW_UPS' }, { label: 'Branches', value: 'BRANCHES' }]} value={tab} onChange={setTab} /> : null}
 
@@ -285,7 +284,7 @@ function ExecutiveTab({
   const followUps = overview?.analytics.followUps;
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <Metric
           label="Lead intake"
           value={totals?.totalLeadIntake ?? 0}
@@ -325,9 +324,9 @@ function ExecutiveTab({
           <LineChart
             data={trend}
             series={[
-              { key: 'leads', label: 'Leads', color: '#6366f1' },
-              { key: 'patients', label: 'Patients', color: '#14b8a6' },
-              { key: 'appointments', label: 'Appointments', color: '#e73748' },
+              { key: 'leads', label: 'Leads', color: '#4D9CCB' },
+              { key: 'patients', label: 'Patients', color: '#24966F' },
+              { key: 'appointments', label: 'Appointments', color: '#176B78' },
             ]}
           />
         </ChartCard>
@@ -342,7 +341,7 @@ function ExecutiveTab({
               overview?.analytics.appointments.byStatus.map((item, index) => ({
                 label: friendly(item.name),
                 value: item.count,
-                color: ['#6366f1', '#14b8a6', '#f59e0b', '#e73748', '#0ea5e9'][index % 5],
+                color: ['#4D9CCB', '#24966F', '#D99B38', '#176B78', '#0ea5e9'][index % 5],
               })) ?? []
             }
           />
@@ -362,7 +361,7 @@ function LeadsTab({
   const data = overview?.analytics.leads;
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Metric label="All enquiries" value={overview?.totals.totalLeadIntake ?? 0} icon={Users} />
         <Metric
           label="Converted"
@@ -381,7 +380,7 @@ function LeadsTab({
         />
       </div>
       <ChartCard title="Lead acquisition trend" subtitle="New enquiries received each day">
-        <LineChart data={trend} series={[{ key: 'leads', label: 'New leads', color: '#6366f1' }]} />
+        <LineChart data={trend} series={[{ key: 'leads', label: 'New leads', color: '#4D9CCB' }]} />
       </ChartCard>
       <div className="grid gap-5 xl:grid-cols-2">
         <BreakdownCard title="Lead funnel by stage" data={data?.byStatus ?? []} />
@@ -425,7 +424,7 @@ function PatientsTab({
         <ChartCard title="Patient acquisition trend" subtitle="Patients registered each day">
           <LineChart
             data={trend}
-            series={[{ key: 'patients', label: 'New patients', color: '#14b8a6' }]}
+            series={[{ key: 'patients', label: 'New patients', color: '#24966F' }]}
           />
         </ChartCard>
         <ChartCard title="Patient status mix" subtitle="Current patient lifecycle">
@@ -465,7 +464,7 @@ function FollowUpsTab({
     : 0;
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Metric label="Total follow-ups" value={data?.total ?? 0} icon={Clock3} />
         <Metric label="Open" value={data?.open ?? 0} icon={Activity} />
         <Metric label="Overdue" value={data?.overdue ?? 0} icon={CalendarCheck} />
@@ -477,7 +476,7 @@ function FollowUpsTab({
       >
         <LineChart
           data={trend}
-          series={[{ key: 'followUps', label: 'Follow-ups due', color: '#f59e0b' }]}
+          series={[{ key: 'followUps', label: 'Follow-ups due', color: '#D99B38' }]}
         />
       </ChartCard>
       <div className="grid gap-5 xl:grid-cols-3">
@@ -762,7 +761,7 @@ function FinancialTab({
   const data = overview?.analytics.financial;
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
         <Metric label="Invoices" value={data?.invoices ?? 0} icon={CircleDollarSign} />
         <Metric label="Billed" value={money(data?.billed ?? 0)} icon={IndianRupee} />
         <Metric label="Collected" value={money(data?.collected ?? 0)} icon={Banknote} />
@@ -782,8 +781,8 @@ function FinancialTab({
         <LineChart
           data={trend}
           series={[
-            { key: 'billed', label: 'Billed', color: '#6366f1' },
-            { key: 'collected', label: 'Collected', color: '#14b8a6' },
+            { key: 'billed', label: 'Billed', color: '#4D9CCB' },
+            { key: 'collected', label: 'Collected', color: '#24966F' },
           ]}
           valueFormatter={(value) => money(value, true)}
         />
@@ -866,7 +865,6 @@ function BranchesTab({ overview }: { overview?: AnalyticsOverview }) {
                 <th className="px-4 py-3">Active leads</th>
                 <th className="px-4 py-3">Patients</th>
                 <th className="px-4 py-3">Appointments</th>
-                <th className="px-4 py-3">Invoices</th>
               </tr>
             </thead>
             <tbody>
@@ -877,7 +875,6 @@ function BranchesTab({ overview }: { overview?: AnalyticsOverview }) {
                   <td className="px-4 py-3">{branch.activeLeads}</td>
                   <td className="px-4 py-3">{branch._count.patients}</td>
                   <td className="px-4 py-3">{branch._count.appointments}</td>
-                  <td className="px-4 py-3">{branch._count.invoices}</td>
                 </tr>
               ))}
             </tbody>
@@ -888,31 +885,8 @@ function BranchesTab({ overview }: { overview?: AnalyticsOverview }) {
   );
 }
 
-function Metric({
-  label,
-  value,
-  note,
-  icon: Icon,
-}: {
-  label: string;
-  value: string | number;
-  note?: string;
-  icon: React.ElementType;
-}) {
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm text-muted-foreground">{label}</div>
-          <div className="mt-2 truncate text-2xl font-semibold">{value}</div>
-          {note ? <div className="mt-1 text-xs text-muted-foreground">{note}</div> : null}
-        </div>
-        <div className="rounded-lg bg-primary/10 p-2 text-primary">
-          <Icon className="size-5" />
-        </div>
-      </div>
-    </Card>
-  );
+function Metric({ label, value, note, icon }: { label: string; value: string | number; note?: string; icon: React.ElementType }) {
+  return <MetricCard label={label} value={value} hint={note} icon={icon} />;
 }
 
 function ChartCard({

@@ -16,6 +16,7 @@ consentRoutes.use(requireAuth);
 consentRoutes.get('/templates', (req, res, next) => { formsController.listConsentTemplates(req, res).catch(next); });
 consentRoutes.post('/templates', (req, res, next) => { formsController.createConsentTemplate(req, res).catch(next); });
 consentRoutes.patch('/templates/:id', (req, res, next) => { formsController.updateConsentTemplate(req, res).catch(next); });
+consentRoutes.get('/doctor-signature', (req, res, next) => { formsController.doctorSignature(req, res).catch(next); });
 consentRoutes.post('/sign', (req, res, next) => { formsController.signConsent(req, res).catch(next); });
 consentRoutes.post('/invitations', (req, res, next) => { formsController.createConsentInvitation(req, res).catch(next); });
 consentRoutes.post('/invitations/:id/revoke', (req, res, next) => { formsController.revokeConsentInvitation(req, res).catch(next); });

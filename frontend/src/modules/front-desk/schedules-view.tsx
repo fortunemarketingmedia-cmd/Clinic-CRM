@@ -247,7 +247,7 @@ export function SchedulesView() {
         <Card className="text-sm text-muted-foreground">Select the clinic branch from the top bar to view room schedules.</Card>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {metrics.map((metric) => (
               <Card key={metric.label} className="p-4">
                 <div className="text-sm text-muted-foreground">{metric.label}</div>

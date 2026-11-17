@@ -100,7 +100,7 @@ export function AutomationBuilderView() {
     <section className="space-y-5">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Phase 10</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Phase 10</p>
           <h1 className="mt-1 text-2xl font-semibold">Clinic automation builder</h1>
           <p className="text-sm text-muted-foreground">
             Internal CRM, appointment, clinical, and marketing workflows. Patient-facing and billing

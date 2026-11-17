@@ -1,10 +1,11 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clipboard, Clock3, Eye, FileSignature, History, Link2, MessageCircle, PenLine, RotateCw, Search, ShieldCheck, Unlink, X } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronRight, Clipboard, Clock3, Eye, FileSignature, Link2, MessageCircle, PenLine, Plus, RotateCw, Search, ShieldCheck, Unlink, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -17,6 +18,7 @@ import type { ClinicService } from '@/types/appointment';
 import type { Patient360 } from '@/types/clinical';
 import type { ConsentRecord, ConsentTemplate } from '@/types/forms';
 import type { StaffMember } from '@/types/front-desk';
+import { CourseSittings } from './patient-stages-panel';
 import { ConsentStatusChip, SignedConsentDocument, SignedConsentViewer, isTreatmentConsent, usePatientConsents } from './signed-consents';
 
 const formatDateTime = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
@@ -25,109 +27,182 @@ const formatSex = (value?: string | null) => value ? value.charAt(0) + value.sli
 const shortFormName = (template: ConsentTemplate) => template.key === generalConsentKey ? 'General consent' : template.name.replace(/^Informed consent (for|of) /i, '').replace(/ Consent Form$/i, '');
 const doctorRoles = ['ADMIN', 'DOCTOR'];
 
-export function PatientTreatmentPanel({ patient }: { patient: Patient360 }) {
-  const [section, setSection] = useState<'treatments' | 'history'>('treatments');
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All');
-  const [selectedServiceId, setSelectedServiceId] = useState('');
+/** The clinic's stored doctor signature, applied to consents by the server. */
+function useDoctorSignature() {
+  const query = useQuery({ queryKey: ['doctor-signature'], queryFn: () => apiRequest<{ data: { dataUrl: string } }>('/consents/doctor-signature'), staleTime: 3_600_000 });
+  return query.data?.data.dataUrl ?? '';
+}
+
+function DoctorSignatureBox({ signature }: { signature: string }) {
+  return <div className="flex h-28 items-center justify-center rounded-xl border border-border bg-white p-3">
+    {signature ? <img src={signature} alt="Treating doctor's signature on file" className="max-h-full max-w-[220px] object-contain" /> : <span className="text-xs text-muted-foreground">Loading signature…</span>}
+  </div>;
+}
+
+type ConsentStep = 'SIGNED' | 'PENDING' | 'REQUIRED';
+
+/**
+ * One workspace per patient treatment: choose the treatment, complete its informed consent (the doctor's signature is
+ * applied automatically), then record sittings. Sittings stay locked until the consent is signed.
+ */
+export function PatientTreatmentPanel({ patient, canRecord }: { patient: Patient360; canRecord: boolean }) {
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [extraCourses, setExtraCourses] = useState<string[]>([]);
+  const [selected, setSelected] = useState('');
+  const [consentFor, setConsentFor] = useState('');
+  const [viewing, setViewing] = useState<ConsentRecord | null>(null);
+  const [completing, setCompleting] = useState<ConsentRecord | null>(null);
 
   const servicesQuery = useQuery({ queryKey: ['patient-treatment-services', patient.branchId], queryFn: () => apiRequest<{ data: ClinicService[] }>(`/front-desk/services?branchId=${encodeURIComponent(patient.branchId)}`) });
   const templatesQuery = useQuery({ queryKey: ['patient-consent-templates', patient.branchId], queryFn: () => apiRequest<{ data: ConsentTemplate[] }>(`/consents/templates?branchId=${encodeURIComponent(patient.branchId)}`) });
   const recordsQuery = usePatientConsents(patient.id);
-  const [viewing, setViewing] = useState<ConsentRecord | null>(null);
-  const [completing, setCompleting] = useState<ConsentRecord | null>(null);
 
-  // Same source and filter as Schedules & Rooms > Create Appointment > Treatment service.
   const treatments = useMemo(() => (servicesQuery.data?.data ?? [])
     .filter((service) => service.active && service.resourceType === 'TREATMENT_ROOM')
     .sort((a, b) => (a.category ?? '').localeCompare(b.category ?? '') || a.name.localeCompare(b.name)), [servicesQuery.data?.data]);
+  const templatesByKey = useMemo(() => new Map((templatesQuery.data?.data ?? []).filter((template) => template.status === 'PUBLISHED').map((template) => [template.key, template])), [templatesQuery.data?.data]);
+  const procedureRecords = useMemo(() => (recordsQuery.data?.data ?? []).filter(isTreatmentConsent), [recordsQuery.data?.data]);
+  const sessions = useMemo(() => (patient.procedureSessions ?? []).filter((session) => session.status !== 'CANCELLED'), [patient.procedureSessions]);
+
+  const courses = useMemo(() => [...new Set([
+    ...sessions.map((session) => session.procedureName),
+    ...procedureRecords.map((record) => record.treatmentName).filter((name): name is string => Boolean(name)),
+    ...extraCourses,
+  ])], [sessions, procedureRecords, extraCourses]);
+  const course = courses.includes(selected) ? selected : courses[0] ?? '';
+  const stepOf = (name: string): ConsentStep => {
+    const own = procedureRecords.filter((record) => record.treatmentName === name);
+    return own.some((record) => record.status === 'SIGNED') ? 'SIGNED' : own.some((record) => record.status === 'PENDING') ? 'PENDING' : 'REQUIRED';
+  };
+  const courseRecords = procedureRecords.filter((record) => record.treatmentName === course);
+  const step = course ? stepOf(course) : 'REQUIRED';
+  const pendingRecord = courseRecords.find((record) => record.status === 'PENDING');
+  const signedRecord = courseRecords.find((record) => record.status === 'SIGNED');
+  const sittingCount = (name: string) => sessions.filter((session) => session.procedureName === name).length;
+  const service = treatments.find((item) => item.name === course);
+  const consentService = treatments.find((item) => item.name === consentFor);
+
+  const consentTone = (value: ConsentStep) => value === 'SIGNED' ? 'success' as const : value === 'PENDING' ? 'warning' as const : 'neutral' as const;
+  const consentLabel = (value: ConsentStep) => value === 'SIGNED' ? 'Consent signed' : value === 'PENDING' ? 'Doctor signature pending' : 'Consent required';
+
+  function chooseTreatment(name: string) {
+    setExtraCourses((current) => current.includes(name) ? current : [...current, name]);
+    setSelected(name);
+    setCatalogOpen(false);
+    if (stepOf(name) === 'REQUIRED') setConsentFor(name);
+  }
+
+  return <div className="space-y-5">
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 className="text-xl font-semibold">Treatment plan</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Choose a treatment, sign its informed consent, then record the sittings — all in one place for {patient.fullName}.</p>
+      </div>
+      {canRecord ? <Button type="button" onClick={() => setCatalogOpen(true)}><Plus className="size-4" />Add treatment</Button> : null}
+    </div>
+
+    {!courses.length ? <Card className="grid min-h-56 place-items-center border-dashed text-center">
+      <div><FileSignature className="mx-auto size-9 text-primary" aria-hidden /><h3 className="mt-3 font-semibold">No treatment started yet</h3><p className="mt-1 max-w-md text-sm text-muted-foreground">Use “Add treatment” to choose a service. Its consent form opens next, and sittings unlock once it is signed.</p></div>
+    </Card> : <div className="grid gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1" aria-label="Treatments">
+        {courses.map((name) => {
+          const state = stepOf(name);
+          return <li key={name}>
+            <button type="button" onClick={() => setSelected(name)} aria-current={name === course} className={cn('w-full rounded-2xl border bg-surface p-3.5 text-left shadow-card transition-colors', name === course ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/40')}>
+              <div className="text-sm font-semibold">{name}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2"><StatusBadge tone={consentTone(state)}>{consentLabel(state)}</StatusBadge><span className="text-xs text-muted-foreground">{sittingCount(name)} sitting{sittingCount(name) === 1 ? '' : 's'}</span></div>
+            </button>
+          </li>;
+        })}
+      </ul>
+
+      <Card className="space-y-6 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-lg font-semibold">{course}</h3><p className="text-[13px] text-muted-foreground">{[service?.category, service ? `${service.durationMinutes} min` : null, service?.basePrice != null ? `₹${Number(service.basePrice).toLocaleString('en-IN')}` : null].filter(Boolean).join(' · ') || 'Treatment details'}</p></div>
+          <ol className="flex items-center gap-2 text-xs font-medium" aria-label="Progress">
+            <li className="flex items-center gap-1.5 text-success"><CheckCircle2 className="size-4" aria-hidden />Chosen</li>
+            <li aria-hidden className="h-px w-5 bg-border" />
+            <li className={cn('flex items-center gap-1.5', step === 'SIGNED' ? 'text-success' : 'text-amber-700')}>{step === 'SIGNED' ? <CheckCircle2 className="size-4" aria-hidden /> : <Clock3 className="size-4" aria-hidden />}Consent</li>
+            <li aria-hidden className="h-px w-5 bg-border" />
+            <li className={cn('flex items-center gap-1.5', step === 'SIGNED' ? 'text-primary' : 'text-muted-foreground')}><CalendarClock className="size-4" aria-hidden />Sittings</li>
+          </ol>
+        </div>
+
+        <section aria-label="Informed consent" className="rounded-2xl bg-muted/50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-white text-primary shadow-card"><ShieldCheck className="size-5" aria-hidden /></span><div><div className="text-sm font-semibold">Informed consent</div><div className="text-xs text-muted-foreground">{step === 'SIGNED' && signedRecord ? `Signed ${formatDateTime(signedRecord.signedAt)}${signedRecord.doctorName ? ` · ${signedRecord.doctorName}` : ''}` : step === 'PENDING' ? 'Patient has signed. The doctor’s signature completes the form.' : 'Required before the first sitting.'}</div></div></div>
+            <div className="flex flex-wrap gap-2">
+              {step === 'SIGNED' && signedRecord ? <Button type="button" variant="secondary" onClick={() => setViewing(signedRecord)}><Eye className="size-4" />View consent</Button> : null}
+              {step === 'PENDING' && pendingRecord ? <Button type="button" onClick={() => setCompleting(pendingRecord)}><PenLine className="size-4" />Apply doctor signature</Button> : null}
+              {step === 'REQUIRED' && canRecord && service ? <Button type="button" onClick={() => setConsentFor(course)}><FileSignature className="size-4" />Open consent form</Button> : null}
+              {step === 'REQUIRED' && canRecord && !service ? <span className="text-xs text-muted-foreground">This treatment is no longer in the service list.</span> : null}
+            </div>
+          </div>
+          {courseRecords.length > 1 || (courseRecords.length === 1 && step !== 'SIGNED') ? <ul className="mt-3 divide-y divide-border rounded-xl border border-border bg-white text-sm">{courseRecords.map((record) => <li key={record.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"><span className="flex items-center gap-2"><ConsentStatusChip status={record.status} /><span className="text-xs text-muted-foreground">{record.template.name} · v{record.templateVersion} · {formatDateTime(record.signedAt)}</span></span><Button type="button" variant="ghost" className="h-8 px-3 text-xs" onClick={() => setViewing(record)}>View</Button></li>)}</ul> : null}
+        </section>
+
+        <CourseSittings patient={patient} course={course} canRecord={canRecord} hasConsent={step === 'SIGNED'} />
+      </Card>
+    </div>}
+
+    {catalogOpen ? <TreatmentCatalog treatments={treatments} loading={servicesQuery.isLoading} error={servicesQuery.error?.message} templatesByKey={templatesByKey} signedNames={new Set(procedureRecords.filter((record) => record.status === 'SIGNED').map((record) => record.treatmentName ?? ''))} onPick={chooseTreatment} onClose={() => setCatalogOpen(false)} /> : null}
+    {viewing ? <SignedConsentViewer record={viewing} patient={patient} onClose={() => setViewing(null)} /> : null}
+    {completing ? <DoctorCountersignDialog patient={patient} record={completing} onClose={() => setCompleting(null)} onCompleted={() => { setCompleting(null); recordsQuery.refetch(); }} /> : null}
+    {consentService ? <ConsentDrawer key={consentService.id} patient={patient} service={consentService} templatesByKey={templatesByKey} templatesLoading={templatesQuery.isLoading} records={procedureRecords} onClose={() => { setConsentFor(''); recordsQuery.refetch(); }} /> : null}
+  </div>;
+}
+
+/** Searchable, paged catalogue of treatment services. Picking one starts its consent. */
+function TreatmentCatalog({ treatments, loading, error, templatesByKey, signedNames, onPick, onClose }: { treatments: ClinicService[]; loading: boolean; error?: string; templatesByKey: Map<string, ConsentTemplate>; signedNames: Set<string>; onPick: (name: string) => void; onClose: () => void }) {
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('All');
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
   const categories = useMemo(() => {
     const counts = new Map<string, number>();
     for (const service of treatments) counts.set(service.category || 'Other treatments', (counts.get(service.category || 'Other treatments') ?? 0) + 1);
     return [...counts.entries()];
   }, [treatments]);
-  const visible = treatments.filter((service) => (category === 'All' || (service.category || 'Other treatments') === category) && `${service.name} ${service.category ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()));
-  const groups = useMemo(() => {
-    const map = new Map<string, ClinicService[]>();
-    for (const service of visible) map.set(service.category || 'Other treatments', [...(map.get(service.category || 'Other treatments') ?? []), service]);
-    return [...map.entries()];
-  }, [visible]);
+  const filtered = treatments.filter((service) => (category === 'All' || (service.category || 'Other treatments') === category) && `${service.name} ${service.category ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const current = Math.min(page, pages);
+  const visible = filtered.slice((current - 1) * pageSize, current * pageSize);
 
-  const templatesByKey = useMemo(() => new Map((templatesQuery.data?.data ?? []).filter((template) => template.status === 'PUBLISHED').map((template) => [template.key, template])), [templatesQuery.data?.data]);
-  const records = recordsQuery.data?.data ?? [];
-  const procedureRecords = records.filter(isTreatmentConsent);
-  const lastSignedFor = (name: string) => procedureRecords.find((record) => record.treatmentName === name && record.status === 'SIGNED');
-  const selectedService = treatments.find((service) => service.id === selectedServiceId);
-
-  return <div className="space-y-5">
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Treatment & informed consent</p>
-        <h2 className="mt-1 text-xl font-semibold">Select a treatment to open its consent form</h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">All treatment services from Schedules & Rooms are listed here. Choosing one opens the clinic&apos;s matching consent form for {patient.fullName} to acknowledge and sign with the treating doctor.</p>
+  return createPortal(<div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Add treatment">
+    <button type="button" aria-label="Close" className="absolute inset-0 bg-black/45" onClick={onClose} />
+    <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-[20px] bg-background shadow-2xl">
+      <div className="flex items-start justify-between gap-4 border-b border-border bg-surface px-5 py-4 sm:px-6">
+        <div><h2 className="text-lg font-semibold">Add treatment</h2><p className="text-[13px] text-muted-foreground">Choose a service. Its informed consent form opens next.</p></div>
+        <button type="button" aria-label="Close" onClick={onClose} className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"><X className="size-4" /></button>
       </div>
-      <div className="flex gap-2 text-xs">
-        <span className="rounded-full border bg-surface px-3 py-1.5"><b className="font-semibold">{treatments.length}</b> treatments</span>
-        <span className="rounded-full border bg-surface px-3 py-1.5"><b className="font-semibold">{procedureRecords.filter((record) => record.status === 'SIGNED').length}</b> consents on file</span>
-      </div>
-    </div>
-
-    <div className="flex w-full gap-1 rounded-xl border bg-muted/50 p-1" role="tablist" aria-label="Treatment sections">
-      <button type="button" role="tab" aria-selected={section === 'treatments'} onClick={() => setSection('treatments')} className={cn('flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition', section === 'treatments' ? 'bg-surface text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}><FileSignature className="size-4" />Treatments</button>
-      <button type="button" role="tab" aria-selected={section === 'history'} onClick={() => setSection('history')} className={cn('flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition', section === 'history' ? 'bg-surface text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}><History className="size-4" />Consent history <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[11px]">{procedureRecords.length}</span></button>
-    </div>
-
-    {section === 'treatments' ? <Card className="p-0">
-      <div className="space-y-3 border-b p-4">
-        <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search treatments, e.g. HIFU, peel, laser hair" aria-label="Search treatments" /></div>
-        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {[['All', treatments.length] as const, ...categories].map(([name, count]) => <button key={name} type="button" onClick={() => setCategory(name)} className={cn('shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition', category === name ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-surface text-muted-foreground hover:border-primary/40 hover:text-foreground')}>{name} <span className="opacity-70">{count}</span></button>)}
+      <div className="space-y-3 border-b border-border bg-surface px-5 py-3 sm:px-6">
+        <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" aria-hidden /><Input className="pl-9" placeholder="Search treatments, e.g. HIFU, peel, laser hair" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} /></div>
+        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Categories">
+          {[['All', treatments.length] as const, ...categories].map(([name, count]) => <button key={name} type="button" role="tab" aria-selected={category === name} onClick={() => { setCategory(name); setPage(1); }} className={cn('shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors', category === name ? 'bg-deep text-white' : 'bg-muted text-muted-foreground hover:bg-primary-soft')}>{name} <span className="opacity-70">{count}</span></button>)}
         </div>
       </div>
-
-      {servicesQuery.isLoading ? <div className="space-y-2 p-4">{Array.from({ length: 6 }, (_, index) => <div key={index} className="h-14 animate-pulse rounded-lg bg-muted/60" />)}</div> : null}
-      {servicesQuery.isError ? <p className="p-4 text-sm text-red-700">{servicesQuery.error.message}</p> : null}
-      {templatesQuery.isError ? <p className="border-b bg-amber-50 p-4 text-sm text-amber-900">Consent forms could not be loaded: {templatesQuery.error.message}</p> : null}
-      {!servicesQuery.isLoading && !servicesQuery.isError && !visible.length ? <p className="py-12 text-center text-sm text-muted-foreground">No treatments match “{search}”.</p> : null}
-
-      <div className="divide-y">{groups.map(([group, services]) => <section key={group}>
-        <h3 className="sticky top-0 z-[1] bg-muted/70 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur">{group}<span className="ml-2 font-normal normal-case tracking-normal">{services.length}</span></h3>
-        <ul className="divide-y divide-border/70">{services.map((service) => {
-          const forms = consentKeysForTreatment(service.name).map((key) => templatesByKey.get(key)).filter((template): template is ConsentTemplate => Boolean(template));
-          const signed = lastSignedFor(service.name);
-          return <li key={service.id}>
-            <button type="button" onClick={() => setSelectedServiceId(service.id)} className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-primary/[0.04] focus-visible:bg-primary/[0.06]">
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><FileSignature className="size-4" /></span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{service.name}</span>
-                <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1"><Clock3 className="size-3" />{service.durationMinutes} min</span>
-                  {service.basePrice != null ? <span>₹{Number(service.basePrice).toLocaleString('en-IN')}</span> : null}
-                  {forms.map((template) => <span key={template.id} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground/80">{shortFormName(template)}</span>)}
-                </span>
-              </span>
-              {signed ? <span className="hidden shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700 sm:inline-flex"><CheckCircle2 className="size-3" />Signed {formatDate(signed.signedAt)}</span> : null}
-              <ChevronRight className="size-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
-            </button>
-          </li>;
-        })}</ul>
-      </section>)}</div>
-    </Card> : <Card>
-      <div className="flex items-center gap-2"><ShieldCheck className="size-5 text-primary" /><h3 className="font-semibold">Treatment consent history</h3></div>
-      <p className="mt-1 text-sm text-muted-foreground">Patient-signed links appear here as pending until the treating doctor countersigns them.</p>
-      <div className="mt-3 divide-y rounded-lg border">{procedureRecords.map((record) => <div key={record.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{record.treatmentName ?? record.template.name}</span><ConsentStatusChip status={record.status} /></div>
-          <div className="mt-1 text-xs text-muted-foreground">{record.template.name} · v{record.templateVersion} · {formatDateTime(record.signedAt)}{record.doctorName ? ` · ${record.doctorName}` : ''}</div>
-        </div>
-        <div className="flex flex-wrap gap-2">{record.status === 'PENDING' ? <Button type="button" className="h-8 px-3 text-xs" onClick={() => setCompleting(record)}><PenLine className="size-3.5" />Doctor countersign</Button> : null}<Button type="button" variant="secondary" className="h-8 px-3 text-xs" onClick={() => setViewing(record)}><Eye className="size-3.5" />View consent</Button></div>
-      </div>)}{!procedureRecords.length ? <p className="py-8 text-center text-sm text-muted-foreground">No treatment consents have been signed yet.</p> : null}</div>
-    </Card>}
-
-    {viewing ? <SignedConsentViewer record={viewing} patient={patient} onClose={() => setViewing(null)} /> : null}
-    {completing ? <DoctorCountersignDialog patient={patient} record={completing} onClose={() => setCompleting(null)} onCompleted={() => { setCompleting(null); recordsQuery.refetch(); }} /> : null}
-    {selectedService ? <ConsentDrawer key={selectedService.id} patient={patient} service={selectedService} templatesByKey={templatesByKey} templatesLoading={templatesQuery.isLoading} records={procedureRecords} onClose={() => setSelectedServiceId('')} /> : null}
-  </div>;
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+        {loading ? <p className="py-10 text-center text-sm text-muted-foreground">Loading treatments…</p> : null}
+        {error ? <p className="py-10 text-center text-sm text-red-700">{error}</p> : null}
+        {!loading && !error && !visible.length ? <p className="py-10 text-center text-sm text-muted-foreground">No treatments match “{search}”.</p> : null}
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {visible.map((service) => {
+            const forms = consentKeysForTreatment(service.name).map((key) => templatesByKey.get(key)).filter((template): template is ConsentTemplate => Boolean(template));
+            return <li key={service.id}><button type="button" onClick={() => onPick(service.name)} className="group flex w-full items-center gap-3 rounded-2xl border border-border bg-surface p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary-soft/40">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary"><FileSignature className="size-4" aria-hidden /></span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{service.name}</span><span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1"><Clock3 className="size-3" aria-hidden />{service.durationMinutes} min</span>{service.basePrice != null ? <span>₹{Number(service.basePrice).toLocaleString('en-IN')}</span> : null}{forms[0] ? <span className="truncate">{shortFormName(forms[0])}</span> : null}</span></span>
+              {signedNames.has(service.name) ? <StatusBadge tone="success" className="hidden shrink-0 sm:inline-flex">Consent on file</StatusBadge> : null}
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden />
+            </button></li>;
+          })}
+        </ul>
+      </div>
+      <div className="flex items-center justify-between border-t border-border bg-surface px-5 py-3 text-[13px] text-muted-foreground sm:px-6">
+        <span>{filtered.length} treatment{filtered.length === 1 ? '' : 's'} · page {current} of {pages}</span>
+        <div className="flex gap-2"><Button type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={current <= 1} onClick={() => setPage(current - 1)}>Previous</Button><Button type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={current >= pages} onClick={() => setPage(current + 1)}>Next</Button></div>
+      </div>
+    </div>
+  </div>, document.body);
 }
 
 function ConsentDrawer({ patient, service, templatesByKey, templatesLoading, records, onClose }: { patient: Patient360; service: ClinicService; templatesByKey: Map<string, ConsentTemplate>; templatesLoading: boolean; records: ConsentRecord[]; onClose: () => void }) {
@@ -192,7 +267,7 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
   const [acknowledged, setAcknowledged] = useState<Set<number>>(new Set());
   const [signerName, setSignerName] = useState(patient.fullName);
   const [patientSignature, setPatientSignature] = useState('');
-  const [doctorSignature, setDoctorSignature] = useState('');
+  const doctorSignature = useDoctorSignature();
   const [doctorId, setDoctorId] = useState('');
   const today = new Date();
 
@@ -217,7 +292,7 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
   const sign = useMutation({
     mutationFn: () => {
       if (!doctor) throw new Error('Select the treating doctor');
-      return apiRequest<{ data: ConsentRecord }>('/consents/sign', { method: 'POST', body: JSON.stringify({ templateId: template.id, patientId: patient.id, appointmentId: appointment?.id, treatmentName: service.name, signerName: signerName.trim(), signatureBase64: patientSignature, doctorName: doctor.name, doctorSignatureBase64: doctorSignature }) });
+      return apiRequest<{ data: ConsentRecord }>('/consents/sign', { method: 'POST', body: JSON.stringify({ templateId: template.id, patientId: patient.id, appointmentId: appointment?.id, treatmentName: service.name, signerName: signerName.trim(), signatureBase64: patientSignature, doctorName: doctor.name }) });
     },
     onSuccess: async (result) => {
       onSigned(result.data);
@@ -245,15 +320,15 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
 
       <ConsentShareLink patient={patient} service={service} template={template} appointmentId={appointment?.id} />
 
-      <article className="mx-auto max-w-[720px] rounded-xl border bg-white px-5 py-7 text-[#241417] shadow-sm sm:px-10">
+      <article className="mx-auto max-w-[720px] rounded-xl border bg-white px-5 py-7 text-[#263743] shadow-sm sm:px-10">
         <header className="text-center">
           <img src="/revive-logo.png" alt="Revive Skin & Hair Clinic, Laser Center" className="mx-auto h-16 w-auto object-contain sm:h-20" />
           <h3 className="mx-auto mt-4 max-w-xl text-base font-bold uppercase leading-snug tracking-wide sm:text-lg">{template.name}</h3>
-          <div className="mx-auto mt-3 h-px w-3/5 bg-[#241417]" />
+          <div className="mx-auto mt-3 h-px w-3/5 bg-[#263743]" />
           <p className="mt-2 text-[11px] text-neutral-500">Version {template.currentVersion}</p>
         </header>
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-[#241417]/70 px-4 py-3.5 text-sm sm:grid-cols-3">
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-[#263743]/70 px-4 py-3.5 text-sm sm:grid-cols-3">
           <PaperField label="Name of Patient" value={`${patient.fullName} (${patient.patientNo})`} className="col-span-2 sm:col-span-3" />
           <PaperField label="Date" value={formatDate(today)} />
           <PaperField label="Age" value={patient.age != null ? `${patient.age} years` : 'Not recorded'} />
@@ -287,9 +362,9 @@ function ConsentForm({ patient, service, template, previous, signedRecord, nextL
           </section>
           <section aria-label="Signature of Doctor">
             <div className="flex items-baseline justify-between"><h4 className="font-semibold">Signature of Doctor</h4><span className="text-xs text-neutral-500">Date: {formatDate(today)}</span></div>
-            <Select className="mt-2 bg-white" value={effectiveDoctorId} onChange={(event) => { if (event.target.value === effectiveDoctorId) return; setDoctorId(event.target.value); setDoctorSignature(''); }} aria-label="Treating doctor"><option value="">{staffQuery.isLoading ? 'Loading doctors…' : 'Select treating doctor'}</option>{doctors.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select>
-            <div className="mt-2"><SignaturePad key={effectiveDoctorId} disabled={!doctor || !patientSignature} disabledLabel="Locked" onChange={setDoctorSignature} /></div>
-            {!patientSignature ? <p className="text-xs text-neutral-500">The doctor signs after the patient.</p> : null}
+            <Select className="mt-2 bg-white" value={effectiveDoctorId} onChange={(event) => { if (event.target.value === effectiveDoctorId) return; setDoctorId(event.target.value); }} aria-label="Treating doctor"><option value="">{staffQuery.isLoading ? 'Loading doctors…' : 'Select treating doctor'}</option>{doctors.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select>
+            <div className="mt-2"><DoctorSignatureBox signature={doctorSignature} /></div>
+            {!patientSignature ? <p className="text-xs text-neutral-500">The doctor’s signature on file is applied automatically after the patient signs.</p> : null}
           </section>
         </div>
       </article>
@@ -337,21 +412,21 @@ function ConsentShareLink({ patient, service, template, appointmentId }: { patie
 function DoctorCountersignDialog({ patient, record, onClose, onCompleted }: { patient: Patient360; record: ConsentRecord; onClose: () => void; onCompleted: () => void }) {
   const { session } = useSessionStore();
   const [doctorId, setDoctorId] = useState('');
-  const [signature, setSignature] = useState('');
+  const signature = useDoctorSignature();
   const staffQuery = useQuery({ queryKey: ['consent-doctors', patient.branchId], queryFn: () => apiRequest<{ data: StaffMember[] }>(`/front-desk/staff?branchId=${encodeURIComponent(patient.branchId)}`) });
   const doctors = (staffQuery.data?.data ?? []).filter((member) => doctorRoles.includes(member.role));
   const effectiveDoctorId = doctorId || doctors.find((member) => member.id === session?.user.id)?.id || (doctors.length === 1 ? doctors[0].id : '');
   const doctor = doctors.find((member) => member.id === effectiveDoctorId);
   const complete = useMutation({ mutationFn: () => {
     if (!doctor) throw new Error('Select the treating doctor');
-    return apiRequest(`/consents/${record.id}/complete`, { method: 'POST', body: JSON.stringify({ doctorName: doctor.name, doctorSignatureBase64: signature }) });
+    return apiRequest(`/consents/${record.id}/complete`, { method: 'POST', body: JSON.stringify({ doctorName: doctor.name }) });
   }, onSuccess: onCompleted });
 
   return createPortal(<div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/45 p-4" role="dialog" aria-modal="true" aria-label="Doctor countersign consent">
     <Card className="w-full max-w-lg">
       <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-primary">Patient signed via WhatsApp link</p><h2 className="mt-1 text-lg font-semibold">Doctor countersign</h2><p className="mt-1 text-sm text-muted-foreground">{record.treatmentName ?? record.template.name} · patient signature received {formatDateTime(record.signedAt)}</p></div><Button type="button" variant="ghost" className="size-9 p-0" onClick={onClose}><X className="size-5" /></Button></div>
-      <label className="mt-5 grid gap-1.5 text-sm"><span className="font-medium">Treating doctor</span><Select value={effectiveDoctorId} onChange={(event) => { setDoctorId(event.target.value); setSignature(''); }}><option value="">{staffQuery.isLoading ? 'Loading doctors…' : 'Select doctor'}</option>{doctors.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></label>
-      <div className="mt-4"><div className="mb-1.5 text-sm font-medium">Doctor signature</div><SignaturePad key={effectiveDoctorId} disabled={!doctor} disabledLabel="Select a doctor first" onChange={setSignature} /></div>
+      <label className="mt-5 grid gap-1.5 text-sm"><span className="font-medium">Treating doctor</span><Select value={effectiveDoctorId} onChange={(event) => { setDoctorId(event.target.value); }}><option value="">{staffQuery.isLoading ? 'Loading doctors…' : 'Select doctor'}</option>{doctors.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</Select></label>
+      <div className="mt-4"><div className="mb-1.5 text-sm font-medium">Doctor signature</div><DoctorSignatureBox signature={signature} /></div>
       {complete.isError ? <p className="mt-2 text-sm text-red-700">{complete.error.message}</p> : null}
       <div className="mt-5 flex justify-end gap-2"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="button" disabled={!doctor || !signature || complete.isPending} onClick={() => complete.mutate()}><PenLine className="size-4" />{complete.isPending ? 'Saving…' : 'Countersign & complete'}</Button></div>
     </Card>

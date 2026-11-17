@@ -17,6 +17,7 @@ import {
 import { useMemo, useState, type DragEvent } from 'react';
 import { DeleteRecordButton, EditButton } from '@/components/ui/record-actions';
 import { Button } from '@/components/ui/button';
+import { MetricCard } from '@/components/ui/metric-card';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -336,8 +337,8 @@ export function FollowUpsView() {
         </a>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <PipelineMetric label="Active leads" value={metrics.active} icon={Target} />
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <PipelineMetric label="Active leads" value={metrics.active} icon={Target} highlight />
         <PipelineMetric label="Hot leads" value={metrics.hot} icon={Flame} />
         <PipelineMetric label="Overdue actions" value={metrics.overdue} icon={AlertCircle} />
         <PipelineMetric label="Closed won / booked" value={metrics.booked} icon={CheckCircle2} />
@@ -418,7 +419,7 @@ export function FollowUpsView() {
 
       <div className="-mx-4 overflow-x-auto px-4 pb-3 md:-mx-6 md:px-6 xl:-mx-8 xl:px-8">
         <div
-          className="grid min-w-[1320px] overflow-hidden rounded-lg border border-border bg-muted/20"
+          className="grid min-w-[1000px] overflow-hidden rounded-xl border border-border bg-muted/20"
           style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(190px, 1fr))` }}
         >
           {stages.map((stage) => {
@@ -451,7 +452,7 @@ export function FollowUpsView() {
                   </span>
                 </div>
 
-                <div className="space-y-2">
+                <div className="max-h-[640px] space-y-2 overflow-y-auto pr-1">
                   {stageLeads.map((lead) => (
                     <LeadCard
                       key={lead.id}
@@ -513,24 +514,8 @@ export function FollowUpsView() {
   );
 }
 
-function PipelineMetric({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: number | string;
-  icon: typeof Target;
-}) {
-  return (
-    <Card className="flex items-center justify-between p-4">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold text-foreground">{value}</p>
-      </div>
-      <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary"><Icon className="size-5" /></span>
-    </Card>
-  );
+function PipelineMetric({ label, value, icon, highlight }: { label: string; value: number | string; icon: typeof Target; highlight?: boolean }) {
+  return <MetricCard label={label} value={value} icon={icon} highlight={highlight} />;
 }
 
 function LeadCard({
@@ -563,7 +548,7 @@ function LeadCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        'rounded-md border border-border bg-surface p-2 shadow-sm shadow-red-950/5 transition hover:border-primary/35 hover:shadow-md',
+        'rounded-xl border border-border bg-surface p-3 shadow-card transition hover:border-primary/40 hover:shadow-md',
         moving && 'pointer-events-none opacity-60',
       )}
       onClick={onOpen}
@@ -573,25 +558,27 @@ function LeadCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-1">
             <div className="min-w-0">
-              <h3 className="truncate text-xs font-semibold text-foreground">{lead.name}</h3>
-              <p className="truncate text-[10px] text-muted-foreground">
+              <h3 className="truncate text-[13px] font-semibold text-foreground">{lead.name}</h3>
+              <p className="truncate text-[11px] text-muted-foreground">
                 {lead.owner?.name || 'Unassigned'} - {lead.mobile}
               </p>
             </div>
             {(lead.scoreCategory === 'HOT' || lead.priority === 'URGENT') && (
-              <span title="Hot lead" className="rounded bg-primary/10 p-0.5 text-primary"><Flame className="size-3" /></span>
+              <span title="Hot lead" className="rounded-md bg-warning-soft p-1 text-amber-700"><Flame className="size-3.5" /></span>
             )}
           </div>
 
-          <p className="mt-1.5 truncate text-[11px] text-foreground">
+          <p className="mt-2 truncate text-xs text-foreground">
             {lead.interestedTreatment || 'Treatment not specified'}
           </p>
           <div className="mt-1 flex items-center gap-1 overflow-hidden">
-            <span className="truncate rounded-full bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{sourceLabel(lead.source)}</span>
+            <span className="truncate rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{sourceLabel(lead.source)}</span>
             <span className={cn(
-              'shrink-0 rounded-full px-1.5 py-0.5 text-[9px]',
-              lead.priority === 'URGENT' || lead.priority === 'HIGH'
-                ? 'bg-primary/10 text-primary'
+              'shrink-0 rounded-full px-2 py-0.5 text-[11px] capitalize',
+              lead.priority === 'URGENT'
+                ? 'bg-danger-soft text-red-700'
+                : lead.priority === 'HIGH'
+                ? 'bg-warning-soft text-amber-800'
                 : 'bg-muted text-muted-foreground',
             )}>
               {lead.priority.toLowerCase()}
@@ -599,7 +586,7 @@ function LeadCard({
           </div>
 
           <div className="mt-1.5 border-t border-border pt-1.5">
-            <p className={cn('flex min-w-0 items-center gap-1 text-[10px]', overdue ? 'font-medium text-primary' : 'text-muted-foreground')}>
+            <p className={cn('flex min-w-0 items-center gap-1 text-[11px]', overdue ? 'font-medium text-red-700' : 'text-muted-foreground')}>
               {isClosed ? <CheckCircle2 className="size-3 shrink-0" /> : <CalendarCheck className="size-3 shrink-0" />}
               <span className="truncate" title={isClosed ? `Final outcome: ${stageForStatus(lead.status).label}` : `${lead.nextAction || 'No next action'} - ${formatDueDate(lead.nextActionDueAt)}`}>
                 {isClosed ? `Final outcome: ${stageForStatus(lead.status).label}` : lead.nextAction || formatDueDate(lead.nextActionDueAt)}
@@ -607,7 +594,7 @@ function LeadCard({
             </p>
           </div>
 
-          {lead.followupNotes ? <p className="mt-1.5 line-clamp-2 rounded bg-amber-50 px-1.5 py-1 text-[10px] text-amber-900"><MessageSquareText className="mr-1 inline size-3" />{lead.followupNotes}</p> : null}
+          {lead.followupNotes ? <p className="mt-2 line-clamp-2 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900"><MessageSquareText className="mr-1 inline size-3" />{lead.followupNotes}</p> : null}
 
           <div className="mt-1.5 flex items-center gap-1">
             <a onClick={(event) => event.stopPropagation()} aria-label={`Call ${lead.name}`} href={`tel:${lead.mobile}`} className="grid size-6 place-items-center rounded border border-border text-muted-foreground transition hover:bg-muted hover:text-foreground">

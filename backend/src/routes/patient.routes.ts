@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { clinicalController } from '../controllers/clinical.controller.js';
 import { patientController } from '../controllers/patient.controller.js';
 import { requireAuth } from '../middleware/auth.js';
+import { redactFinancialsForNonAdmin } from '../middleware/redact-financials.js';
 import { requireRole } from '../middleware/role.js';
 import { Role } from '@prisma/client';
 
 export const patientRoutes = Router();
 
 patientRoutes.use(requireAuth);
+patientRoutes.use(redactFinancialsForNonAdmin);
 
 patientRoutes.get('/', (req, res, next) => {
   patientController.list(req, res).catch(next);

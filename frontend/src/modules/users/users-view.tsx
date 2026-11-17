@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, KeyRound, ShieldCheck, XCircle } from 'lucide-react';
+import { KeyRound, ShieldCheck } from 'lucide-react';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
@@ -19,7 +20,7 @@ export function UsersView() {
 
   return (
     <section className="space-y-5">
-      <Card className="border-primary/20 bg-primary/5">
+      <Card className="border-primary/20 bg-primary-soft/60">
         <div className="flex items-start gap-3"><div className="rounded-lg bg-primary/10 p-2 text-primary"><KeyRound className="size-5" /></div><div><h2 className="font-semibold">Licensed access</h2><p className="mt-1 text-sm text-muted-foreground">User IDs, passwords and role licences are provisioned by the system administrator.</p></div></div>
       </Card>
       <Card>
@@ -38,18 +39,11 @@ export function UsersView() {
               <tbody>
                 {usersQuery.data?.data.map((user) => (
                   <tr key={user.id} className="border-t border-border">
-                    <td className="px-4 py-3 font-medium">{user.name}</td>
+                    <td className="px-4 py-3"><div className="flex items-center gap-3"><span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-xs font-semibold text-primary">{user.name.split(' ').filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</span><span className="font-medium">{user.name}</span></div></td>
                     <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
-                    <td className="px-4 py-3">{user.role === 'ADMIN' ? 'Admin' : 'Receptionist'}</td>
+                    <td className="px-4 py-3"><StatusBadge tone={user.role === 'ADMIN' ? 'primary' : 'info'}>{user.role === 'ADMIN' ? 'Admin' : 'Receptionist'}</StatusBadge></td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
-                        {user.status === 'ACTIVE' ? (
-                          <CheckCircle2 className="size-3 text-primary" />
-                        ) : (
-                          <XCircle className="size-3 text-red-600" />
-                        )}
-                        {user.status === 'ACTIVE' ? 'Active' : 'Inactive'}
-                      </span>
+                      <StatusBadge tone={user.status === 'ACTIVE' ? 'success' : 'danger'}>{user.status === 'ACTIVE' ? 'Active' : 'Inactive'}</StatusBadge>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">Licence managed</td>
                   </tr>

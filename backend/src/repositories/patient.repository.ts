@@ -22,6 +22,14 @@ export type MedicalProfileData = Partial<{
   familyHistory: string; smokingStatus: string; alcoholHistory: string; clinicalAlerts: string; criticalAlert: boolean; notes: string;
 }>;
 
+export function formatPatientNo(year: number, serial: number) {
+  return `${year}-${String(serial).padStart(4, '0')}`;
+}
+
+function currentPatientNumberYear(now = new Date()) {
+  return Number(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric' }).format(now));
+}
+
 export const patientRepository = {
   async list(filters: { branchId?: string; search?: string; leadStatus?: LeadStatus; leadSource?: EnquirySource; page: number; pageSize: number }) {
     const where: Prisma.PatientWhereInput = {
@@ -92,10 +100,15 @@ export const patientRepository = {
     });
   },
 
+  /** Next client number: "<year>-<serial>", e.g. 2026-0001. The serial restarts every calendar year (IST). */
   async nextPatientNo() {
-    const [row] = await prisma.$queryRaw<Array<{ value: bigint }>>`SELECT nextval('"PatientNumberSeq"') AS value`;
-    if (!row) throw new Error('Patient number sequence did not return a value');
-    return `REV-P-${String(row.value).padStart(5, '0')}`;
+    const year = currentPatientNumberYear();
+    const [row] = await prisma.$queryRaw<Array<{ lastValue: number }>>`
+      INSERT INTO "PatientNumberCounter" ("year", "lastValue") VALUES (${year}, 1)
+      ON CONFLICT ("year") DO UPDATE SET "lastValue" = "PatientNumberCounter"."lastValue" + 1
+      RETURNING "lastValue"`;
+    if (!row) throw new Error('Patient number counter did not return a value');
+    return formatPatientNo(year, row.lastValue);
   },
 
   createQrToken() {

@@ -30,12 +30,12 @@ export const consentSignSchema = z.object({
   signerName: z.string().trim().min(2).max(120), signatureBase64: drawnSignatureSchema, guardianName: z.string().optional(), guardianRelationship: z.string().optional(),
   guardianSignatureBase64: z.string().max(signatureDataUrlMax).optional(), staffWitnessId: z.string().optional(), treatmentName: z.string().trim().min(2).max(200).optional(),
   doctorName: z.string().trim().min(2).max(120).optional(), doctorSignatureBase64: drawnSignatureSchema.optional(),
-}).refine((value) => Boolean(value.doctorName) === Boolean(value.doctorSignatureBase64), { message: 'Doctor name and signature must be provided together', path: ['doctorSignatureBase64'] });
+});
 export const consentInvitationSchema = z.object({
   templateId: z.string().min(1), patientId: z.string().min(1), appointmentId: z.string().optional(), treatmentName: z.string().trim().min(2).max(200),
 });
 export const publicConsentSignSchema = z.object({ signerName: z.string().trim().min(2).max(120), signatureBase64: drawnSignatureSchema });
-export const completePendingConsentSchema = z.object({ doctorName: z.string().trim().min(2).max(120), doctorSignatureBase64: drawnSignatureSchema });
+export const completePendingConsentSchema = z.object({ doctorName: z.string().trim().min(2).max(120), doctorSignatureBase64: drawnSignatureSchema.optional() });
 export const consentWithdrawalSchema = z.object({ reason: z.string().trim().min(3) });
 
 export const secureFileMetadataSchema = z.object({

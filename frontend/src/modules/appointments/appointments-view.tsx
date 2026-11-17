@@ -3,10 +3,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  BellRing,
+  CalendarCheck2,
   CalendarClock,
+  CalendarDays,
   Clock,
   RotateCcw,
   Search,
+  UserCheck,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -14,6 +18,10 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { DeleteRecordButton } from '@/components/ui/record-actions';
 import { Button } from '@/components/ui/button';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { ClientPagination, usePagedList } from '@/components/ui/client-pagination';
+import { PageHeader } from '@/components/ui/page-header';
+import { MetricCard } from '@/components/ui/metric-card';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -79,7 +87,6 @@ const bookingPlanOptions = [
 
 const STANDARD_CONSULTATION_MINUTES = 30;
 const STANDARD_CONSULTATION_BUFFER_MINUTES = 10;
-const STANDARD_CONSULTATION_RATE = 500;
 
 function moneyNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -380,6 +387,7 @@ export function AppointmentsView() {
   }, [appointments]);
 
   const selectedDayAppointments = appointmentsByDate[selectedDate] ?? [];
+  const pagedDay = usePagedList(selectedDayAppointments, 8);
   const selectedDateLabel = formatDate(selectedDate);
   const appointmentCounts = {
     total: appointments.length,
@@ -452,6 +460,8 @@ export function AppointmentsView() {
       apiRequest<{ data: PackageMaster[] }>(
         `/billing/package-masters${formDataBranchId ? `?branchId=${formDataBranchId}` : ''}`,
       ),
+    // Package prices are financial data: only administrators may load them.
+    enabled: isAdmin,
   });
   const selectedService = servicesQuery.data?.data.find((service) => service.id === formServiceId);
   const activePackageMasters = useMemo(
@@ -473,15 +483,6 @@ export function AppointmentsView() {
       : availablePackageMasters,
     [availablePackageMasters, selectedService],
   );
-  const selectedPackage = availablePackageMasters.find((item) => item.id === formPackageMasterId);
-  const selectedServiceBase = selectedService ? moneyNumber(selectedService.basePrice) : 0;
-  const selectedPackageBase = selectedPackage ? moneyNumber(selectedPackage.price) : 0;
-  const selectedPackageTax = selectedPackage ? Math.round((selectedPackageBase * moneyNumber(selectedPackage.taxPercent)) / 100) : 0;
-  const bookingTotal = formResourceType === 'CONSULTATION'
-    ? STANDARD_CONSULTATION_RATE
-    : formBookingPlan === 'PACKAGE'
-      ? selectedPackageBase + selectedPackageTax
-      : selectedServiceBase;
   const treatmentBillingOptions = useMemo(() => {
     const serviceOptions = (servicesQuery.data?.data ?? [])
       .filter((service) => service.resourceType === 'TREATMENT_ROOM')
@@ -619,8 +620,6 @@ export function AppointmentsView() {
         `Booking plan: ${bookingPlanOptions.find((item) => item.value === values.bookingPlan)?.label ?? values.bookingPlan}`,
         values.resourceType === 'CONSULTATION' ? 'Visit: Standard consultation' : selectedService ? `Treatment: ${selectedService.name}` : null,
         packageMaster ? `Package: ${packageMaster.name}` : null,
-        bookingTotal ? `Estimated total: ${formatCurrency(bookingTotal)}` : null,
-        values.paymentStatus === 'PAID' ? `Payment: Paid${values.paymentMode ? ` by ${values.paymentMode.replaceAll('_', ' ')}` : ''}` : 'Payment: Not paid',
       ].filter(Boolean).join('\n');
       return apiRequest<{ data: Appointment }>('/appointments', {
         method: 'POST',
@@ -630,9 +629,6 @@ export function AppointmentsView() {
           notes: [bookingSummary, values.notes].filter(Boolean).join('\n\n') || undefined,
           serviceId: values.resourceType === 'CONSULTATION' ? undefined : values.serviceId || undefined,
           packageMasterId: values.resourceType === 'TREATMENT_ROOM' && values.bookingPlan === 'PACKAGE' ? values.packageMasterId || undefined : undefined,
-          estimatedAmount: bookingTotal || undefined,
-          paymentStatus: values.paymentStatus,
-          paymentMode: values.paymentMode || undefined,
           doctorId: undefined,
           resourceId: values.resourceId || undefined,
           equipmentId: values.equipmentId || undefined,
@@ -806,24 +802,15 @@ export function AppointmentsView() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Appointments</h1>
-          <p className="text-sm text-muted-foreground">
-            Consultation and video-consultation calendar. Treatment-room bookings stay in Schedules & Rooms.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {canBookAppointment ? <Button type="button" onClick={() => setShowAppointmentForm(true)}>
-            <CalendarClock className="size-4" />
-            Create New Appointment
-          </Button> : null}
-        </div>
-      </div>
+      <PageHeader
+        title="Appointments"
+        description="Consultation and video-consultation calendar. Treatment-room bookings stay in Schedules & Rooms."
+        actions={canBookAppointment ? <Button type="button" onClick={() => setShowAppointmentForm(true)}><CalendarClock className="size-4" />Create New Appointment</Button> : null}
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {defaultMetrics.map((metric) => (
-          <AppointmentMetric key={metric.label} label={metric.label} value={metric.value} />
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        {defaultMetrics.map((metric, index) => (
+          <MetricCard key={metric.label} label={metric.label} value={metric.value} icon={[CalendarDays, CalendarCheck2, UserCheck, BellRing][index]} highlight={index === 0} hint={['Appointments in the visible month', 'Confirmed by reception', 'Checked in at the clinic', 'Awaiting a decision'][index]} />
         ))}
       </div>
 
@@ -1070,10 +1057,10 @@ export function AppointmentsView() {
             </span>
           </div>
           <div className="mt-4 space-y-3">
-            {selectedDayAppointments.map((appointment) => (
+            {pagedDay.visible.map((appointment) => (
               <div
                 key={appointment.id}
-                className="grid cursor-pointer gap-3 rounded-md border border-border p-3 hover:bg-muted/50 lg:grid-cols-[90px_1fr_180px_180px] lg:items-center"
+                className="grid cursor-pointer gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-muted/50 lg:grid-cols-[90px_1fr_180px_180px] lg:items-center"
                 onClick={() => setSelectedAppointment(appointment)}
               >
                 <div className="flex items-center gap-2 font-semibold">
@@ -1103,6 +1090,7 @@ export function AppointmentsView() {
               </div>
             ) : null}
           </div>
+          <ClientPagination page={pagedDay.page} totalPages={pagedDay.totalPages} total={pagedDay.total} pageSize={pagedDay.pageSize} onPageChange={pagedDay.setPage} />
         </Card>
       ) : null}
 
@@ -1164,9 +1152,9 @@ export function AppointmentsView() {
       ) : null}
 
       {showAppointmentForm || editingAppointment ? (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 p-4">
-          <Card className="mx-auto max-w-5xl">
-            <h2 className="text-base font-semibold">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/45 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="appointment-form-title">
+          <Card className="mx-auto max-w-5xl shadow-2xl sm:p-6">
+            <h2 id="appointment-form-title" className="border-b border-border pb-4 text-xl font-semibold">
               {editingAppointment ? 'Reschedule Appointment' : selectedLeadForBooking ? 'Book Proposed Lead' : 'Create New Appointment'}
             </h2>
             {selectedLeadForBooking ? (
@@ -1476,14 +1464,6 @@ export function AppointmentsView() {
   );
 }
 
-function AppointmentMetric({ label, value }: { label: string; value: number | string }) {
-  return (
-    <Card className="p-4">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
-    </Card>
-  );
-}
 
 function AppointmentList({
   appointments,
@@ -1501,7 +1481,7 @@ function AppointmentList({
       {appointments.map((appointment) => (
         <div
           key={appointment.id}
-          className="grid cursor-pointer gap-3 rounded-md border border-border p-3 hover:bg-muted/50 lg:grid-cols-[90px_1fr_180px_180px] lg:items-center"
+          className="grid cursor-pointer gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-muted/50 lg:grid-cols-[90px_1fr_180px_180px] lg:items-center"
           onClick={() => onSelect(appointment)}
         >
           <div className="flex items-center gap-2 font-semibold">
@@ -1544,7 +1524,7 @@ function AppointmentWorkflowActions({ appointment, onReschedule, onAction }: { a
   const canRecordArrival = isReceptionist && ['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED'].includes(appointment.status);
   return <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
     {canRecordArrival ? <Button type="button" variant="secondary" onClick={onReschedule}><RotateCcw className="size-4" />Reschedule</Button> : null}
-    {canRecordArrival ? <Select aria-label="Appointment action" value="" onChange={(event) => { if (event.target.value) onAction(event.target.value as 'ARRIVED' | 'NOT_ARRIVED' | 'CANCELLED'); }}><option value="">Action</option><option value="ARRIVED">Arrived</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select> : <span className="inline-flex h-10 items-center rounded-md bg-muted px-3 text-xs font-semibold text-muted-foreground">{appointment.status === 'CHECKED_IN' ? 'ARRIVED' : finished ? appointment.status.replaceAll('_', ' ') : 'PENDING'}</span>}
+    {canRecordArrival ? <Select aria-label="Appointment action" value="" onChange={(event) => { if (event.target.value) onAction(event.target.value as 'ARRIVED' | 'NOT_ARRIVED' | 'CANCELLED'); }}><option value="">Action</option><option value="ARRIVED">Arrived</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select> : <StatusBadge tone={['CHECKED_IN', 'COMPLETED'].includes(appointment.status) ? 'success' : ['NO_SHOW', 'CANCELLED'].includes(appointment.status) ? 'danger' : ['WAITING', 'IN_CONSULTATION'].includes(appointment.status) ? 'info' : 'neutral'} className="capitalize">{(appointment.status === 'CHECKED_IN' ? 'ARRIVED' : finished ? appointment.status.replaceAll('_', ' ') : 'PENDING').toLowerCase()}</StatusBadge>}
     {isReceptionist && appointment.status === 'CHECKED_IN' ? <Button type="button" onClick={() => onAction('CHECK_IN')}>Check in</Button> : null}
   </div>;
 }

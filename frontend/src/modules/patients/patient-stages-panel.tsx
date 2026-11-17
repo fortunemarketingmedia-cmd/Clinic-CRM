@@ -5,18 +5,15 @@ import { AlertTriangle, CalendarDays, Eraser, Plus, Undo2, X, Zap } from 'lucide
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { DeleteRecordButton, EditButton } from '@/components/ui/record-actions';
 import { cn } from '@/lib/utils';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
-import type { ClinicService } from '@/types/appointment';
 import type { ChartMarking, Patient360, ProcedureSession } from '@/types/clinical';
 import type { StaffMember } from '@/types/front-desk';
 import { HifuFaceNeckChart } from './hifu-face-neck-chart';
-import { isTreatmentConsent, usePatientConsents } from './signed-consents';
 
 // Digital version of the clinic's sitting sheets: drawable face/body charts, the HIFU face & neck KJ boxes, or a manual record.
 type ChartType = 'FACE' | 'BODY' | 'HIFU' | 'OTHER';
@@ -34,74 +31,42 @@ const formatDay = (value?: string | null) => value ? new Date(value).toLocaleDat
 const toDateInput = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
 const sittingOrder = (a: ProcedureSession, b: ProcedureSession) => (a.sittingNumber ?? 0) - (b.sittingNumber ?? 0) || +new Date(a.performedAt ?? a.createdAt) - +new Date(b.performedAt ?? b.createdAt);
 
-export function PatientStagesPanel({ patient, canRecord }: { patient: Patient360; canRecord: boolean }) {
-  const consentsQuery = usePatientConsents(patient.id);
-  const servicesQuery = useQuery({ queryKey: ['patient-treatment-services', patient.branchId], queryFn: () => apiRequest<{ data: ClinicService[] }>(`/front-desk/services?branchId=${encodeURIComponent(patient.branchId)}`) });
+/** Sitting sheets for one treatment. Recording is unlocked only once the treatment's consent is signed. */
+export function CourseSittings({ patient, course, canRecord, hasConsent }: { patient: Patient360; course: string; canRecord: boolean; hasConsent: boolean }) {
   const sessions = useMemo(() => (patient.procedureSessions ?? []).filter((session) => session.status !== 'CANCELLED'), [patient.procedureSessions]);
-  const signedTreatments = useMemo(() => (consentsQuery.data?.data ?? []).filter((record) => isTreatmentConsent(record) && record.status === 'SIGNED' && record.treatmentName).map((record) => record.treatmentName!), [consentsQuery.data?.data]);
-  const [extraCourses, setExtraCourses] = useState<string[]>([]);
-  const courses = useMemo(() => [...new Set([...sessions.map((session) => session.procedureName), ...signedTreatments, ...extraCourses])], [sessions, signedTreatments, extraCourses]);
-  const [selected, setSelected] = useState('');
-  const course = courses.includes(selected) ? selected : courses[0] ?? '';
   const [recording, setRecording] = useState(false);
   const [editing, setEditing] = useState<ProcedureSession | null>(null);
+  const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['patient-360', patient.id] });
-  const treatmentOptions = (servicesQuery.data?.data ?? []).filter((service) => service.active && service.resourceType === 'TREATMENT_ROOM' && !courses.includes(service.name)).sort((a, b) => a.name.localeCompare(b.name));
-
   const courseSessions = sessions.filter((session) => session.procedureName === course).sort(sittingOrder);
   const chartType: ChartType = courseSessions.at(-1)?.chartType ?? defaultChartFor(course);
   const nextSitting = Math.max(0, ...courseSessions.map((session) => session.sittingNumber ?? 0)) + 1;
-  const hasConsent = signedTreatments.includes(course);
+  const pageSize = 4;
+  const pages = Math.max(1, Math.ceil(courseSessions.length / pageSize));
+  const visible = courseSessions.slice((Math.min(page, pages) - 1) * pageSize, Math.min(page, pages) * pageSize);
+  const canStart = canRecord && hasConsent;
 
-  return <div className="space-y-5">
-    <div className="flex flex-wrap items-end justify-between gap-3">
+  return <div className="space-y-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Treatment stages</p>
-        <h2 className="mt-1 text-xl font-semibold">Sitting record chart</h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Record a named Face, Body, HIFU or Other sitting with its date, treatment details, mode and KJ.</p>
+        <h3 className="text-[15px] font-semibold">Sittings</h3>
+        <p className="text-[13px] text-muted-foreground">{chartLabels[chartType]} sitting sheet · {courseSessions.length} recorded{courseSessions.length ? ` · last on ${formatDay(courseSessions.at(-1)?.performedAt ?? courseSessions.at(-1)?.createdAt)}` : ''}</p>
       </div>
-      {canRecord ? <label className="flex items-center gap-2 text-sm">
-        <span className="shrink-0 text-muted-foreground">Start another treatment</span>
-        <Select className="w-64" value="" onChange={(event) => { if (!event.target.value) return; setExtraCourses((current) => [...current, event.target.value]); setSelected(event.target.value); }} aria-label="Start another treatment">
-          <option value="">{servicesQuery.isLoading ? 'Loading treatments…' : 'Choose treatment'}</option>
-          {treatmentOptions.map((service) => <option key={service.id} value={service.name}>{service.name}</option>)}
-        </Select>
-      </label> : null}
+      {canStart ? <Button type="button" onClick={() => setRecording(true)}><Plus className="size-4" />Record sitting {nextSitting}</Button> : null}
     </div>
+    {!hasConsent ? <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden /><p><b>Consent required.</b> Sittings can be recorded once the informed consent for this treatment is signed by the patient and the doctor.</p></div> : null}
+    <div className="grid gap-4 md:grid-cols-2">
+      {visible.map((session) => <SittingCard key={session.id} session={session} fallbackChart={chartType} canEdit={canRecord} onEdit={() => setEditing(session)} onDeleted={refresh} />)}
+      {canStart && page >= pages ? <button type="button" onClick={() => setRecording(true)} className="group flex min-h-48 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border p-4 text-muted-foreground transition hover:border-primary/50 hover:text-primary">
+        <span className="grid size-10 place-items-center rounded-full bg-muted transition group-hover:bg-primary-soft"><Plus className="size-5" /></span>
+        <span className="text-sm font-medium">Record sitting {nextSitting}</span>
+      </button> : null}
+      {!courseSessions.length && !canStart ? <p className="col-span-full rounded-2xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">No sittings recorded for this treatment yet.</p> : null}
+    </div>
+    {pages > 1 ? <div className="flex items-center justify-between text-[13px] text-muted-foreground"><span>Page {Math.min(page, pages)} of {pages}</span><div className="flex gap-2"><Button type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</Button><Button type="button" variant="secondary" className="h-8 px-3 text-xs" disabled={page >= pages} onClick={() => setPage((current) => current + 1)}>Next</Button></div></div> : null}
 
-    {!courses.length ? <Card className="grid min-h-60 place-items-center border-dashed text-center"><div><CalendarDays className="mx-auto size-9 text-primary" /><h3 className="mt-3 font-semibold">No treatment started yet</h3><p className="mt-1 max-w-md text-sm text-muted-foreground">Treatments appear here once the patient signs a consent in the Treatment tab, or choose one above to start its sitting chart.</p></div></Card> : <>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Treatments">{courses.map((name) => {
-        const count = sessions.filter((session) => session.procedureName === name).length;
-        return <button key={name} type="button" role="tab" aria-selected={name === course} onClick={() => setSelected(name)} className={cn('shrink-0 rounded-xl border px-4 py-2 text-left transition', name === course ? 'border-primary bg-primary/[0.06] ring-1 ring-primary' : 'border-border bg-surface hover:border-primary/40')}>
-          <div className="text-sm font-semibold">{name}</div>
-          <div className="text-xs text-muted-foreground">{count ? `${count} sitting${count === 1 ? '' : 's'} done` : 'Not started'}</div>
-        </button>;
-      })}</div>
-
-      <Card className="p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-          <div>
-            <h3 className="text-lg font-semibold">{course}</h3>
-            <p className="text-xs text-muted-foreground">{chartLabels[chartType]} sitting · {courseSessions.length} sitting{courseSessions.length === 1 ? '' : 's'} recorded{courseSessions.length ? ` · last on ${formatDay(courseSessions.at(-1)?.performedAt ?? courseSessions.at(-1)?.createdAt)}` : ''}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {!hasConsent ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800"><AlertTriangle className="size-3.5" />No signed consent</span> : <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Consent signed</span>}
-            {canRecord ? <Button type="button" onClick={() => setRecording(true)}><Plus className="size-4" />Record sitting {nextSitting}</Button> : null}
-          </div>
-        </div>
-        <div className="grid gap-4 p-5 md:grid-cols-2">
-          {courseSessions.map((session) => <SittingCard key={session.id} session={session} fallbackChart={chartType} canEdit={canRecord} onEdit={() => setEditing(session)} onDeleted={refresh} />)}
-          {canRecord ? <button type="button" onClick={() => setRecording(true)} className="group flex min-h-64 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border p-4 text-muted-foreground transition hover:border-primary/50 hover:text-primary">
-            <span className="grid size-10 place-items-center rounded-full bg-muted transition group-hover:bg-primary/10"><Plus className="size-5" /></span>
-            <span className="text-sm font-medium">Record sitting {nextSitting}</span>
-          </button> : null}
-          {!canRecord && !courseSessions.length ? <p className="col-span-full py-10 text-center text-sm text-muted-foreground">No sittings recorded for this treatment yet.</p> : null}
-        </div>
-      </Card>
-    </>}
-
-    {recording && course ? <RecordSittingDialog patient={patient} course={course} defaultChart={chartType} sittingNumber={nextSitting} hasConsent={hasConsent} onClose={() => setRecording(false)} /> : null}
+    {recording ? <RecordSittingDialog patient={patient} course={course} defaultChart={chartType} sittingNumber={nextSitting} hasConsent={hasConsent} onClose={() => setRecording(false)} /> : null}
     {editing ? <RecordSittingDialog patient={patient} course={editing.procedureName} defaultChart={editing.chartType ?? chartType} sittingNumber={editing.sittingNumber ?? 1} hasConsent existing={editing} onClose={() => setEditing(null)} /> : null}
   </div>;
 }
@@ -114,7 +79,7 @@ function SittingCard({ session, fallbackChart, canEdit, onEdit, onDeleted }: { s
   const markings = session.chartMarkings ?? [];
   const hifuValues = session.chartValues ?? {};
   const details = [chart === 'OTHER' ? null : session.treatmentArea, session.procedureNotes].filter(Boolean);
-  return <article className={cn('rounded-xl border bg-white p-4 text-[#241417] shadow-sm', chart === 'HIFU' && 'md:col-span-2')}>
+  return <article className={cn('rounded-xl border bg-white p-4 text-[#263743] shadow-sm', chart === 'HIFU' && 'md:col-span-2')}>
     <div className="flex items-center justify-between gap-2 text-sm"><span className="whitespace-nowrap"><span className="text-neutral-500">Date :- </span><b>{formatDay(session.performedAt ?? session.createdAt)}</b></span><span className="shrink-0 whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">Sitting {session.sittingNumber ?? '—'}</span></div>
     <h4 className="mt-2 font-semibold">{session.sittingName || `${chartLabels[chart]} sitting`}</h4>
     {isDiagram(chart) ? <ChartDiagram chart={chart} markings={markings} className={cn('mx-auto mt-3', chart === 'FACE' ? 'max-w-[220px]' : 'max-w-[260px]')} /> : null}
@@ -123,7 +88,7 @@ function SittingCard({ session, fallbackChart, canEdit, onEdit, onDeleted }: { s
     <dl className="mt-3 space-y-1.5 text-sm">
       <div className="flex gap-2"><dt className="w-24 text-neutral-500">Type :-</dt><dd className="font-semibold">{chartLabels[chart]}</dd></div>
       <div className="flex gap-2"><dt className="w-24 text-neutral-500">Sitting No :-</dt><dd className="font-semibold">{session.sittingNumber ?? '—'}</dd></div>
-      <div className="flex gap-2"><dt className="w-24 text-neutral-500">Mode :-</dt><dd className="flex gap-1">{(['FREE', 'FAST'] as const).map((item) => <span key={item} className={cn('rounded px-1.5 text-xs font-semibold', mode === item ? 'bg-[#241417] text-white' : 'text-neutral-400 line-through decoration-neutral-300')}>{item === 'FREE' ? 'Free' : 'Fast'}</span>)}</dd></div>
+      <div className="flex gap-2"><dt className="w-24 text-neutral-500">Mode :-</dt><dd className="flex gap-1">{(['FREE', 'FAST'] as const).map((item) => <span key={item} className={cn('rounded px-1.5 text-xs font-semibold', mode === item ? 'bg-[#263743] text-white' : 'text-neutral-400 line-through decoration-neutral-300')}>{item === 'FREE' ? 'Free' : 'Fast'}</span>)}</dd></div>
       {chart === 'HIFU' ? <div className="flex gap-2"><dt className="w-24 text-neutral-500">KJ boxes :-</dt><dd className="font-semibold">{Object.keys(hifuValues).length} filled</dd></div> : null}
       <div className="flex gap-2"><dt className="w-24 text-neutral-500">Energy :-</dt><dd className="font-semibold">{energyNotRequired ? 'Not Required' : energy != null ? `${energy} KJ` : '—'}</dd></div>
     </dl>

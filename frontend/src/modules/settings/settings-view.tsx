@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ClipboardList, Database, Download, QrCode, Save, Upload, UserCog } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ClipboardList, Database, Download, QrCode, Save, Upload, UserCog } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
@@ -343,7 +343,7 @@ export function SettingsView() {
 }
 
 function SettingsTile({ icon: Icon, title, description, onClick }: { icon: React.ElementType; title: string; description: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="group rounded-xl border border-border bg-surface p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon className="size-5" /></div><h2 className="mt-4 font-semibold group-hover:text-primary">{title}</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p><span className="mt-4 inline-block text-sm font-medium text-primary">Open settings to</span></button>;
+  return <button type="button" onClick={onClick} className="group flex h-full flex-col items-start rounded-2xl border border-border bg-surface p-5 text-left shadow-card transition-colors hover:border-primary/40"><div className="flex size-10 items-center justify-center rounded-lg bg-primary-soft text-primary"><Icon className="size-5" /></div><h2 className="mt-4 font-semibold">{title}</h2><p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p><span className="mt-auto inline-flex items-center gap-1 pt-4 text-sm font-medium text-primary">Open settings<ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden /></span></button>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

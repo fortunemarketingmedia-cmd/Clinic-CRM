@@ -2,12 +2,17 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Edit3, Link2, Megaphone, Plus, Search, TrendingUp, X } from 'lucide-react';
+import { Activity, AlertCircle, Edit3, Link2, Megaphone, Plus, Search, Target, TrendingUp, UserRoundCheck, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { DeleteRecordButton } from '@/components/ui/record-actions';
 import { Button } from '@/components/ui/button';
+import { MetricCard } from '@/components/ui/metric-card';
+import { SegmentedTabs } from '@/components/ui/data-visuals';
+import { StatusBadge, leadStatusTone } from '@/components/ui/status-badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -448,55 +453,17 @@ export function LeadsView() {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Leads</h1>
-          <p className="text-sm text-muted-foreground">Every enquiry starts here before becoming a patient.</p>
-        </div>
+      <PageHeader title="Leads" description="Every enquiry starts here before becoming a patient." actions={<Button type="button" onClick={() => { resetCreateForm(); setShowLeadForm(true); }}><Plus className="size-4" />Add lead</Button>} />
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" onClick={() => { resetCreateForm(); setShowLeadForm(true); }}><Plus className="size-4" />Add lead</Button>
-        </div>
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
+        <MetricCard label="Total leads" value={leadAnalytics.total} icon={Users} highlight hint={activeFilterLabels.length ? activeFilterLabels.join(' · ') : 'No extra filters'} />
+        <MetricCard label="Open leads" value={leadAnalytics.open} icon={Activity} hint="Still being worked" />
+        <MetricCard label="Qualified leads" value={leadAnalytics.qualified} icon={UserRoundCheck} hint="Ready for appointment" />
+        <MetricCard label="Qualification rate" value={`${percent(leadAnalytics.qualified, leadAnalytics.total)}%`} icon={Target} hint="Qualified of total" />
+        <MetricCard label="Ad attributed" value={leadAnalytics.adAttributed} icon={Megaphone} hint="From Google or Meta ads" />
       </div>
 
-      <Card>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2 className="font-semibold">Lead analytics</h2>
-            <p className="text-sm text-muted-foreground">Numbers update automatically from the selected tab and filters.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {activeFilterLabels.length ? activeFilterLabels.map((item) => (
-              <span key={item} className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{item}</span>
-            )) : <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">No extra filters</span>}
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Metric label="Total leads" value={leadAnalytics.total} />
-          <Metric label="Open leads" value={leadAnalytics.open} />
-          <Metric label="Qualified leads" value={leadAnalytics.qualified} />
-          <Metric label="Qualification %" value={percent(leadAnalytics.qualified, leadAnalytics.total)} suffix="%" />
-          <Metric label="Ad attributed" value={leadAnalytics.adAttributed} />
-        </div>
-
-      </Card>
-
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <Button
-            key={tab.value}
-            type="button"
-            variant={activeTab === tab.value ? 'primary' : 'secondary'}
-            onClick={() => {
-              setActiveTab(tab.value);
-              setSource('');
-            }}
-          >
-            {tab.label}
-          </Button>
-        ))}
-      </div>
+      <SegmentedTabs tabs={tabs} value={activeTab} onChange={(value) => { setActiveTab(value); setSource(''); }} />
 
       {activeTab === 'CAMPAIGN_ANALYTICS' ? (
         <div className="grid gap-5 xl:grid-cols-2">
@@ -557,14 +524,14 @@ export function LeadsView() {
       ) : null}
 
       {showLeadForm || editingLead ? (
-        <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lead-form-title" onMouseDown={(event) => { if (event.target === event.currentTarget) { setShowLeadForm(false); resetCreateForm(); } }}>
-        <Card className="mx-auto max-w-5xl shadow-2xl">
+        <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/45 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="lead-form-title" onMouseDown={(event) => { if (event.target === event.currentTarget) { setShowLeadForm(false); resetCreateForm(); } }}>
+        <Card className="mx-auto max-w-3xl shadow-2xl">
           <div className="flex items-start justify-between gap-4 border-b border-border pb-4"><div><h2 id="lead-form-title" className="text-xl font-semibold">{editingLead ? 'Edit Lead' : 'Add New Lead'}</h2><p className="mt-1 text-sm text-muted-foreground">{editingLead ? 'Update the lead contact and treatment interest.' : 'Capture the essential details for a new enquiry.'}</p></div><Button type="button" variant="secondary" className="w-10 shrink-0 px-0" aria-label="Close lead form" onClick={() => { setShowLeadForm(false); resetCreateForm(); }}><X className="size-4" /></Button></div>
 
-          <form className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 xl:col-span-3">
+          <form className="mt-5 grid gap-4 md:grid-cols-2 " onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="grid gap-3 sm:grid-cols-2 md:col-span-2 ">
               <label className="block space-y-2">
-                <span className="text-sm font-medium">Name</span>
+                <span className="text-sm font-medium">Name <span className="text-red-600" aria-hidden>*</span></span>
                 <Input {...form.register('name')} />
                 {form.formState.errors.name ? (
                   <span className="text-xs text-red-600">{form.formState.errors.name.message}</span>
@@ -572,7 +539,7 @@ export function LeadsView() {
               </label>
 
               <label className="block space-y-2">
-                <span className="text-sm font-medium">Mobile</span>
+                <span className="text-sm font-medium">Mobile <span className="text-red-600" aria-hidden>*</span></span>
                 <Input {...form.register('mobile')} />
                 {form.formState.errors.mobile ? (
                   <span className="text-xs text-red-600">{form.formState.errors.mobile.message}</span>
@@ -586,7 +553,7 @@ export function LeadsView() {
             </label>
 
             {duplicateMatches && (duplicateMatches.leads.length || duplicateMatches.patients.length) ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:col-span-2 xl:col-span-3">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:col-span-2 ">
                 <div className="font-semibold">Existing record found</div>
                 <div className="mt-2 space-y-1">
                   {duplicateMatches.patients.map((patient) => (
@@ -624,18 +591,18 @@ export function LeadsView() {
               </label>
             </div>
 
-            <label className="block space-y-2 md:col-span-2 xl:col-span-3">
+            <label className="block space-y-2 md:col-span-2 ">
               <span className="text-sm font-medium">Interested treatment</span>
               <Input {...form.register('interestedTreatment')} placeholder="Treatment or service the client asked about" />
             </label>
 
             {createLead.error || updateLead.error ? (
-              <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2 xl:col-span-3">
+              <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 md:col-span-2 ">
                 {createLead.error?.message ?? updateLead.error?.message}
               </div>
             ) : null}
 
-            <div className="flex gap-3 md:col-span-2 xl:col-span-3">
+            <div className="flex gap-3 md:col-span-2 ">
               <Button type="submit" disabled={createLead.isPending || updateLead.isPending}>
                 <Plus className="size-4" />
                 {editingLead ? 'Save Lead' : 'Create Lead'}
@@ -750,9 +717,9 @@ export function LeadsView() {
                     </td>
                     <td className="px-4 py-3">{lead.branch?.name ?? 'Branch'}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                      <StatusBadge tone={leadStatusTone(lead.status)}>
                         {leadStatuses.find((leadStatus) => leadStatus.value === lead.status)?.label ?? lead.status.replaceAll('_', ' ')}
-                      </span>
+                      </StatusBadge>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
@@ -765,10 +732,16 @@ export function LeadsView() {
                   </tr>
                 ))}
 
-                {!leadsQuery.isLoading && leads.length === 0 ? (
+                {leadsQuery.isError ? (
                   <tr>
-                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
-                      No leads found.
+                    <td className="px-4 py-8" colSpan={5}>
+                      <EmptyState icon={AlertCircle} title="Leads could not be loaded" description="Check your connection and try again." action={<Button type="button" variant="secondary" onClick={() => void leadsQuery.refetch()}>Try again</Button>} />
+                    </td>
+                  </tr>
+                ) : !leadsQuery.isLoading && leads.length === 0 ? (
+                  <tr>
+                    <td className="px-4 py-8" colSpan={5}>
+                      <EmptyState icon={Users} title="No leads found" description="Try changing the filters, or add a new lead." />
                     </td>
                   </tr>
                 ) : null}

@@ -1,10 +1,13 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, ExternalLink, Search } from 'lucide-react';
+import { AlertCircle, Building2, CalendarDays, ExternalLink, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { ClientPagination, usePagedList } from '@/components/ui/client-pagination';
+import { EmptyState } from '@/components/ui/empty-state';
+import { MetricCard } from '@/components/ui/metric-card';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -128,6 +131,7 @@ export function DailyClientQueueView() {
       return matches && (!stage || item.queueStage === stage) && (!practitioner || practitionerName(item) === practitioner);
     });
   }, [practitioner, search, selectedDayRecords, stage]);
+  const pagedQueue = usePagedList(filteredRecords, 10);
 
   return (
     <section className="space-y-5">
@@ -196,7 +200,11 @@ export function DailyClientQueueView() {
           </div>
         </div>
 
-        {queueQuery.isLoading ? (
+        {!selectedBranchId ? (
+          <EmptyState icon={Building2} title="Choose a branch to see its queue" description="The queue is shown one branch at a time. Pick a branch from the selector in the top bar." />
+        ) : queueQuery.isError ? (
+          <EmptyState icon={AlertCircle} title="The queue could not be loaded" description="Check your connection. The list refreshes automatically every 20 seconds." />
+        ) : queueQuery.isLoading ? (
           <TableSkeleton rows={6} columns={6} />
         ) : filteredRecords.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
@@ -217,11 +225,11 @@ export function DailyClientQueueView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredRecords.map((item, index) => (
+                  {pagedQueue.visible.map((item, index) => (
                     <QueueRow
                       key={item.id}
                       appointment={item}
-                      queueNumber={index + 1}
+                      queueNumber={(pagedQueue.page - 1) * pagedQueue.pageSize + index + 1}
                       isDoctor={isDoctor}
                       saving={updateStatus.isPending && updateStatus.variables?.id === item.id}
                       onUpdate={(status) => updateStatus.mutate({ id: item.id, status })}
@@ -231,17 +239,18 @@ export function DailyClientQueueView() {
               </table>
             </div>
             <div className="divide-y divide-border md:hidden">
-              {filteredRecords.map((item, index) => (
+              {pagedQueue.visible.map((item, index) => (
                 <QueueMobileCard
                   key={item.id}
                   appointment={item}
-                  queueNumber={index + 1}
+                  queueNumber={(pagedQueue.page - 1) * pagedQueue.pageSize + index + 1}
                   isDoctor={isDoctor}
                   saving={updateStatus.isPending && updateStatus.variables?.id === item.id}
                   onUpdate={(status) => updateStatus.mutate({ id: item.id, status })}
                 />
               ))}
             </div>
+            <div className="px-4 pb-4"><ClientPagination page={pagedQueue.page} totalPages={pagedQueue.totalPages} total={pagedQueue.total} pageSize={pagedQueue.pageSize} onPageChange={pagedQueue.setPage} /></div>
           </>
         )}
       </Card>
@@ -250,13 +259,7 @@ export function DailyClientQueueView() {
 }
 
 function QueueMetricCard({ label, value, helper }: { label: string; value: number; helper: string }) {
-  return (
-    <Card className="p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
-      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
-    </Card>
-  );
+  return <MetricCard label={label} value={value} hint={helper} />;
 }
 
 function QueueRow({ appointment, queueNumber, isDoctor, saving, onUpdate }: {

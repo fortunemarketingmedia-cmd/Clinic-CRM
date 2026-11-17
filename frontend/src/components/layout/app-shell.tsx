@@ -1,11 +1,12 @@
 'use client';
 
+import { Breadcrumbs } from '@/components/layout/breadcrumbs';
 import { Header } from '@/components/layout/header';
-import { navigationSections, Sidebar } from '@/components/layout/sidebar';
-import { cn } from '@/lib/utils';
+import { QuickActionProvider } from '@/components/layout/quick-actions';
+import { NavList, Rail } from '@/components/layout/sidebar';
+import { useModalFocus } from '@/components/layout/use-modal-focus';
 import { useSessionStore } from '@/store/session-store';
 import { X } from 'lucide-react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, useState } from 'react';
 
@@ -16,16 +17,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { session } = useSessionStore();
   const pathname = usePathname();
   const role = session?.user.role ?? 'RECEPTIONIST';
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setSidebarCollapsed(window.localStorage.getItem('revive_sidebar_collapsed') === 'true');
-  }, []);
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useModalFocus();
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -36,24 +34,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', onEscape);
   }, [mobileMenuOpen]);
 
-  function toggleSidebar() {
-    setSidebarCollapsed((current) => {
-      const next = !current;
-      window.localStorage.setItem('revive_sidebar_collapsed', String(next));
-      return next;
-    });
-  }
-
   if (alreadyInsideShell) return children;
 
   return (
     <AppShellContext.Provider value>
-      <div className="flex min-h-dvh">
-        <Sidebar role={role} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-        <main className="min-w-0 flex-1">
-          <Header onOpenMenu={() => setMobileMenuOpen(true)} />
-          <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5 md:px-6 md:py-7 xl:px-8">{children}</div>
-        </main>
+      <QuickActionProvider>
+      <div className="app-canvas min-h-dvh">
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-white">Skip to content</a>
+        <Header onOpenMenu={() => setMobileMenuOpen(true)} />
+        <div className="flex">
+          <Rail role={role} />
+          <main id="main-content" className="min-w-0 flex-1">
+            <div className="mx-auto w-full max-w-[1480px] px-4 pb-10 pt-2 sm:px-6 lg:px-8">
+              <Breadcrumbs />
+              {children}
+            </div>
+          </main>
+        </div>
         {mobileMenuOpen ? (
           <div className="fixed inset-0 z-40 lg:hidden" role="presentation">
             <button type="button" aria-label="Close navigation" className="absolute inset-0 w-full bg-foreground/40" onClick={() => setMobileMenuOpen(false)} />
@@ -62,20 +59,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div><div className="font-semibold text-foreground">Revive Clinic</div><div className="text-xs text-muted-foreground">Workspace</div></div>
                 <button type="button" aria-label="Close navigation" onClick={() => setMobileMenuOpen(false)} className="grid size-11 place-items-center rounded-lg text-muted-foreground hover:bg-muted"><X className="size-5" /></button>
               </div>
-              <nav className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-                {navigationSections.map((section) => {
-                  const items = section.items.filter((item) => item.roles.includes(role));
-                  if (!items.length) return null;
-                  return <div key={section.label || 'main'}>
-                    {section.label ? <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{section.label}</div> : null}
-                    <div className="space-y-1">{items.map((item) => <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)} aria-current={pathname === item.href ? 'page' : undefined} className={cn('flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground', pathname === item.href && 'bg-primary/10 font-semibold text-primary')}><item.icon className="size-4 shrink-0" />{item.label}</Link>)}</div>
-                  </div>;
-                })}
-              </nav>
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"><NavList role={role} onNavigate={() => setMobileMenuOpen(false)} /></div>
             </aside>
           </div>
         ) : null}
       </div>
+      </QuickActionProvider>
     </AppShellContext.Provider>
   );
 }

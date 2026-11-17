@@ -4,6 +4,9 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Plus, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { MetricCard } from '@/components/ui/metric-card';
+import { StatusBadge, leadStatusTone } from '@/components/ui/status-badge';
+import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SegmentedTabs } from '@/components/ui/data-visuals';
@@ -52,6 +55,7 @@ export function ClientsView() {
   const [patientPage, setPatientPage] = useState(1);
   const [leadPage, setLeadPage] = useState(1);
   const { selectedBranchId, session, hasHydrated } = useSessionStore();
+  const isAdmin = session?.user.role === 'ADMIN';
   const branchId = selectedBranchId ?? '';
   const branchReady = hasHydrated && Boolean(session) && (session?.user.role === 'ADMIN' || Boolean(branchId));
 
@@ -62,8 +66,9 @@ export function ClientsView() {
   useEffect(() => { setPatientPage(1); setLeadPage(1); }, [branchId, debouncedSearch, status, source, dateFrom, dateTo]);
 
   const analyticsQuery = useQuery({
-    queryKey: ['clients-analytics', branchId],
-    queryFn: () => apiRequest<{ data: AnalyticsOverview }>(`/analytics${branchId ? `?branchId=${branchId}` : ''}`),
+    queryKey: ['clients-analytics', branchId, isAdmin],
+    // Receptionists get the same counts from the dashboard endpoint, which carries no financial figures.
+    queryFn: () => apiRequest<{ data: AnalyticsOverview }>(`${isAdmin ? '/analytics' : '/analytics/dashboard'}${branchId ? `?branchId=${branchId}` : ''}`),
     enabled: branchReady,
   });
 
@@ -74,7 +79,7 @@ export function ClientsView() {
     if (status) params.set('leadStatus', status);
     if (source) params.set('leadSource', source);
     params.set('page', String(patientPage));
-    params.set('pageSize', '50');
+    params.set('pageSize', '10');
     return params.toString();
   }, [branchId, debouncedSearch, patientPage, source, status]);
 
@@ -95,7 +100,7 @@ export function ClientsView() {
     if (dateTo) params.set('createdTo', new Date(`${dateTo}T23:59:59`).toISOString());
     params.set('includeClosed', 'true');
     params.set('page', String(leadPage));
-    params.set('pageSize', '50');
+    params.set('pageSize', '10');
     return params.toString();
   }, [branchId, dateFrom, dateTo, debouncedSearch, leadPage, source, status]);
   const leadsQuery = useQuery({ queryKey: ['master-leads', leadsQueryString], queryFn: () => apiRequest<{ data: Lead[]; meta: PaginationMeta }>(`/leads?${leadsQueryString}`), placeholderData: keepPreviousData, enabled: branchReady });
@@ -118,21 +123,18 @@ export function ClientsView() {
 
   return (
     <section className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Master Records</h1>
-        <p className="text-sm text-muted-foreground">Master CRM database for every lead, appointment, patient, and clinic record.</p>
-      </div>
+      <PageHeader title="Master Records" description="Master CRM database for every lead, appointment, patient, and clinic record." />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-6">
         <Metric label="Patients" value={totals?.patients ?? 0} />
         <Metric label="Enquiries" value={totals?.leads ?? 0} />
         <Metric label="Appointments" value={totals?.appointments ?? 0} />
         <Metric label="Arrived" value={totals?.arrived ?? 0} />
         <Metric label="Not Arrived" value={totals?.notArrived ?? 0} />
-        <Metric label="Revenue" value={money(totals?.revenue)} />
+        {isAdmin ? <Metric label="Revenue" value={money(totals?.revenue)} /> : null}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 lg:flex-row lg:items-center lg:justify-between"><SegmentedTabs tabs={[{ label: 'Patient master', value: 'PATIENTS', count: uniquePatients.length }, { label: 'Lead history', value: 'LEADS', count: leadsQuery.data?.data.length ?? 0 }]} value={recordTab} onChange={setRecordTab} /><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><p className="px-2 text-sm text-muted-foreground">Patient profiles are created only after the registration form is completed.</p>{recordTab === 'PATIENTS' ? <Button type="button" onClick={() => setShowCreatePatient(true)}><Plus className="size-4" />Create Patient</Button> : null}</div></div>
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-3 lg:flex-row lg:items-center lg:justify-between"><SegmentedTabs tabs={[{ label: 'Patient master', value: 'PATIENTS', count: patientsQuery.data?.meta.total ?? uniquePatients.length }, { label: 'Lead history', value: 'LEADS', count: leadsQuery.data?.meta.total ?? 0 }]} value={recordTab} onChange={setRecordTab} /><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><p className="px-2 text-sm text-muted-foreground">Patient profiles are created only after the registration form is completed.</p>{recordTab === 'PATIENTS' ? <Button type="button" onClick={() => setShowCreatePatient(true)}><Plus className="size-4" />Create Patient</Button> : null}</div></div>
 
       {showCreatePatient ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 sm:p-6">
@@ -189,14 +191,14 @@ export function ClientsView() {
                   <td className="px-4 py-3">{patient.mobile}</td>
                   <td className="px-4 py-3">{patient.branch?.name}</td>
                   <td className="px-4 py-3">{patient.lead?.source?.replace('_', ' ')}</td>
-                  <td className="px-4 py-3">{patient.lead?.status?.replace('_', ' ')}</td>
+                  <td className="px-4 py-3">{patient.lead?.status ? <StatusBadge tone={leadStatusTone(patient.lead.status)} className="capitalize">{patient.lead.status.replaceAll('_', ' ').toLowerCase()}</StatusBadge> : <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5"><EditButton onClick={() => setEditingPatient(patient)} /><DeleteRecordButton kind="patient" id={patient.id} what="patient" name={`${patient.fullName} · ${patient.patientNo}`} warning="Their open follow-ups, tasks, waitlist entries and upcoming appointments are removed as well." /></div></td>
                 </tr>
               ))}
-              {!patientsQuery.isLoading && visiblePatients.length === 0 ? (
+              {!patientsQuery.isLoading && (visiblePatients.length === 0 || patientsQuery.isError) ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
-                    No clients found.
+                    {patientsQuery.isError ? 'Clients could not be loaded. Please try again.' : 'No clients found.'}
                   </td>
                 </tr>
               ) : null}
@@ -240,10 +242,10 @@ export function ClientsView() {
                   <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5"><EditButton onClick={() => setEditingLead(lead)} /><DeleteRecordButton kind="lead" id={lead.id} what="lead" name={`${lead.name} · ${lead.mobile}`} warning="Its open follow-ups, tasks and upcoming appointments are removed as well." /></div></td>
                 </tr>
               ))}
-              {!leadsQuery.isLoading && leadsQuery.data?.data.length === 0 ? (
+              {!leadsQuery.isLoading && (leadsQuery.data?.data.length === 0 || leadsQuery.isError) ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
-                    No lead records found.
+                    {leadsQuery.isError ? 'Lead records could not be loaded. Please try again.' : 'No lead records found.'}
                   </td>
                 </tr>
               ) : null}
@@ -264,10 +266,5 @@ function SourceFilter({ value, onChange }: { value: string; onChange: (value: st
 }
 
 function Metric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Card className="p-4">
-      <div className="text-sm text-muted-foreground">{label}</div>
-      <div className="mt-2 text-xl font-semibold">{value}</div>
-    </Card>
-  );
+  return <MetricCard label={label} value={value} />;
 }

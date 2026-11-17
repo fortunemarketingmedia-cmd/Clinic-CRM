@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 export type ChartDatum = { label: string; value: number; color?: string; secondaryValue?: number };
 export type LineChartDatum = { label: string; [key: string]: string | number };
 
-const palette = ['#e73748', '#f59e0b', '#14b8a6', '#6366f1', '#0ea5e9', '#8b5cf6'];
+const palette = ['#176B78', '#D99B38', '#24966F', '#4D9CCB', '#8B7FC7', '#D96370'];
 
 export function DonutChart({
   data,
@@ -28,10 +28,10 @@ export function DonutChart({
   });
 
   return (
-    <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-5">
       <div
         className="relative mx-auto size-40 shrink-0 rounded-full"
-        style={{ background: `conic-gradient(${segments.join(',') || '#f2e9e5 0 100%'})` }}
+        style={{ background: data.some((item) => item.value > 0) ? `conic-gradient(${segments.join(',')})` : '#E4ECEE' }}
       >
         <div className="absolute inset-5 flex flex-col items-center justify-center rounded-full bg-surface text-center shadow-inner">
           <strong className="text-2xl">{centerValue}</strong>
@@ -275,7 +275,7 @@ export function SegmentedTabs<T extends string>({
 }) {
   return (
     <div
-      className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-border bg-muted/60 p-1"
+      className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-white/70 p-1 ring-1 ring-white"
       role="tablist"
     >
       {tabs.map((tab) => (
@@ -286,13 +286,13 @@ export function SegmentedTabs<T extends string>({
           aria-selected={value === tab.value}
           onClick={() => onChange(tab.value)}
           className={cn(
-            'flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground transition',
-            value === tab.value && 'bg-surface text-foreground shadow-sm',
+            'flex h-9 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-medium text-muted-foreground transition',
+            value === tab.value && 'bg-deep text-white shadow-sm',
           )}
         >
           {tab.label}
           {tab.count !== undefined ? (
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">{tab.count}</span>
+            <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', value === tab.value ? 'bg-white/25 text-white' : 'bg-muted text-muted-foreground')}>{tab.count}</span>
           ) : null}
         </button>
       ))}

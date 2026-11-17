@@ -1,3 +1,4 @@
+import { doctorSignatureDataUrl } from '../assets/doctor-signature.js';
 import type { Request, Response } from 'express';
 import { formsService } from '../services/forms.service.js';
 import { HttpError } from '../utils/http-error.js';
@@ -15,6 +16,7 @@ export const formsController = {
   async createConsentTemplate(req: Request, res: Response) { return res.status(201).json({ data: await formsService.createConsentTemplate(consentTemplateSchema.parse(req.body), actor(req)) }); },
   async updateConsentTemplate(req: Request, res: Response) { return res.json({ data: await formsService.updateConsentTemplate(req.params.id, consentTemplateUpdateSchema.parse(req.body), actor(req)) }); },
   async signConsent(req: Request, res: Response) { return res.status(201).json({ data: await formsService.signConsent(consentSignSchema.parse(req.body), actor(req)) }); },
+  async doctorSignature(_req: Request, res: Response) { res.setHeader('Cache-Control', 'private, max-age=3600'); return res.json({ data: { dataUrl: doctorSignatureDataUrl } }); },
   async createConsentInvitation(req: Request, res: Response) { return res.status(201).json({ data: await formsService.createConsentInvitation(consentInvitationSchema.parse(req.body), actor(req)) }); },
   async revokeConsentInvitation(req: Request, res: Response) { return res.json({ data: await formsService.revokeConsentInvitation(req.params.id, actor(req)) }); },
   async completePendingConsent(req: Request, res: Response) { return res.json({ data: await formsService.completePendingConsent(req.params.id, completePendingConsentSchema.parse(req.body), actor(req)) }); },

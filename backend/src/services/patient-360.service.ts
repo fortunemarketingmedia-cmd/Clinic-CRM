@@ -18,6 +18,7 @@ import { assertEncounterEditable, assertEncounterSignable, assertTreatmentPlanTr
 import { timelineRepository } from '../repositories/timeline.repository.js';
 import crypto from 'node:crypto';
 import PDFDocument from 'pdfkit';
+import { cleanPhone } from './pdf-theme.js';
 import { inventoryService } from './inventory.service.js';
 import { settingsRepository } from '../repositories/settings.repository.js';
 import fs from 'node:fs';
@@ -189,22 +190,22 @@ export const patient360Service = {
       const doc = new PDFDocument({ margin: 48 }); const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
       const brandName = settings.clinicName || 'Revive Clinic';
-      const phone = settings.businessPhone || prescription.patient.branch?.phone || '+91-0000000000';
+      const phone = cleanPhone(settings.businessPhone) || cleanPhone(prescription.patient.branch?.phone);
       const address = settings.businessAddress || prescription.patient.branch?.address || prescription.patient.branch?.name || 'Clinic address';
       const cityLine = [settings.city, settings.state, settings.postalCode].filter(Boolean).join(', ');
       const hours = settings.openingHours || 'Mon-Sat, 10:00 AM-7:00 PM';
       if (fs.existsSync(logoPath)) doc.image(logoPath, 48, 38, { width: 82 });
-      doc.font('Helvetica-Bold').fontSize(22).fillColor('#ef2b32').text(brandName, 145, 40);
-      doc.font('Helvetica').fontSize(9).fillColor('#4f3035')
+      doc.font('Helvetica-Bold').fontSize(22).fillColor('#176B78').text(brandName, 145, 40);
+      doc.font('Helvetica').fontSize(9).fillColor('#5F6F7B')
         .text(address, 145, 70, { width: 360 })
         .text(cityLine || 'Nashik, Maharashtra', 145, doc.y + 2, { width: 360 })
-        .text(`Phone: ${phone}${settings.clinicEmail ? `  |  Email: ${settings.clinicEmail}` : ''}`, 145, doc.y + 2, { width: 360 })
+        .text([phone ? `Phone: ${phone}` : '', settings.clinicEmail ? `Email: ${settings.clinicEmail}` : ''].filter(Boolean).join('  |  '), 145, doc.y + 2, { width: 360 })
         .text(`Timings: ${hours}${settings.website ? `  |  ${settings.website}` : ''}`, 145, doc.y + 2, { width: 360 });
-      doc.moveTo(48, 132).lineTo(548, 132).lineWidth(1.2).strokeColor('#ef2b32').stroke();
-      doc.font('Helvetica-Bold').fontSize(14).fillColor('#2b171a').text('MEDICAL PRESCRIPTION', 48, 148);
-      doc.font('Helvetica').fontSize(9).fillColor('#5f464b').text(`Prescription No: ${prescription.prescriptionNo}`, 360, 150, { width: 188, align: 'right' });
-      doc.roundedRect(48, 178, 500, 70, 8).strokeColor('#ead6d0').stroke();
-      doc.fontSize(10).fillColor('#2b171a')
+      doc.moveTo(48, 132).lineTo(548, 132).lineWidth(1.2).strokeColor('#176B78').stroke();
+      doc.font('Helvetica-Bold').fontSize(14).fillColor('#253640').text('MEDICAL PRESCRIPTION', 48, 148);
+      doc.font('Helvetica').fontSize(9).fillColor('#5F6F7B').text(`Prescription No: ${prescription.prescriptionNo}`, 360, 150, { width: 188, align: 'right' });
+      doc.roundedRect(48, 178, 500, 70, 8).strokeColor('#D5E2E4').stroke();
+      doc.fontSize(10).fillColor('#253640')
         .text(`Client: ${prescription.patient.fullName}`, 64, 194)
         .text(`Client No: ${prescription.patient.patientNo}`, 64, 212)
         .text(`Mobile: ${prescription.patient.mobile}`, 64, 230)
@@ -220,20 +221,20 @@ export const patient360Service = {
         doc.font('Helvetica-Bold').text('Diagnosis', 48, y).font('Helvetica').text(prescription.diagnosisSummary, 120, y, { width: 420 });
         y = doc.y + 16;
       }
-      doc.font('Helvetica-Bold').fontSize(22).fillColor('#ef2b32').text('Rx', 48, y);
+      doc.font('Helvetica-Bold').fontSize(22).fillColor('#176B78').text('Rx', 48, y);
       y += 34;
       prescription.items.forEach((item, index) => {
-        doc.font('Helvetica-Bold').fontSize(11).fillColor('#2b171a').text(`${index + 1}. ${item.medicineName}${item.strength ? ` ${item.strength}` : ''}`, 64, y);
+        doc.font('Helvetica-Bold').fontSize(11).fillColor('#253640').text(`${index + 1}. ${item.medicineName}${item.strength ? ` ${item.strength}` : ''}`, 64, y);
         y = doc.y + 4;
-        doc.font('Helvetica').fontSize(10).fillColor('#4f3035').text(`${item.dosage} | ${item.frequency} | ${item.duration}${item.route ? ` | ${item.route}` : ''}${item.timing ? ` | ${item.timing}` : ''}`, 82, y);
+        doc.font('Helvetica').fontSize(10).fillColor('#5F6F7B').text(`${item.dosage} | ${item.frequency} | ${item.duration}${item.route ? ` | ${item.route}` : ''}${item.timing ? ` | ${item.timing}` : ''}`, 82, y);
         y = doc.y + 4;
         if (item.instructions) { doc.fontSize(9).fillColor('#6d565a').text(item.instructions, 82, y, { width: 430 }); y = doc.y + 8; }
         else y += 6;
       });
-      if (prescription.instructions) { doc.moveDown().font('Helvetica-Bold').fillColor('#2b171a').text('Instructions').font('Helvetica').fillColor('#4f3035').text(prescription.instructions); }
-      if (prescription.precautions) { doc.moveDown(0.5).font('Helvetica-Bold').fillColor('#2b171a').text('Precautions').font('Helvetica').fillColor('#4f3035').text(prescription.precautions); }
+      if (prescription.instructions) { doc.moveDown().font('Helvetica-Bold').fillColor('#253640').text('Instructions').font('Helvetica').fillColor('#5F6F7B').text(prescription.instructions); }
+      if (prescription.precautions) { doc.moveDown(0.5).font('Helvetica-Bold').fillColor('#253640').text('Precautions').font('Helvetica').fillColor('#5F6F7B').text(prescription.precautions); }
       doc.fontSize(9).fillColor('#6d565a').text('This prescription is generated from Revive Clinic CRM and is intended only for the named client.', 48, 690, { width: 300 });
-      doc.fontSize(10).fillColor('#2b171a').text(`Prescribed by Dr. ${prescription.doctor.name}`, 350, 675, { width: 198, align: 'right' });
+      doc.fontSize(10).fillColor('#253640').text(`Prescribed by Dr. ${prescription.doctor.name}`, 350, 675, { width: 198, align: 'right' });
       if (prescription.signedAt) doc.fontSize(8).fillColor('#6d565a').text(prescription.signedAt.toLocaleString('en-IN'), 350, 692, { width: 198, align: 'right' });
       doc.end();
     });

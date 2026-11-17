@@ -8,6 +8,7 @@ import { HttpError } from '../utils/http-error.js';
 import type { completePendingConsentSchema, consentInvitationSchema, consentSignSchema, consentTemplateSchema, consentTemplateUpdateSchema, fileQuerySchema, formSubmissionSchema, formTemplateQuerySchema, formTemplateSchema, formTemplateUpdateSchema, publicConsentSignSchema, secureFileMetadataSchema } from '../validations/forms.validation.js';
 import { accessService } from './access.service.js';
 import { auditService, type AuditContext } from './audit.service.js';
+import { doctorSignatureDataUrl } from '../assets/doctor-signature.js';
 import { buildConsentPdf } from './consent-pdf.js';
 import { fileStorageService } from './file-storage.service.js';
 import { canAccessFile, validateSubmission, type SnapshotField } from './form-policy.js';
@@ -36,6 +37,8 @@ async function requirePatient(patientId: string, actor: Actor) {
 }
 
 function signatureMime(data: string) { const match = /^data:(image\/(?:png|jpeg|webp));base64,/.exec(data); if (!match) throw new HttpError(400, 'Signature must be a PNG, JPEG, or WebP data URL'); return match[1]; }
+const financialFileTypes = new Set<string>(['INVOICE', 'PAYMENT_RECEIPT']);
+
 export const formsService = {
   async listFormTemplates(query: z.infer<typeof formTemplateQuerySchema>, actor: Actor) { requireCareRole(actor); await accessService.assertBranchAccess(actor.id, actor.role, query.branchId); return formsRepository.listFormTemplates(administratorRoles.includes(actor.role) ? query : { ...query, status: 'PUBLISHED' }); },
   async createFormTemplate(input: z.infer<typeof formTemplateSchema>, actor: Actor) { requireAdministrator(actor); await accessService.assertBranchAccess(actor.id, actor.role, input.branchId); const normalized = { ...input, fields: input.fields.map((field) => ({ ...field, options: field.options as Prisma.InputJsonValue | undefined, condition: field.condition as Prisma.InputJsonValue | undefined })) }; const created = await formsRepository.createFormTemplate(normalized, actor.id); await audit(actor, { action: 'FORM_TEMPLATE_CREATED', entity: 'FormTemplate', entityId: created.id, newValue: { version: created.currentVersion, status: created.status } }); return created; },
@@ -49,7 +52,9 @@ export const formsService = {
   async signConsent(input: z.infer<typeof consentSignSchema>, actor: Actor) {
     requireCareRole(actor); const patient = await requirePatient(input.patientId, actor); const template = await formsRepository.findPublishedConsentVersion(input.templateId);
     if (!template || !template.versions[0]) throw new HttpError(409, 'Published consent template is unavailable'); if (template.requiresGuardian && (!input.guardianName || !input.guardianSignatureBase64)) throw new HttpError(400, 'Guardian name and signature are required'); if (template.requiresWitness && !input.staffWitnessId) throw new HttpError(400, 'Staff witness is required');
-    if (template.type === 'PROCEDURE_SPECIFIC_CONSENT' && (!input.treatmentName || !input.doctorName || !input.doctorSignatureBase64)) throw new HttpError(400, 'Treatment, treating doctor, and doctor signature are required for procedure consent');
+    if (template.type === 'PROCEDURE_SPECIFIC_CONSENT' && (!input.treatmentName || !input.doctorName)) throw new HttpError(400, 'Treatment and treating doctor are required for procedure consent');
+    // The clinic's stored doctor signature is applied automatically unless a drawn signature is supplied.
+    if (input.doctorName && !input.doctorSignatureBase64) input = { ...input, doctorSignatureBase64: doctorSignatureDataUrl };
     if (input.appointmentId && !(await patientRepository.findAppointment(patient, input.appointmentId))) throw new HttpError(400, 'Appointment does not belong to this patient');
     if (input.procedureSessionId && !(await prisma.procedureSession.findFirst({ where: { id: input.procedureSessionId, patientId: patient.id }, select: { id: true } }))) throw new HttpError(400, 'Procedure session does not belong to this patient');
     const witness = input.staffWitnessId ? await formsRepository.findUser(input.staffWitnessId) : null; if (input.staffWitnessId && (!witness || witness.status !== 'ACTIVE')) throw new HttpError(400, 'Staff witness must be an active user');
@@ -160,8 +165,9 @@ export const formsService = {
     const patient = await requirePatient(record.patientId, actor);
     if (record.status !== 'PENDING') throw new HttpError(409, 'Only a patient-signed pending consent can be completed');
     const patientSignature = await fileStorageService.read(record.signatureStorageKey);
-    const doctorBuffer = Buffer.from(input.doctorSignatureBase64.slice(input.doctorSignatureBase64.indexOf(',') + 1), 'base64');
-    const doctorSignature = await fileStorageService.writeBase64(patient.id, input.doctorSignatureBase64, signatureMime(input.doctorSignatureBase64));
+    const doctorSignatureBase64 = input.doctorSignatureBase64 ?? doctorSignatureDataUrl;
+    const doctorBuffer = Buffer.from(doctorSignatureBase64.slice(doctorSignatureBase64.indexOf(',') + 1), 'base64');
+    const doctorSignature = await fileStorageService.writeBase64(patient.id, doctorSignatureBase64, signatureMime(doctorSignatureBase64));
     let finalPdf: Awaited<ReturnType<typeof fileStorageService.writeBuffer>> | undefined;
     let completed: Awaited<ReturnType<typeof formsRepository.createConsentRecord>>;
     try {
@@ -192,6 +198,7 @@ export const formsService = {
   async consentPdf(id: string, actor: Actor) { requireCareRole(actor); const record = await formsRepository.findConsentRecord(id); if (!record) throw new HttpError(404, 'Consent record not found'); await requirePatient(record.patientId, actor); await audit(actor, { action: 'CONSENT_PDF_VIEWED', entity: 'ConsentRecord', entityId: id }); return fileStorageService.read(record.signedPdfStorageKey); },
 
   async uploadFile(input: z.infer<typeof secureFileMetadataSchema> & { contentBase64?: string }, actor: Actor, binary?: Buffer) {
+    if (actor.role !== 'ADMIN' && financialFileTypes.has(input.fileType)) throw new HttpError(403, 'Financial documents can only be filed by an administrator');
     requireCareRole(actor);
     const patient = await requirePatient(input.patientId, actor);
     if (input.marketingPermission && !(await formsRepository.hasActiveMarketingConsent(patient.id))) throw new HttpError(409, 'Marketing permission requires an active signed marketing consent');
@@ -245,7 +252,7 @@ export const formsService = {
     metricsService.upload(input.mimeType, 'success');
     return this.withAccessUrl(file);
   },
-  async listFiles(query: z.infer<typeof fileQuerySchema>, actor: Actor) { requireCareRole(actor); await requirePatient(query.patientId, actor); const files = await formsRepository.listFiles(query); return files.filter((file) => canAccessFile(actor.role, file.visibility)).map((file) => this.withAccessUrl(file)); },
+  async listFiles(query: z.infer<typeof fileQuerySchema>, actor: Actor) { requireCareRole(actor); await requirePatient(query.patientId, actor); const files = await formsRepository.listFiles(query); return files.filter((file) => canAccessFile(actor.role, file.visibility) && (actor.role === 'ADMIN' || !financialFileTypes.has(file.fileType))).map((file) => this.withAccessUrl(file)); },
   withAccessUrl<T extends { id: string; storageKey: string | null; url: string; derivedFiles?: Array<{ id: string; storageKey: string | null; url: string; variant: string }> }>(file: T) { const expiresAt = Date.now() + 5 * 60_000; const token = fileStorageService.createAccessToken(file.id, expiresAt); const { storageKey: _storageKey, url: _url, derivedFiles, ...safe } = file; void _storageKey; void _url; const derivativeUrls = Object.fromEntries((derivedFiles ?? []).map((derived) => { const derivedToken = fileStorageService.createAccessToken(derived.id, expiresAt); return [derived.variant.toLowerCase(), `/files/${derived.id}/content?token=${encodeURIComponent(derivedToken)}`]; })); return { ...safe, accessUrl: `/files/${file.id}/content?token=${encodeURIComponent(token)}`, derivativeUrls, accessExpiresAt: new Date(expiresAt).toISOString() }; },
   async fileContent(id: string, token: string) { if (!fileStorageService.verifyAccessToken(id, token)) throw new HttpError(403, 'File link is invalid or expired'); const file = await formsRepository.findFile(id); if (!file) throw new HttpError(404, 'File not found'); if (file.storageKey?.startsWith('legacy/')) { const legacy = fileStorageService.decodeLegacyDataUrl(file.url); return { ...legacy, filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id, cacheable: false }; } if (!file.storageKey) throw new HttpError(409, 'File has not been migrated to secure storage'); return { buffer: await fileStorageService.read(file.storageKey), mimeType: file.mimeType ?? 'application/octet-stream', filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id, cacheable: file.variant !== 'ORIGINAL' && file.fileType !== 'IDENTITY_DOCUMENT' }; },
 };

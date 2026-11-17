@@ -6,7 +6,15 @@ import { requireRole } from '../middleware/role.js';
 
 export const analyticsRoutes = Router();
 
-analyticsRoutes.use(requireAuth, requireRole(Role.ADMIN));
+analyticsRoutes.use(requireAuth);
+
+// Operational dashboard data (no financial figures) for both administrators and receptionists.
+analyticsRoutes.get('/dashboard', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
+  analyticsController.dashboard(req, res).catch(next);
+});
+
+// Everything below is administrator-only.
+analyticsRoutes.use(requireRole(Role.ADMIN));
 
 analyticsRoutes.get('/', (req, res, next) => {
   analyticsController.overview(req, res).catch(next);

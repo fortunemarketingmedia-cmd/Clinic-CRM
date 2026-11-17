@@ -85,7 +85,7 @@ export function DeleteRecordButton({ kind, id, name, what, warning, onDeleted, c
     </Button>
     {open ? <Modal title={`Delete ${what}?`} subtitle={name} onClose={() => setOpen(false)} footer={<>
       <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-      <Button type="button" className="bg-red-600 text-white hover:bg-red-700" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="size-4" />{remove.isPending ? 'Deleting…' : 'Delete'}</Button>
+      <Button type="button" variant="danger" disabled={remove.isPending} onClick={() => remove.mutate()}><Trash2 className="size-4" />{remove.isPending ? 'Deleting…' : 'Delete'}</Button>
     </>}>
       <p className="text-sm">This removes the {what} from every list and screen. A copy is kept in the audit log, so it can be recovered by an administrator if needed.</p>
       {warning ? <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{warning}</p> : null}
