@@ -32,6 +32,7 @@ async function execute(job: DurableJob) {
     return automationService.execute(payload.executionId);
   if (job.type === 'FILE_OPTIMIZATION' && payload.fileId)
     return imageOptimizationService.optimize(payload.fileId);
+  throw new Error(`Missing required payload for ${job.type}`);
 }
 let processing = false;
 export const integrationJobService = {
@@ -43,17 +44,20 @@ export const integrationJobService = {
       while (processed < limit) {
         const job = await integrationRepository.claimJob(env.INTEGRATION_WORKER_ID, [...types]);
         if (!job) break;
+        const heartbeat = setInterval(() => { void integrationRepository.renewJob(job.id, env.INTEGRATION_WORKER_ID).catch(() => undefined); }, 20_000);
+        heartbeat.unref();
         try {
           metricsService.setWorkerActive(true);
           await execute(job);
-          await integrationRepository.completeJob(job.id);
+          await integrationRepository.completeJob(job.id, env.INTEGRATION_WORKER_ID);
           metricsService.job(job.type, 'completed');
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Integration job failed';
           const dead = job.attempts >= job.maxAttempts;
-          await integrationRepository.retryJob(job.id, message, dead);
+          await integrationRepository.retryJob(job.id, message, dead, env.INTEGRATION_WORKER_ID);
           metricsService.job(job.type, dead ? 'dead' : 'retry');
         } finally {
+          clearInterval(heartbeat);
           metricsService.setWorkerActive(false);
         }
         processed += 1;

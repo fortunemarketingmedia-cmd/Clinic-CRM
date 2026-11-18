@@ -1,33 +1,17 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { Role } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { HttpError } from '../utils/http-error.js';
 import { verifyAccessToken } from '../utils/tokens.js';
 
-// An access token stays valid for its whole lifetime (15 minutes by default). Re-checking the account here means a
-// deactivated, deleted or re-roled user loses access within a few seconds instead of when the token expires.
-const accountCacheMs = 10_000;
-const accountCache = new Map<string, { role: Role | null; checkedAt: number }>();
-
-export function forgetUserAccess(userId: string) {
-  accountCache.delete(userId);
-}
-
-async function currentRole(userId: string): Promise<Role | null> {
-  const cached = accountCache.get(userId);
-  if (cached && Date.now() - cached.checkedAt < accountCacheMs) return cached.role;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { status: true, accessLevel: true } });
-  const role = user && user.status === 'ACTIVE' && (user.accessLevel === 'ADMIN' || user.accessLevel === 'RECEPTIONIST') ? (user.accessLevel as Role) : null;
-  if (accountCache.size > 5_000) accountCache.clear();
-  accountCache.set(userId, { role, checkedAt: Date.now() });
-  return role;
-}
-
 export async function resolveActiveUser(token: string) {
   const payload = verifyAccessToken(token);
   if (payload.role === 'DEVELOPER') return null;
-  const role = await currentRole(payload.sub);
-  return role ? { id: payload.sub, role, exp: payload.exp } : null;
+  const user = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { status: true, accessLevel: true, sessionVersion: true },
+  });
+  if (user?.status !== 'ACTIVE' || user.accessLevel !== payload.role || user.sessionVersion !== (payload.version ?? 0)) return null;
+  return { id: payload.sub, role: payload.role, exp: payload.exp };
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {

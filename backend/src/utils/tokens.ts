@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 type TokenPayload = {
   sub: string;
   role: Role;
+  version?: number;
   jti?: string;
   exp?: number;
 };

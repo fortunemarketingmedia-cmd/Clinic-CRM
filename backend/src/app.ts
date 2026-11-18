@@ -2,7 +2,8 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
-import morgan from 'morgan';
+import { sensitiveResponse } from './middleware/sensitive-response.js';
+import { trustedSessionOrigin } from './middleware/trusted-origin.js';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/error.js';
 import { rateLimit } from './middleware/rate-limit.js';
@@ -35,6 +36,7 @@ import { prisma } from './config/db.js';
 import { HttpError } from './utils/http-error.js';
 import { verifyAccessToken } from './utils/tokens.js';
 import { fileStorageService } from './services/file-storage.service.js';
+import { malwareScannerService } from './services/malware-scanner.service.js';
 import { cacheService } from './services/cache.service.js';
 import { metricsService } from './services/metrics.service.js';
 import { realtimeService } from './services/realtime.service.js';
@@ -63,6 +65,8 @@ app.use(
       callback(null, false);
     },
     credentials: true,
+    exposedHeaders: ['X-Correlation-Id'],
+    maxAge: 600,
   }),
 );
 app.use(
@@ -75,8 +79,9 @@ app.use(
   }),
 );
 app.use(cookieParser());
-if (env.NODE_ENV === 'development') app.use(morgan('dev'));
-else app.use((req, res, next) => {
+app.use('/api', sensitiveResponse);
+app.use('/api/auth', trustedSessionOrigin);
+app.use((req, res, next) => {
   const startedAt = performance.now();
   res.on('finish', () => {
     console.log(JSON.stringify({
@@ -85,7 +90,7 @@ else app.use((req, res, next) => {
       timestamp: new Date().toISOString(),
       correlationId: req.correlationId,
       method: req.method,
-      path: req.path,
+      path: req.route?.path ?? 'unmatched',
       status: res.statusCode,
       durationMs: Number((performance.now() - startedAt).toFixed(1)),
       ip: req.ip,
@@ -109,7 +114,9 @@ app.use('/api', (req, res, next) => {
     const path = req.originalUrl.split('?')[0].replace(/^\/api/, '');
     if (path.startsWith('/auth') || path.startsWith('/realtime')) return;
     if (res.statusCode < 200 || res.statusCode >= 300) return;
-    realtimeService.publish({ path, method: req.method });
+    // Invalidation needs only the resource family. Never broadcast patient IDs or public-link tokens.
+    const resource = path.split('/').filter(Boolean)[0];
+    if (resource) realtimeService.publish({ path: `/${resource}/`, method: req.method });
   });
   next();
 });
@@ -125,14 +132,16 @@ app.get('/metrics', async (req, res, next) => {
 });
 app.get('/api/health', async (_req, res) => {
   try {
-    const [, storage, redis] = await Promise.all([prisma.$queryRaw`SELECT 1`, fileStorageService.healthCheck(), cacheService.healthCheck()]);
+    const [, storage, redis, scannerReady] = await Promise.all([prisma.$queryRaw`SELECT 1`, fileStorageService.healthCheck(), cacheService.healthCheck(), malwareScannerService.healthCheck()]);
     if (redis.configured && !redis.ready) throw new Error('Redis is unavailable');
+    if (!scannerReady) throw new Error('Malware scanner is unavailable');
     res.json({
       status: 'ok',
       service: 'revive-crm-backend',
       database: 'ready',
       storage: storage.provider,
       redis: redis.configured ? 'ready' : 'disabled',
+      scanner: env.CLAMAV_HOST ? 'ready' : 'disabled',
       timestamp: new Date().toISOString(),
     });
   } catch {

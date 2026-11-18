@@ -133,10 +133,12 @@ export const appointmentService = {
   }, audit?: AuditContext) {
     await ensureBranchExists(input.branchId);
     if (audit?.userId) {
-      const user = await import('../config/db.js').then(({ prisma }) => prisma.user.findUnique({ where: { id: audit.userId }, select: { role: true } }));
-      if (user) await accessService.assertBranchAccess(audit.userId, user.role, input.branchId);
+      const user = await import('../config/db.js').then(({ prisma }) => prisma.user.findUnique({ where: { id: audit.userId }, select: { accessLevel: true } }));
+      if (user) await accessService.assertBranchAccess(audit.userId, user.accessLevel as Role, input.branchId);
     }
+    await accessService.assertRelatedRecords(input.branchId, { leadId: input.leadId });
     const service = input.serviceId ? await frontDeskRepository.findService(input.serviceId) : null;
+    if (service?.branchId && service.branchId !== input.branchId) throw new HttpError(403, 'Service does not belong to the selected branch');
     if (input.serviceId && !service) throw new HttpError(404, 'Service not found');
     const durationMinutes = input.durationMinutes ?? service?.durationMinutes ?? 30;
     const bufferMinutes = input.bufferMinutes ?? service?.bufferMinutes ?? 0;

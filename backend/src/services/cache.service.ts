@@ -28,7 +28,7 @@ async function connection() {
       .catch((error) => {
         report(error);
         retryAfter = Date.now() + 5000;
-        candidate.destroy();
+        if (candidate.isOpen) candidate.destroy();
         return null;
       })
       .finally(() => { connectPromise = null; });
@@ -61,10 +61,13 @@ export const cacheService = {
     if (!redis) return null;
     const bucketKey = key(`rate:${bucket}`);
     try {
-      const count = await redis.incr(bucketKey);
-      if (count === 1) await redis.pExpire(bucketKey, windowMs);
-      const ttl = await redis.pTTL(bucketKey);
-      return { count, resetAt: Date.now() + Math.max(ttl, 1) };
+      const result = await redis.eval(`
+        local count = redis.call('INCR', KEYS[1])
+        local ttl = redis.call('PTTL', KEYS[1])
+        if ttl < 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]); ttl = tonumber(ARGV[1]) end
+        return { count, ttl }
+      `, { keys: [bucketKey], arguments: [String(windowMs)] }) as number[];
+      return { count: Number(result[0]), resetAt: Date.now() + Math.max(Number(result[1]), 1) };
     } catch (error) {
       report(error);
       return null;

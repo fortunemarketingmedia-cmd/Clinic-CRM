@@ -1,4 +1,4 @@
-FROM node:22.19.0-bookworm-slim AS build
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS build
 ENV HUSKY=0
 WORKDIR /app
 RUN apt-get update \
@@ -9,17 +9,22 @@ COPY backend/package.json backend/package.json
 COPY frontend/package.json frontend/package.json
 RUN npm ci
 COPY backend backend
-RUN DATABASE_URL=postgresql://build:build@localhost:5432/build npm run prisma:generate -w backend && npm run build -w backend
+RUN DATABASE_URL=postgresql://build:build@localhost:5432/build npm run prisma:generate -w backend && npm run build -w backend && find backend/dist -type f -name '*.test.js' -delete
 
 FROM build AS migration
 WORKDIR /app/backend
 CMD ["/app/backend/node_modules/.bin/prisma", "migrate", "deploy"]
 
-FROM build AS runtime-deps
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS runtime-deps
+ENV HUSKY=0
 WORKDIR /app
-RUN npm prune --omit=dev
+COPY package.json package-lock.json ./
+COPY backend/package.json backend/package.json
+COPY frontend/package.json frontend/package.json
+RUN npm ci --omit=dev --workspace=backend --ignore-scripts
+COPY --from=build /app/backend/node_modules/.prisma /app/backend/node_modules/.prisma
 
-FROM node:22.19.0-bookworm-slim AS runtime
+FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS runtime
 ENV NODE_ENV=production
 WORKDIR /app/backend
 RUN apt-get update \

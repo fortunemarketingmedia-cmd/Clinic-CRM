@@ -2,13 +2,11 @@ import { Role } from '@prisma/client';
 import { Router } from 'express';
 import { leadController } from '../controllers/lead.controller.js';
 import { requireAuth } from '../middleware/auth.js';
-import { redactFinancialsForNonAdmin } from '../middleware/redact-financials.js';
 import { requireRole } from '../middleware/role.js';
 
 export const leadRoutes = Router();
 
 leadRoutes.use(requireAuth);
-leadRoutes.use(redactFinancialsForNonAdmin);
 
 leadRoutes.get('/', (req, res, next) => {
   leadController.list(req, res).catch(next);

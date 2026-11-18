@@ -811,6 +811,7 @@ model User {
   name                    String
   email                   String                      @unique
   passwordHash            String
+  sessionVersion          Int                         @default(0)
   role                    Role
   accessLevel             AccessLevel                 @default(RECEPTIONIST)
   status                  UserStatus                  @default(ACTIVE)
@@ -2257,6 +2258,8 @@ model EstimateItem {
 }
 
 model Invoice {
+  idempotencyKey String? @unique
+  idempotencyHash String?
   id                    String                 @id @default(cuid())
   invoiceNo             String                 @unique
   estimateId            String?                @unique
@@ -2338,6 +2341,8 @@ model InvoiceItem {
 }
 
 model Payment {
+  idempotencyKey String? @unique
+  idempotencyHash String?
   id              String              @id @default(cuid())
   paymentNo       String              @unique
   patientId       String
@@ -2863,6 +2868,7 @@ model PatientFile {
   originalFilename      String?
   storageKey            String?            @unique
   mimeType              String?
+  storedSizeBytes       Int?
   sizeBytes             Int?
   checksum              String?
   uploadedById          String?

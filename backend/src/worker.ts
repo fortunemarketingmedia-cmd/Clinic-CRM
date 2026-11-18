@@ -1,10 +1,10 @@
 import { env } from './config/env.js';
-import { prisma } from './config/db.js';
+import { prisma, verifyRuntimeDatabase } from './config/db.js';
 import { fileStorageService } from './services/file-storage.service.js';
 import { integrationJobService } from './services/integration-job.service.js';
 import { cacheService } from './services/cache.service.js';
 
-await Promise.all([prisma.$queryRaw`SELECT 1`, fileStorageService.healthCheck()]);
+await Promise.all([verifyRuntimeDatabase(), fileStorageService.healthCheck()]);
 console.log(JSON.stringify({ level: 'info', component: 'worker', message: 'Background worker started', workerId: env.INTEGRATION_WORKER_ID }));
 const timer = integrationJobService.start({ unref: false });
 let shuttingDown = false;

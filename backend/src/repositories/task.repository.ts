@@ -24,12 +24,12 @@ export const taskRepository = {
   create(data: { title: string; description?: string; type: string; priority: WorkPriority; assignedUserId: string;
     assignedTeam?: string; branchId: string; personId?: string; leadId?: string; patientId?: string;
     relatedAppointmentId?: string; dueAt: Date; reminderAt?: Date; automaticallyCreated: boolean; createdById: string }) {
-    return prisma.task.create({ data, include: { assignedUser: true, branch: true, person: true, lead: true, patient: true } });
+    return prisma.task.create({ data, include: { assignedUser: { select: { id: true, name: true } }, branch: true, person: true, lead: true, patient: true } });
   },
   findById(id: string) { return prisma.task.findUnique({ where: { id } }); },
   update(id: string, data: Partial<{ title: string; description: string; type: string; priority: WorkPriority; assignedUserId: string;
     dueAt: Date; reminderAt: Date; status: WorkStatus; completionNotes: string; completedById: string; completedAt: Date }>) {
-    return prisma.task.update({ where: { id }, data, include: { assignedUser: true, branch: true, person: true, lead: true, patient: true } });
+    return prisma.task.update({ where: { id }, data, include: { assignedUser: { select: { id: true, name: true } }, branch: true, person: true, lead: true, patient: true } });
   },
 };
 

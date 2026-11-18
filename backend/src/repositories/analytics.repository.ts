@@ -333,38 +333,38 @@ export const analyticsRepository = {
         _count: { id: true },
       }),
       prisma.$queryRaw<Array<{ day: string; kind: string; value: number }>>(Prisma.sql`
-        SELECT to_char(("createdAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+        SELECT to_char(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'leads' AS kind, COUNT(*)::double precision AS value
         FROM "Lead"
         WHERE "deletedAt" IS NULL AND "createdAt" >= ${trendStart} AND "createdAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
-        SELECT to_char(("createdAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+        SELECT to_char(("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'patients' AS kind, COUNT(*)::double precision AS value
         FROM "Patient"
         WHERE "deletedAt" IS NULL AND "createdAt" >= ${trendStart} AND "createdAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
-        SELECT to_char(("appointmentAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+        SELECT to_char(("appointmentAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'appointments' AS kind, COUNT(*)::double precision AS value
         FROM "Appointment"
         WHERE "deletedAt" IS NULL AND "appointmentAt" >= ${trendStart} AND "appointmentAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
-        SELECT to_char(("dueAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+        SELECT to_char(("dueAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'followUps' AS kind, COUNT(*)::double precision AS value
         FROM "FollowUp"
         WHERE "deletedAt" IS NULL AND "dueAt" >= ${trendStart} AND "dueAt" <= ${trendEnd} ${branchSql}
         GROUP BY 1
         UNION ALL
-        SELECT to_char(("invoiceDate" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+        SELECT to_char(("invoiceDate" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'billed' AS kind, COALESCE(SUM("totalAmount"), 0)::double precision AS value
         FROM "Invoice"
         WHERE "deletedAt" IS NULL AND "invoiceDate" >= ${trendStart} AND "invoiceDate" <= ${trendEnd}
           AND "status" <> 'CANCELLED' ${branchSql}
         GROUP BY 1
         UNION ALL
-        SELECT to_char(("paidAt" AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
+        SELECT to_char(("paidAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date, 'YYYY-MM-DD') AS day,
                'collected' AS kind, COALESCE(SUM("amount"), 0)::double precision AS value
         FROM "Payment"
         WHERE "deletedAt" IS NULL AND "paidAt" >= ${trendStart} AND "paidAt" <= ${trendEnd}

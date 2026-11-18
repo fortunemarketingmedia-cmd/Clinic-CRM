@@ -1,10 +1,11 @@
+import { requireRole } from '../middleware/role.js';
 import { Router } from 'express';
 import { billingController } from '../controllers/billing.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 
 export const billingRoutes = Router();
 billingRoutes.post('/payments/gateway-callback', (req, res, next) => { billingController.gatewayCallback(req, res).catch(next); });
-billingRoutes.use(requireAuth);
+billingRoutes.use(requireAuth, requireRole('ADMIN'));
 billingRoutes.get('/estimates', (req, res, next) => { billingController.listEstimates(req, res).catch(next); });
 billingRoutes.post('/estimates', (req, res, next) => { billingController.createEstimate(req, res).catch(next); });
 billingRoutes.patch('/estimates/:id/status', (req, res, next) => { billingController.updateEstimateStatus(req, res).catch(next); });

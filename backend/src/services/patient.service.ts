@@ -8,6 +8,7 @@ import { HttpError } from '../utils/http-error.js';
 import { personService } from './person.service.js';
 import { formsRepository } from '../repositories/forms.repository.js';
 import { validateSubmission, type SnapshotField } from './form-policy.js';
+import { accessService } from './access.service.js';
 import { settingsService } from './settings.service.js';
 
 function requireBranchForReceptionist(role: Role, branchId?: string) {
@@ -67,11 +68,12 @@ export const patientService = {
     address?: string;
     occupation?: string;
     maritalStatus?: string;
-  }) {
+  }, actor?: { id: string; role: Role }) {
     const lead = await leadRepository.findById(input.leadId);
     if (!lead) throw new HttpError(404, 'Lead not found');
 
     if (lead.person?.patient) {
+      if (actor) await accessService.assertBranchAccess(actor.id, actor.role, lead.person.patient.branchId);
       await leadRepository.update(lead.id, { status: LeadStatus.CONVERTED, convertedAt: new Date() });
       await timelineRepository.create({
         personId: lead.person.id,
@@ -287,7 +289,7 @@ export const patientService = {
       fullName: patient.fullName,
       mobile: patient.mobile,
       branch: patient.branch,
-      medicalProfile: patient.medicalProfile,
+      medicalProfile: null,
       formTemplate: await registrationTemplate(patient.branchId),
     };
   },

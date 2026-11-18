@@ -41,7 +41,7 @@ export const followUpRepository = {
   create(data: { personId: string; leadId?: string; patientId?: string; assignedUserId: string; branchId: string;
     activityType: string; channel: ActivityChannel; direction: ActivityDirection; dueAt: Date; notes?: string;
     reminderAt?: Date; priority: WorkPriority; source?: string; relatedAppointmentId?: string; createdById: string }) {
-    return prisma.followUp.create({ data, include: { person: true, lead: true, patient: true, assignedUser: true, branch: true } });
+    return prisma.followUp.create({ data, include: { person: true, lead: true, patient: true, assignedUser: { select: { id: true, name: true } }, branch: true } });
   },
   update(id: string, data: { activityType?: string; channel?: ActivityChannel; dueAt?: Date; reminderAt?: Date; notes?: string; priority?: WorkPriority; assignedUserId?: string; status?: WorkStatus }) {
     return prisma.followUp.update({ where: { id }, data, include: { person: true, lead: true, patient: true, assignedUser: { select: { id: true, name: true } }, branch: true } });

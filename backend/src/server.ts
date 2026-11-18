@@ -1,13 +1,15 @@
 import { env } from './config/env.js';
 import { app } from './app.js';
 import { integrationJobService } from './services/integration-job.service.js';
-import { prisma } from './config/db.js';
+import { prisma, verifyRuntimeDatabase } from './config/db.js';
 import { fileStorageService } from './services/file-storage.service.js';
 import { cacheService } from './services/cache.service.js';
 
 async function verifyDependencies() {
-  await prisma.$queryRaw`SELECT 1`;
+  await verifyRuntimeDatabase();
   await fileStorageService.healthCheck();
+  const cache = await cacheService.healthCheck();
+  if (cache.configured && !cache.ready) throw new Error('Configured request-protection cache is unavailable');
 }
 
 await verifyDependencies().catch(async (error) => {
@@ -23,6 +25,10 @@ await verifyDependencies().catch(async (error) => {
 const server = app.listen(env.PORT, () => {
   console.log(`Revive CRM backend running on port ${env.PORT}`);
 });
+
+server.requestTimeout = 120_000;
+server.headersTimeout = 15_000;
+server.keepAliveTimeout = 5_000;
 
 server.on('error', (error: NodeJS.ErrnoException) => {
   if (error.code === 'EADDRINUSE') {

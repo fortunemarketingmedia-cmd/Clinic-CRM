@@ -50,6 +50,7 @@ export const imageOptimizationService = {
             url: `secure://${stored.storageKey}`,
             mimeType: 'image/webp',
             sizeBytes: stored.sizeBytes,
+            storedSizeBytes: stored.storedSizeBytes,
             checksum: stored.checksum,
             uploadedById: original.uploadedById ?? undefined,
             clinicalUsePermission: original.clinicalUsePermission,

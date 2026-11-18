@@ -41,7 +41,7 @@ export const patientController = {
     if (!req.user) throw new HttpError(401, 'Authentication required');
     const input = convertLeadSchema.parse(req.body);
     await leadService.getLead(input.leadId, req.user);
-    const patient = await patientService.convertLead(input);
+    const patient = await patientService.convertLead(input, req.user);
     return res.status(201).json({ data: patient });
   },
 
@@ -84,6 +84,6 @@ export const patientController = {
   async submitQrRegistration(req: Request, res: Response) {
     const input = qrRegistrationSchema.parse(req.body);
     const patient = await patientService.submitQrRegistration(req.params.token, input, { ipAddress: req.ip, deviceMetadata: req.header('user-agent') });
-    return res.json({ data: patient });
+    return res.json({ data: { patientNo: patient.patientNo, submitted: true } });
   },
 };

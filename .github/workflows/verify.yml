@@ -16,8 +16,27 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17.12-alpine@sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci_uitest
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci_uitest"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      redis:
+        image: redis:7.4.11-alpine@sha256:d9436322172a5b482c187bf1f363d3c4fea086fcca6b9c8a94de8f0f39ed3193
+        ports: ["16379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      AUDIT_DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_uitest
+      AUDIT_REDIS_URL: redis://127.0.0.1:16379
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_uitest
       NODE_ENV: test
       JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
       JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
@@ -33,6 +52,10 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck -w frontend
       - run: npm test -w backend
+      - run: npm test -w frontend
+      - run: npm run audit:setup -w backend
+      - run: npm run test:integration -w backend
+      - run: npm run test:redis -w backend
       - run: npm run build
         env:
           NEXT_PUBLIC_API_URL: https://api.invalid.example/api
@@ -42,4 +65,4 @@ jobs:
         run: |
           docker compose --env-file deploy/hostinger/.env.hostinger.example -f compose.production.yml config --quiet
           bash -n deploy/hostinger/bootstrap-ubuntu.sh deploy/hostinger/deploy.sh deploy/hostinger/verify-backups.sh
-          sh -n deploy/minio/init-minio.sh deploy/backup/postgres-backup.sh deploy/backup/object-backup.sh
+          sh -n deploy/backup/postgres-backup.sh deploy/backup/restic-backup.sh

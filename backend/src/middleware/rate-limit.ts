@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { HttpError } from '../utils/http-error.js';
 import { cacheService } from '../services/cache.service.js';
+import { env } from '../config/env.js';
 import crypto from 'node:crypto';
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
@@ -27,6 +28,7 @@ export function rateLimit(options: {
       }
       return next();
     }
+    if (env.NODE_ENV === 'production' && env.REDIS_URL) return next(new HttpError(503, 'Request protection is temporarily unavailable'));
     requestsSinceCleanup += 1;
     if (requestsSinceCleanup >= 500) {
       for (const [bucketKey, value] of buckets) if (value.resetAt <= now) buckets.delete(bucketKey);

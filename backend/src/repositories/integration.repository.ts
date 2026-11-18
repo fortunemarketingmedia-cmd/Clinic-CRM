@@ -4,8 +4,8 @@ import type {
   DurableJobType,
   IntegrationProvider,
   IntegrationStatus,
-  Prisma,
 } from '@prisma/client';
+import { Prisma, type DurableJob } from '@prisma/client';
 import { prisma } from '../config/db.js';
 
 const connectionInclude = {
@@ -283,36 +283,25 @@ export const integrationRepository = {
     });
   },
   async claimJob(workerId: string, types: DurableJobType[]) {
-    return prisma.$transaction(
-      async (tx) => {
-        const job = await tx.durableJob.findFirst({
-          where: {
-            type: { in: types },
-            status: { in: ['QUEUED', 'RETRY'] },
-            runAt: { lte: new Date() },
-            OR: [{ lockExpiresAt: null }, { lockExpiresAt: { lt: new Date() } }],
-          },
-          orderBy: [{ runAt: 'asc' }, { createdAt: 'asc' }],
-        });
-        if (!job) return null;
-        const claim = await tx.durableJob.updateMany({
-          where: { id: job.id, status: { in: ['QUEUED', 'RETRY'] } },
-          data: {
-            status: 'RUNNING',
-            lockedBy: workerId,
-            lockedAt: new Date(),
-            lockExpiresAt: new Date(Date.now() + 60_000),
-            attempts: { increment: 1 },
-          },
-        });
-        return claim.count ? tx.durableJob.findUnique({ where: { id: job.id } }) : null;
-      },
-      { isolationLevel: 'Serializable' },
-    );
+    if (!types.length) return null;
+    const now = new Date();
+    await prisma.$executeRaw`UPDATE "DurableJob" SET status = 'DEAD', "lastError" = 'Worker lease expired after maximum attempts', "updatedAt" = ${now} WHERE status = 'RUNNING' AND "lockExpiresAt" < ${now} AND attempts >= "maxAttempts"`;
+    const rows = await prisma.$queryRaw<DurableJob[]>(Prisma.sql`
+      UPDATE "DurableJob" SET status = 'RUNNING', "lockedBy" = ${workerId}, "lockedAt" = ${now},
+        "lockExpiresAt" = ${new Date(now.getTime() + 60_000)}, attempts = attempts + 1, "updatedAt" = ${now}
+      WHERE id = (SELECT id FROM "DurableJob"
+        WHERE type::text IN (${Prisma.join(types)}) AND attempts < "maxAttempts" AND
+          ((status IN ('QUEUED', 'RETRY') AND "runAt" <= ${now}) OR (status = 'RUNNING' AND "lockExpiresAt" < ${now}))
+        ORDER BY "runAt", "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1)
+      RETURNING *`);
+    return rows[0] ?? null;
   },
-  completeJob(id: string) {
-    return prisma.durableJob.update({
-      where: { id },
+  renewJob(id: string, workerId: string) {
+    return prisma.durableJob.updateMany({ where: { id, status: 'RUNNING', lockedBy: workerId }, data: { lockExpiresAt: new Date(Date.now() + 60_000) } });
+  },
+  completeJob(id: string, workerId: string) {
+    return prisma.durableJob.updateMany({
+      where: { id, status: 'RUNNING', lockedBy: workerId },
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
@@ -322,9 +311,9 @@ export const integrationRepository = {
       },
     });
   },
-  retryJob(id: string, error: string, dead: boolean) {
-    return prisma.durableJob.update({
-      where: { id },
+  retryJob(id: string, error: string, dead: boolean, workerId: string) {
+    return prisma.durableJob.updateMany({
+      where: { id, status: 'RUNNING', lockedBy: workerId },
       data: {
         status: dead ? 'DEAD' : 'RETRY',
         lastError: error,

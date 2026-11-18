@@ -1,3 +1,4 @@
+import { HttpError } from '../utils/http-error.js';
 import crypto from 'node:crypto';
 import type { CashClosingStatus, CreditNoteStatus, EstimateStatus, InvoiceStatus, PackageLedgerAction, PatientPackageStatus, PaymentMode, Prisma, RefundStatus } from '@prisma/client';
 import { prisma, type DbTransaction } from '../config/db.js';
@@ -7,6 +8,8 @@ const estimateInclude = { patient: true, branch: true, items: { orderBy: { sortO
 const packageInclude = { patient: true, branch: true, packageMaster: true, ledgerEntries: { orderBy: { effectiveAt: 'desc' as const } } };
 
 export const billingRepository = {
+  findInvoiceByRequest(idempotencyKey: string) { return prisma.invoice.findUnique({ where: { idempotencyKey }, include: invoiceInclude }); },
+  findPaymentByRequest(idempotencyKey: string) { return prisma.payment.findUnique({ where: { idempotencyKey }, include: { allocations: true } }); },
   nextNumber(prefix: string) { return `${prefix}-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`; },
   findPatient(id: string) { return prisma.patient.findUnique({ where: { id }, select: { id: true, branchId: true, fullName: true, patientNo: true, leadId: true, personId: true } }); },
 
@@ -17,7 +20,17 @@ export const billingRepository = {
 
   listInvoices(filters: { branchId?: string; patientId?: string; status?: InvoiceStatus }) { return prisma.invoice.findMany({ where: filters, include: invoiceInclude, orderBy: { invoiceDate: 'desc' } }); },
   findInvoice(id: string) { return prisma.invoice.findUnique({ where: { id }, include: invoiceInclude }); },
-  createInvoice(data: Prisma.InvoiceUncheckedCreateInput, items: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[], approval?: Omit<Prisma.DiscountApprovalUncheckedCreateWithoutInvoiceInput, 'invoiceId'>) { return prisma.invoice.create({ data: { ...data, items: { create: items }, discountApproval: approval ? { create: approval } : undefined }, include: invoiceInclude }); },
+  async createInvoice(data: Prisma.InvoiceUncheckedCreateInput, items: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[], approval?: Omit<Prisma.DiscountApprovalUncheckedCreateWithoutInvoiceInput, 'invoiceId'>) {
+    return prisma.$transaction(async (tx) => {
+      if (data.idempotencyKey) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`invoice-request:${data.idempotencyKey}`}))`;
+        const previous = await tx.invoice.findUnique({ where: { idempotencyKey: data.idempotencyKey }, include: invoiceInclude });
+        if (previous) { if (previous.idempotencyHash !== data.idempotencyHash) throw new HttpError(409, 'Idempotency key was already used for a different request'); return { record: previous, created: false }; }
+      }
+      const record = await tx.invoice.create({ data: { ...data, items: { create: items }, discountApproval: approval ? { create: approval } : undefined }, include: invoiceInclude });
+      return { record, created: true };
+    });
+  },
   convertEstimate(estimateId: string, data: Prisma.InvoiceUncheckedCreateInput, items: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[], approval?: Omit<Prisma.DiscountApprovalUncheckedCreateWithoutInvoiceInput, 'invoiceId'>) { return prisma.$transaction(async (tx) => { const invoice = await tx.invoice.create({ data: { ...data, estimateId, items: { create: items }, discountApproval: approval ? { create: approval } : undefined }, include: invoiceInclude }); await tx.estimate.update({ where: { id: estimateId }, data: { status: 'CONVERTED' } }); return invoice; }); },
   updateInvoice(id: string, data: Prisma.InvoiceUncheckedUpdateInput) { return prisma.invoice.update({ where: { id }, data, include: invoiceInclude }); },
   markOverdue(branchId?: string) { return prisma.invoice.updateMany({ where: { branchId, status: 'ISSUED', outstandingAmount: { gt: 0 }, dueDate: { lt: new Date() } }, data: { status: 'OVERDUE' } }); },
@@ -25,11 +38,50 @@ export const billingRepository = {
 
   listPayments(filters: { branchId?: string; patientId?: string; invoiceId?: string }) { return prisma.payment.findMany({ where: { branchId: filters.branchId, patientId: filters.patientId, OR: filters.invoiceId ? [{ invoiceId: filters.invoiceId }, { allocations: { some: { invoiceId: filters.invoiceId } } }] : undefined }, include: { patient: true, branch: true, allocations: { include: { invoice: { select: { id: true, invoiceNo: true } } } }, collectedBy: { select: { id: true, name: true } }, reversedBy: { select: { id: true, name: true } }, refunds: true }, orderBy: { paidAt: 'desc' } }); },
   findPayment(id: string) { return prisma.payment.findUnique({ where: { id }, include: { allocations: true, refunds: true, patient: true, branch: true } }); },
-  findPaymentByNo(paymentNo: string) { return prisma.payment.findUnique({ where: { paymentNo }, include: { allocations: true } }); },
-  async createPayment(data: Prisma.PaymentUncheckedCreateInput, allocations: Array<{ invoiceId: string; amount: number }>) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.create({ data: { ...data, invoiceId: allocations[0]?.invoiceId, allocatedAmount: allocations.reduce((sum, item) => sum + item.amount, 0), allocations: { create: allocations } }, include: { allocations: true } }); for (const allocation of allocations) await recalculateInvoice(tx, allocation.invoiceId); return payment; }, { isolationLevel: 'Serializable' }); },
-  async allocatePayment(paymentId: string, invoiceId: string, amount: number) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { allocations: true } }); const allocation = await tx.paymentAllocation.upsert({ where: { paymentId_invoiceId: { paymentId, invoiceId } }, create: { paymentId, invoiceId, amount }, update: { amount: { increment: amount } } }); await tx.payment.update({ where: { id: paymentId }, data: { allocatedAmount: { increment: amount }, invoiceId: payment.invoiceId ?? invoiceId } }); await recalculateInvoice(tx, invoiceId); return allocation; }, { isolationLevel: 'Serializable' }); },
+  async createPayment(data: Prisma.PaymentUncheckedCreateInput, allocations: Array<{ invoiceId: string; amount: number }>) { return prisma.$transaction(async (tx) => {
+    if (data.idempotencyKey) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`payment-request:${data.idempotencyKey}`}))`;
+      const previous = await tx.payment.findUnique({ where: { idempotencyKey: data.idempotencyKey }, include: { allocations: true } });
+      if (previous) { if (previous.idempotencyHash !== data.idempotencyHash) throw new HttpError(409, 'Idempotency key was already used for a different request'); return { record: previous, created: false }; }
+    } for (const item of [...allocations].sort((a, b) => a.invoiceId.localeCompare(b.invoiceId))) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`invoice:${item.invoiceId}`}))`;
+      const current = await tx.invoice.findUniqueOrThrow({ where: { id: item.invoiceId } });
+      if (current.patientId !== data.patientId || current.branchId !== data.branchId || !['ISSUED', 'PARTIAL', 'OVERDUE'].includes(current.status) || item.amount <= 0 || item.amount > Number(current.outstandingAmount)) throw new HttpError(409, 'Invoice allocation is no longer available');
+    }
+    const payment = await tx.payment.create({ data: { ...data, invoiceId: allocations[0]?.invoiceId, allocatedAmount: allocations.reduce((sum, item) => sum + item.amount, 0), allocations: { create: allocations } }, include: { allocations: true } }); for (const allocation of allocations) await recalculateInvoice(tx, allocation.invoiceId); return { record: payment, created: true }; }, { isolationLevel: 'ReadCommitted' }); },
+  async allocatePayment(paymentId: string, invoiceId: string, amount: number) { return prisma.$transaction(async (tx) => { await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`payment:${paymentId}`}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`invoice:${invoiceId}`}))`;
+    const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId }, include: { allocations: true } });
+    const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    if (payment.status !== 'COMPLETED' || invoice.patientId !== payment.patientId || invoice.branchId !== payment.branchId || !['ISSUED', 'PARTIAL', 'OVERDUE'].includes(invoice.status) || amount <= 0 || amount > Number(payment.amount) - Number(payment.allocatedAmount) || amount > Number(invoice.outstandingAmount)) throw new HttpError(409, 'Payment or invoice balance has changed');
+    const allocation = await tx.paymentAllocation.upsert({ where: { paymentId_invoiceId: { paymentId, invoiceId } }, create: { paymentId, invoiceId, amount }, update: { amount: { increment: amount } } }); await tx.payment.update({ where: { id: paymentId }, data: { allocatedAmount: { increment: amount }, invoiceId: payment.invoiceId ?? invoiceId } }); await recalculateInvoice(tx, invoiceId); return allocation; }, { isolationLevel: 'ReadCommitted' }); },
   async reversePayment(id: string, reversedById: string, reason: string) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.update({ where: { id }, data: { status: 'REVERSED', reversedAt: new Date(), reversedById, reversalReason: reason }, include: { allocations: true } }); for (const allocation of payment.allocations) await recalculateInvoice(tx, allocation.invoiceId); return payment; }, { isolationLevel: 'Serializable' }); },
-  async applyGatewayEvent(id: string, eventId: string, status: 'COMPLETED' | 'FAILED', reference?: string) { return prisma.$transaction(async (tx) => { const payment = await tx.payment.update({ where: { id }, data: { gatewayEventId: eventId, gatewayVerified: true, status, reference: reference ?? undefined }, include: { allocations: true } }); for (const allocation of payment.allocations) await recalculateInvoice(tx, allocation.invoiceId); return payment; }); },
+  async applyGatewayEvent(paymentNo: string, eventId: string, status: 'COMPLETED' | 'FAILED', reference?: string) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`gateway-event:${eventId}`}))`;
+      const [locked] = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM "Payment" WHERE "paymentNo" = ${paymentNo} FOR UPDATE`;
+      if (!locked) throw new HttpError(404, 'Payment not found');
+      const current = await tx.payment.findUniqueOrThrow({ where: { id: locked.id }, include: { allocations: true } });
+      if (current.mode !== 'PAYMENT_GATEWAY' || current.deletedAt) throw new HttpError(409, 'Payment is not eligible for gateway callbacks');
+      if (current.gatewayEventId === eventId) return current;
+      const alreadyUsed = await tx.payment.findUnique({ where: { gatewayEventId: eventId }, select: { id: true } });
+      if (alreadyUsed || current.gatewayEventId || current.status !== 'PENDING') throw new HttpError(409, 'Gateway event or payment has already been finalized');
+
+      const allocations = current.allocations.sort((a, b) => a.invoiceId.localeCompare(b.invoiceId));
+      for (const { invoiceId, amount } of allocations) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`invoice:${invoiceId}`}))`;
+        if (status === 'COMPLETED') {
+          const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+          if (!['ISSUED', 'PARTIAL', 'OVERDUE'].includes(invoice.status) || Number(amount) > Number(invoice.outstandingAmount)) {
+            throw new HttpError(409, 'Invoice allocation changed before gateway confirmation');
+          }
+        }
+      }
+      const payment = await tx.payment.update({ where: { id: current.id }, data: { gatewayEventId: eventId, gatewayVerified: true, status, reference }, include: { allocations: true } });
+      for (const { invoiceId } of allocations) await recalculateInvoice(tx, invoiceId);
+      return payment;
+    }, { isolationLevel: 'ReadCommitted' });
+  },
 
   listRefunds(filters: { branchId?: string; status?: RefundStatus }) { return prisma.refund.findMany({ where: filters, include: { invoice: true, payment: true, patient: true, branch: true, requestedBy: { select: { id: true, name: true } }, approvedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }); },
   findRefund(id: string) { return prisma.refund.findUnique({ where: { id }, include: { invoice: true, payment: { include: { refunds: true } }, patient: true, branch: true } }); },

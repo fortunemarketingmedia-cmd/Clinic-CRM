@@ -1,5 +1,6 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AUTH_UNAUTHORIZED_EVENT, restoreSession, setAccessToken } from '@/services/api';
 import type { AuthSession } from '@/types/auth';
@@ -18,6 +19,7 @@ type SessionContextValue = {
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSessionState] = useState<AuthSession | null>(null);
   const [selectedBranchId, setSelectedBranchIdState] = useState<string | null>(null);
   const [hasHydrated, setHasHydrated] = useState(false);
@@ -73,6 +75,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateSession = useCallback((nextSession: AuthSession | null) => {
+    // Cancels in-flight responses too, so data from the previous user cannot repopulate the cache.
+    void queryClient.cancelQueries();
+    queryClient.clear();
     setSessionState(nextSession);
     setAccessToken(nextSession?.accessToken ?? null);
 
@@ -84,7 +89,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.removeItem(SESSION_KEY);
     window.localStorage.removeItem(SELECTED_BRANCH_KEY);
     setSelectedBranchIdState(null);
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const clearExpiredSession = () => updateSession(null);

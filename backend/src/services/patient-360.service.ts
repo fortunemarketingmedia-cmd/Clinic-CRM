@@ -48,15 +48,15 @@ async function audit(actor: Actor, event: Parameters<typeof auditService.record>
 export const patient360Service = {
   async getPatient360(patientId: string, actor: Actor) {
     const access = await requirePatient(patientId, actor);
-    const patient = await patient360Repository.getPatient360(patientId);
+    const patient = await patient360Repository.getPatient360(patientId, actor.role === 'ADMIN' ? undefined : access.branchId);
     if (!patient) throw new HttpError(404, 'Patient not found');
 
-    const outstandingAmount = patient.invoices.reduce((sum, invoice) => sum + Math.max(0, Number(invoice.totalAmount) - invoice.payments.reduce((paid, payment) => paid + Number(payment.amount), 0)), 0);
+    const outstandingAmount = patient.invoices.filter((invoice) => !['DRAFT', 'CANCELLED'].includes(invoice.status)).reduce((sum, invoice) => sum + Number(invoice.outstandingAmount), 0);
     const sessionsRemaining = patient.packages.reduce((sum, treatmentPackage) => sum + Math.max(0, treatmentPackage.totalSessions - treatmentPackage.completedSessions), 0);
     const activeTreatmentPlan = patient.treatmentPlans.find((plan) => plan.status === 'ACTIVE' || plan.status === 'ACCEPTED');
     const appointments = patient.appointments;
     const lastVisit = appointments.find((appointment) => ['COMPLETED', 'BILLING_PENDING'].includes(appointment.status));
-    const nextAppointment = [...appointments].reverse().find((appointment) => new Date(appointment.appointmentAt) > new Date() && !['CANCELLED', 'NO_SHOW'].includes(appointment.status));
+    const nextAppointment = [...appointments].reverse().find((appointment) => new Date(appointment.appointmentAt) > new Date() && !['CANCELLED', 'NO_SHOW', 'COMPLETED'].includes(appointment.status));
 
     if (!clinicalRoles.includes(actor.role)) {
       return {

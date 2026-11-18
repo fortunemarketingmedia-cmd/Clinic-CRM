@@ -2,13 +2,11 @@ import { Role } from '@prisma/client';
 import { Router } from 'express';
 import { appointmentController } from '../controllers/appointment.controller.js';
 import { requireAuth } from '../middleware/auth.js';
-import { redactFinancialsForNonAdmin } from '../middleware/redact-financials.js';
 import { requireRole } from '../middleware/role.js';
 
 export const appointmentRoutes = Router();
 
 appointmentRoutes.use(requireAuth);
-appointmentRoutes.use(redactFinancialsForNonAdmin);
 
 appointmentRoutes.get('/', (req, res, next) => {
   appointmentController.list(req, res).catch(next);

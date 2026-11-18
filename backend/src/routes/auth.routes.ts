@@ -1,3 +1,4 @@
+import { rateLimit } from '../middleware/rate-limit.js';
 import { Router } from 'express';
 import { authController } from '../controllers/auth.controller.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -8,7 +9,7 @@ authRoutes.post('/login', (req, res, next) => {
   authController.login(req, res).catch(next);
 });
 
-authRoutes.post('/refresh', (req, res, next) => {
+authRoutes.post('/refresh', rateLimit({ windowMs: 60_000, max: 60, keyPrefix: 'session-refresh' }), (req, res, next) => {
   authController.refresh(req, res).catch(next);
 });
 

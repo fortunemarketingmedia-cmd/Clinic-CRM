@@ -34,6 +34,7 @@ const envSchema = z.object({
   FILE_ENCRYPTION_KEY: optional(z.string().min(43)),
   FILE_ACCESS_SECRET: optional(z.string().min(16)),
   MAX_UPLOAD_BYTES: z.coerce.number().int().min(1_048_576).max(52_428_800).default(10_485_760),
+  MIN_STORAGE_FREE_BYTES: z.coerce.number().int().min(0).default(1_073_741_824),
   MAX_IMAGE_PIXELS: z.coerce.number().int().min(1_000_000).max(100_000_000).default(64_000_000),
   REDIS_URL: optional(z.string().url()),
   REDIS_KEY_PREFIX: z.string().min(1).default('revive:'),
@@ -45,6 +46,9 @@ const envSchema = z.object({
   GOOGLE_ADS_INGEST_SECRET: optional(z.string().min(24)),
   META_ADS_INGEST_SECRET: optional(z.string().min(24)),
   WEBSITE_LEAD_INGEST_SECRET: optional(z.string().min(24)),
+  EMAIL_ENABLED: z.enum(['true', 'false']).default('false'),
+  WHATSAPP_ENABLED: z.enum(['true', 'false']).default('false'),
+  PAYMENT_GATEWAY_ENABLED: z.enum(['true', 'false']).default('false'),
   PAYMENT_GATEWAY_SECRET: optional(z.string().min(16)),
   INTEGRATION_ENCRYPTION_KEY: optional(z.string().min(32)),
   META_GRAPH_API_URL: z.string().url().default('https://graph.facebook.com'),
@@ -80,6 +84,8 @@ const envSchema = z.object({
 
 const parsedEnv = envSchema.parse(process.env);
 if (parsedEnv.NODE_ENV === 'production') {
+  const productionOrigins = [parsedEnv.FRONTEND_URL, parsedEnv.BACKEND_PUBLIC_URL, ...(parsedEnv.FRONTEND_URLS?.split(',').map((value) => value.trim()).filter(Boolean) ?? [])];
+  if (productionOrigins.some((origin) => { try { return new URL(origin).protocol !== 'https:'; } catch { return true; } })) throw new Error('Production frontend and public backend URLs must use HTTPS');
   const unsafeValue = (value?: string) => !value || /replace-with|generate-|example|strong-password/i.test(value);
   const requiredSecrets = {
     JWT_ACCESS_SECRET: parsedEnv.JWT_ACCESS_SECRET,
@@ -90,7 +96,7 @@ if (parsedEnv.NODE_ENV === 'production') {
     META_ADS_INGEST_SECRET: parsedEnv.META_ADS_INGEST_SECRET,
     WEBSITE_LEAD_INGEST_SECRET: parsedEnv.WEBSITE_LEAD_INGEST_SECRET,
     METRICS_SECRET: parsedEnv.METRICS_SECRET,
-    PAYMENT_GATEWAY_SECRET: parsedEnv.PAYMENT_GATEWAY_SECRET,
+    ...(parsedEnv.PAYMENT_GATEWAY_SECRET ? { PAYMENT_GATEWAY_SECRET: parsedEnv.PAYMENT_GATEWAY_SECRET } : {}),
   };
   const invalid = Object.entries(requiredSecrets)
     .filter(([key, value]) => unsafeValue(value) || value!.length < (key === 'INTEGRATION_ENCRYPTION_KEY' ? 32 : 48))
@@ -119,8 +125,8 @@ if (parsedEnv.NODE_ENV === 'production') {
   ) {
     throw new Error('FILE_ENCRYPTION_KEY must be an independent base64-encoded 32-byte production key');
   }
-  if (parsedEnv.FILE_STORAGE_PROVIDER !== 's3') {
-    throw new Error('Production file storage must use the private S3-compatible provider');
+  if (parsedEnv.FILE_STORAGE_PROVIDER === 'local' && parsedEnv.FILE_STORAGE_ROOT !== '/private-files') {
+    throw new Error('Production local storage must use the private persistent volume at /private-files');
   }
   if (!parsedEnv.CLAMAV_HOST || parsedEnv.FILE_SCAN_REQUIRED !== 'true') {
     throw new Error('Production uploads require a reachable ClamAV service and FILE_SCAN_REQUIRED=true');
@@ -133,17 +139,17 @@ if (parsedEnv.NODE_ENV === 'production') {
   if (['localhost', '127.0.0.1', '::1'].includes(databaseHost)) {
     throw new Error('Production DATABASE_URL must not point to a local development database');
   }
-  const missingStorage = ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'].filter(
-    (key) => !parsedEnv[key as keyof typeof parsedEnv],
-  );
-  if (missingStorage.length) {
-    throw new Error(`Production object-storage settings are missing: ${missingStorage.join(', ')}`);
-  }
-  if ([parsedEnv.S3_BUCKET, parsedEnv.S3_ACCESS_KEY_ID, parsedEnv.S3_SECRET_ACCESS_KEY].some(unsafeValue)) {
-    throw new Error('Production object-storage settings still contain placeholder values');
-  }
-  if (parsedEnv.S3_SERVER_SIDE_ENCRYPTION === 'aws:kms' && !parsedEnv.S3_KMS_KEY_ID) {
-    throw new Error('S3_KMS_KEY_ID is required when S3 server-side encryption uses aws:kms');
+  if (parsedEnv.FILE_STORAGE_PROVIDER === 's3') {
+    if (!parsedEnv.S3_ENDPOINT || new URL(parsedEnv.S3_ENDPOINT).protocol !== 'https:') {
+      throw new Error('Production remote storage requires an explicit HTTPS S3-compatible endpoint');
+    }
+    if (!parsedEnv.S3_KEY_PREFIX.replace(/^\/+|\/+$/g, '') ||
+        [parsedEnv.S3_BUCKET, parsedEnv.S3_ACCESS_KEY_ID, parsedEnv.S3_SECRET_ACCESS_KEY].some(unsafeValue)) {
+      throw new Error('Production remote storage requires a private bucket, prefix and credentials');
+    }
+    if (parsedEnv.S3_SERVER_SIDE_ENCRYPTION === 'aws:kms' && !parsedEnv.S3_KMS_KEY_ID) {
+      throw new Error('S3_KMS_KEY_ID is required for aws:kms');
+    }
   }
 }
 

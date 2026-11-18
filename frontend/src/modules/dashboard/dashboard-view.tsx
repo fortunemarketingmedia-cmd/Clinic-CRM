@@ -29,11 +29,8 @@ type DashboardOverview = {
     arrived: number;
     notArrived: number;
     confirmed: number;
-    revenue: string | number;
-    collected: string | number;
-    todayRevenue: string | number;
-    monthlyRevenue: string | number;
     pendingFollowups: number;
+    todayFollowups: number;
     totalLeadIntake: number;
     convertedLeads: number;
     leadConversion: number;
@@ -142,6 +139,7 @@ export function DashboardView() {
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard-overview', analyticsQuery],
+    enabled: isAdmin || Boolean(branchId),
     queryFn: () =>
       apiRequest<{ data: DashboardOverview }>(`/analytics/dashboard${analyticsQuery ? `?${analyticsQuery}` : ''}`),
   });
@@ -176,7 +174,7 @@ export function DashboardView() {
       ? { label: 'Patients', value: totals?.patients ?? 0, hint: `${data?.analytics ? trend.reduce((sum, p) => sum + p.patients, 0) : 0} new in this period`, icon: UserRoundCheck, series: seriesOf('patients'), variant: 'bars' as const, color: '#24966F' }
       : { label: 'Waiting patients', value: totals?.confirmed ?? 0, hint: `${totals?.arrived ?? 0} already arrived`, icon: UserRoundCheck, series: seriesOf('appointments'), variant: 'bars' as const, color: '#24966F' },
     { label: 'Unconverted leads', value: totals?.leads ?? 0, hint: `${totals?.convertedLeads ?? 0} converted to patients in this period`, icon: Users, series: seriesOf('leads'), variant: 'area' as const, color: '#D69A36' },
-    { label: isAdmin ? 'Pending follow-ups' : "Today's follow-ups", value: totals?.pendingFollowups ?? 0, hint: `${dailyWork?.missedFollowups.length ?? 0} missed`, icon: PhoneCall, series: seriesOf('followUps'), variant: 'line' as const, color: '#4B99C5' },
+    { label: isAdmin ? 'Pending follow-ups' : "Today's follow-ups", value: (isAdmin ? totals?.pendingFollowups : totals?.todayFollowups) ?? 0, hint: `${dailyWork?.missedFollowups.length ?? 0} missed`, icon: PhoneCall, series: seriesOf('followUps'), variant: 'line' as const, color: '#4B99C5' },
   ];
 
   const workGroups = isAdmin
@@ -227,7 +225,7 @@ export function DashboardView() {
           <CardHeader
             title="Clinic activity"
             description="Appointments, new leads and new patients per day"
-            action={<Link href="/reports" className="inline-flex h-8 items-center gap-1 rounded-full bg-muted px-3 text-xs font-medium text-foreground hover:bg-primary-soft">Detailed analytics <ArrowUpRight className="size-3.5" aria-hidden /></Link>}
+            action={isAdmin ? <Link href="/reports" className="inline-flex h-8 items-center gap-1 rounded-full bg-muted px-3 text-xs font-medium text-foreground hover:bg-primary-soft">Detailed analytics <ArrowUpRight className="size-3.5" aria-hidden /></Link> : undefined}
           />
           <div className="mb-3 flex items-baseline gap-2"><span className="text-[34px] font-semibold leading-none tracking-tight tabular-nums">{periodAppointments}</span><span className="text-sm text-muted-foreground">appointments in this period</span></div>
           {trend.length > 1 ? (
@@ -304,7 +302,7 @@ export function DashboardView() {
           <div className="grid gap-3 md:grid-cols-2">
             {data?.byBranch.map((branch) => (
               <div key={branch.id} className="flex items-center justify-between gap-3 rounded-2xl bg-muted/60 px-4 py-3.5">
-                <div className="min-w-0"><div className="truncate text-sm font-medium">{branch.name}</div><div className="text-xs text-muted-foreground">{branch.activeLeads} active leads</div></div>
+                <div className="min-w-0"><div className="truncate text-sm font-medium">{branch.name}</div><div className="text-xs text-muted-foreground">{branch.activeLeads} unconverted leads</div></div>
                 <div className="flex shrink-0 gap-6 text-right text-xs text-muted-foreground">
                   <div><div className="text-lg font-semibold tabular-nums text-foreground">{branch._count.patients}</div>patients</div>
                   <div><div className="text-lg font-semibold tabular-nums text-foreground">{branch._count.appointments}</div>appointments</div>

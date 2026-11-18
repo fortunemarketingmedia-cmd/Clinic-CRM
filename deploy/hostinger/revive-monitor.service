@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Revive CRM backups and service health
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/revive-crm/monitor.env
+ExecStart=/srv/apps/projects/revive-crm/deploy/hostinger/check-release-health.sh
+NoNewPrivileges=true
+PrivateTmp=true

@@ -5,6 +5,7 @@ import { HttpError } from '../utils/http-error.js';
 let transporter: ReturnType<typeof nodemailer.createTransport> | null | undefined;
 
 function getTransporter() {
+  if (env.EMAIL_ENABLED !== 'true') return null;
   if (transporter !== undefined) return transporter;
   if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) {
     transporter = null;

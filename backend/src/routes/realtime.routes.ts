@@ -36,7 +36,10 @@ realtimeRoutes.get('/events', async (req, res) => {
   });
 
   const heartbeat = setInterval(() => {
-    res.write(': ping\n\n');
+    void resolveActiveUser(token).then((user) => {
+      if (!user) res.end();
+      else if (!res.writableEnded) res.write(': ping\n\n');
+    }).catch(() => res.end());
   }, 25_000);
   const expiry = setTimeout(() => res.end(), Math.max(1, expiresAt - Date.now()));
 

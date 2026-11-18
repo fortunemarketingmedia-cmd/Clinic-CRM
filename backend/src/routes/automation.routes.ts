@@ -1,5 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { automationController as c } from '../controllers/automation.controller.js';
+import { requireRole } from '../middleware/role.js';
 import { requireAuth } from '../middleware/auth.js';
 export const automationRoutes = Router();
 const handle =
@@ -7,7 +8,7 @@ const handle =
   (req: Request, res: Response, next: NextFunction) => {
     fn(req, res).catch(next);
   };
-automationRoutes.use(requireAuth);
+automationRoutes.use(requireAuth, requireRole('ADMIN'));
 automationRoutes.get('/', handle(c.list));
 automationRoutes.get('/executions', handle(c.executions));
 automationRoutes.get('/:id', handle(c.get));

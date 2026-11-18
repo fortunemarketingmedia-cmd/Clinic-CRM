@@ -15,16 +15,17 @@ function normalized(input: Omit<PersonInput, 'normalizedMobile' | 'normalizedEma
 export const personService = {
   list: personRepository.list,
 
-  async get(id: string) {
-    const person = await personRepository.findById(id);
+  async get(id: string, branchIds?: string[]) {
+    const person = await personRepository.findById(id, branchIds);
     if (!person) throw new HttpError(404, 'Person not found');
     return person;
   },
 
-  findDuplicates(input: { mobile?: string; email?: string }) {
+  findDuplicates(input: { mobile?: string; email?: string; branchIds?: string[] }) {
     return personRepository.findExact({
       normalizedMobile: input.mobile ? normalizeMobile(input.mobile) : undefined,
       normalizedEmail: normalizeEmail(input.email),
+      branchIds: input.branchIds,
     });
   },
 
@@ -37,7 +38,7 @@ export const personService = {
   async create(input: Omit<PersonInput, 'normalizedMobile' | 'normalizedEmail' | 'normalizedAlternateMobile'>, audit: AuditContext) {
     const data = normalized(input);
     const existing = await personRepository.findExact(data);
-    if (existing) throw new HttpError(409, `A matching person already exists (${existing.id})`);
+    if (existing) throw new HttpError(409, 'A matching person already exists');
     const person = await personRepository.create(data);
     await auditService.record(audit, { action: 'PERSON_CREATED', entity: 'Person', entityId: person.id });
     return person;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 // bcrypt only uses the first 72 bytes of a password, so longer ones are rejected rather than silently truncated.
 const newPassword = z.string().min(8, 'Password must be at least 8 characters').max(72, 'Password must be 72 characters or fewer')
+  .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, 'Password must fit within 72 UTF-8 bytes')
   .regex(/[A-Za-z]/, 'Password must contain a letter').regex(/\d/, 'Password must contain a number');
 
 export const createUserSchema = z.object({

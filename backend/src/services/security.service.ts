@@ -21,6 +21,7 @@ export const securityService = {
   async beginMfa(actor: Actor, audit: AuditContext) {
     const user = await prisma.user.findUnique({ where: { id: actor.id } });
     if (!user) throw new HttpError(404, 'User not found');
+    if (user.mfaEnabled) throw new HttpError(409, 'Disable existing MFA with your password and verification code before setting it up again');
     const secret = generateTotpSecret();
     await prisma.user.update({
       where: { id: actor.id },
@@ -44,6 +45,7 @@ export const securityService = {
   },
   async confirmMfa(code: string, actor: Actor, audit: AuditContext) {
     const user = await prisma.user.findUnique({ where: { id: actor.id } });
+    if (user?.mfaEnabled) throw new HttpError(409, 'MFA is already enabled');
     if (!user?.mfaSecretCiphertext) throw new HttpError(409, 'Start MFA setup first');
     const secret = decryptIntegrationSecret(user.mfaSecretCiphertext, key());
     if (!verifyTotp(secret, code)) throw new HttpError(400, 'Invalid MFA code');

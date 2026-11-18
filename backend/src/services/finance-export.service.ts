@@ -1,7 +1,7 @@
+import { csvCell } from '../utils/csv.js';
 import PDFDocument from 'pdfkit';
 import { prisma } from '../config/db.js';
 import { settingsRepository } from '../repositories/settings.repository.js';
-import { analyticsRepository } from '../repositories/analytics.repository.js';
 import { mailService } from './mail.service.js';
 import { HttpError } from '../utils/http-error.js';
 import { cleanPhone } from './pdf-theme.js';
@@ -34,9 +34,8 @@ function formatDate(value?: Date) {
 }
 
 type SettingsRow = Awaited<ReturnType<typeof settingsRepository.getOrCreate>>;
-type RegisterRow = { invoiceNo: string; date: Date; patient: string; patientNo: string; branch: string; gst: boolean; taxable: number; tax: number; total: number; paid: number; due: number; status: string };
+type RegisterRow = { invoiceNo: string; date: Date; patient: string; patientNo: string; branch: string; gst: boolean; subtotal: number; discount: number; taxable: number; tax: number; total: number; paid: number; due: number; status: string };
 type Register = { rows: RegisterRow[]; paymentsByMode: Array<{ mode: string; count: number; amount: number }> };
-const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
 
 /** Finance reports are legal documents: refuse to produce one while the clinic profile is incomplete. */
 function assertClinicProfile(settings: SettingsRow, taxType: TaxType) {
@@ -57,7 +56,7 @@ async function loadRegister(filters: { branchId?: string; dateFrom?: Date; dateT
   const rows = invoices
     .map((invoice): RegisterRow => ({
       invoiceNo: invoice.invoiceNo, date: invoice.invoiceDate, patient: invoice.patient.fullName, patientNo: invoice.patient.patientNo, branch: invoice.branch.name,
-      gst: Number(invoice.taxAmount) > 0, taxable: Number(invoice.subtotal) - Number(invoice.discount), tax: Number(invoice.taxAmount), total: Number(invoice.totalAmount),
+      gst: Number(invoice.taxAmount) > 0, subtotal: Number(invoice.subtotal), discount: Number(invoice.discount), taxable: Number(invoice.subtotal) - Number(invoice.discount), tax: Number(invoice.taxAmount), total: Number(invoice.totalAmount),
       paid: Number(invoice.paidAmount), due: Number(invoice.outstandingAmount), status: invoice.status,
     }))
     .filter((row) => filters.taxType === 'ALL' || (filters.taxType === 'GST' ? row.gst : !row.gst));
@@ -69,16 +68,26 @@ async function loadRegister(filters: { branchId?: string; dateFrom?: Date; dateT
 
 type TaxType = 'ALL' | 'GST' | 'NON_GST';
 
-async function buildOverview(filters: { branchId?: string; dateFrom?: Date; dateTo?: Date }) {
-  return analyticsRepository.overview(filters);
-}
-
 async function buildFinancePdf(filters: { branchId?: string; dateFrom?: Date; dateTo?: Date; taxType: TaxType }) {
   const settings = await settingsRepository.getOrCreate();
   assertClinicProfile(settings, filters.taxType);
   const register = await loadRegister(filters);
-  const overview = await buildOverview(filters);
-  const financial = overview.analytics.financial;
+  // Summary and register share exactly the same invoice scope (drafts/cancellations excluded).
+  const sum = (rows: RegisterRow[], field: 'subtotal' | 'discount' | 'tax' | 'total' | 'paid' | 'due') => rows.reduce((value, row) => value + row[field], 0);
+  const gst = register.rows.filter((row) => row.gst);
+  const nonGst = register.rows.filter((row) => !row.gst);
+  const billed = sum(register.rows, 'total');
+  const collected = sum(register.rows, 'paid');
+  const states = new Map<string, number>();
+  for (const row of register.rows) states.set(row.status, (states.get(row.status) ?? 0) + row.total);
+  const financial = {
+    invoices: register.rows.length, subtotal: sum(register.rows, 'subtotal'), discounts: sum(register.rows, 'discount'),
+    taxCollected: sum(register.rows, 'tax'), billed, collected, outstanding: sum(register.rows, 'due'),
+    collectionRate: billed ? Math.round(collected / billed * 1000) / 10 : 0,
+    byStatus: [...states].map(([name, amount]) => ({ name, amount })),
+    gst: { invoices: gst.length, billed: sum(gst, 'total'), tax: sum(gst, 'tax'), collected: sum(gst, 'paid') },
+    nonGst: { invoices: nonGst.length, billed: sum(nonGst, 'total'), collected: sum(nonGst, 'paid') },
+  };
   const rowCount = filters.taxType === 'GST' ? financial.gst.invoices : filters.taxType === 'NON_GST' ? financial.nonGst.invoices : financial.invoices;
   const scopeLabel = filters.taxType === 'GST' ? 'GST invoices only' : filters.taxType === 'NON_GST' ? 'Non-GST invoices only' : 'GST + Non-GST invoices';
 
@@ -133,7 +142,7 @@ async function buildFinancePdf(filters: { branchId?: string; dateFrom?: Date; da
         ['Discounts given', money(financial.discounts)],
         ['Tax collected', money(financial.taxCollected)],
         ['Total billed', money(financial.billed)],
-        ['Total collected', money(financial.collected)],
+        ['Collected against invoices', money(financial.collected)],
         ['Outstanding', money(financial.outstanding)],
         ['Collection rate', `${financial.collectionRate}%`, true],
       ]);
@@ -241,7 +250,7 @@ function financeCsv(
   add('Metric', 'Value');
   if (taxType === 'ALL') {
     add('Total invoices', financial.invoices); add('Subtotal', financial.subtotal); add('Discounts given', financial.discounts); add('Tax collected', financial.taxCollected);
-    add('Total billed', financial.billed); add('Total collected', financial.collected); add('Outstanding', financial.outstanding); add('Collection rate (%)', financial.collectionRate);
+    add('Total billed', financial.billed); add('Collected against selected invoices', financial.collected); add('Outstanding', financial.outstanding); add('Collection rate (%)', financial.collectionRate);
   }
   if (taxType === 'ALL' || taxType === 'GST') { add('GST invoice count', financial.gst.invoices); add('GST billed', financial.gst.billed); add('GST tax amount', financial.gst.tax); add('GST collected', financial.gst.collected); }
   if (taxType === 'ALL' || taxType === 'NON_GST') { add('Non-GST invoice count', financial.nonGst.invoices); add('Non-GST billed', financial.nonGst.billed); add('Non-GST collected', financial.nonGst.collected); }

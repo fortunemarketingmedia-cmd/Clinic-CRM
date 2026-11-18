@@ -29,10 +29,20 @@ export type PersonInput = {
   dataProcessingConsent?: boolean;
 };
 
+function branchScope(branchIds?: string[]): Prisma.PersonWhereInput {
+  if (!branchIds) return {};
+  return { OR: [
+    { preferredBranchId: { in: branchIds } },
+    { leads: { some: { branchId: { in: branchIds }, deletedAt: null } } },
+    { patient: { is: { branchId: { in: branchIds }, deletedAt: null } } },
+  ] };
+}
+
 export const personRepository = {
-  list(filters: { search?: string; status?: PersonRecordStatus; take: number }) {
+  list(filters: { search?: string; status?: PersonRecordStatus; take: number; branchIds?: string[] }) {
     return prisma.person.findMany({
       where: {
+        AND: [branchScope(filters.branchIds)],
         recordStatus: filters.status,
         OR: filters.search
           ? [
@@ -42,26 +52,27 @@ export const personRepository = {
             ]
           : undefined,
       },
-      include: { preferredBranch: true, patient: true, _count: { select: { leads: { where: { deletedAt: null } } } } },
+      include: { preferredBranch: true, patient: { where: { branchId: filters.branchIds ? { in: filters.branchIds } : undefined, deletedAt: null } }, _count: { select: { leads: { where: { deletedAt: null, branchId: filters.branchIds ? { in: filters.branchIds } : undefined } } } } },
       orderBy: { updatedAt: 'desc' },
       take: filters.take,
     });
   },
 
-  findById(id: string) {
+  findById(id: string, branchIds?: string[]) {
     return prisma.person.findUnique({
-      where: { id },
+      where: { id, AND: [branchScope(branchIds)] },
       include: {
         preferredBranch: true,
-        leads: { where: { deletedAt: null }, include: { branch: true, owner: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
-        patient: { include: { branch: true } },
+        leads: { where: { deletedAt: null, branchId: branchIds ? { in: branchIds } : undefined }, include: { branch: true, owner: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } },
+        patient: { where: { branchId: branchIds ? { in: branchIds } : undefined, deletedAt: null }, include: { branch: true } },
       },
     });
   },
 
-  findExact(input: { normalizedMobile?: string; normalizedEmail?: string }) {
+  findExact(input: { normalizedMobile?: string; normalizedEmail?: string; branchIds?: string[] }) {
     return prisma.person.findFirst({
       where: {
+        AND: [branchScope(input.branchIds)],
         recordStatus: { not: 'MERGED' },
         OR: [
           input.normalizedMobile ? { normalizedMobile: input.normalizedMobile } : undefined,

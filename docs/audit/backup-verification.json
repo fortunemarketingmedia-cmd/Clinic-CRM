@@ -1,0 +1,7 @@
+{
+  "database": "dedicated local synthetic audit database",
+  "tablesVerified": 100,
+  "backupBytes": 643687,
+  "sha256": "c764784e997420c74270bbd6b07b5bdcc8c1e7fd03f8883879cbf9c16d9c568c",
+  "result": "PASS"
+}

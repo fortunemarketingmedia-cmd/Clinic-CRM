@@ -2,7 +2,6 @@ import { Role } from '@prisma/client';
 import { Router } from 'express';
 import { patient360Controller } from '../controllers/patient-360.controller.js';
 import { requireAuth } from '../middleware/auth.js';
-import { redactFinancialsForNonAdmin } from '../middleware/redact-financials.js';
 import { requireRole } from '../middleware/role.js';
 
 const clinicalRoles = [Role.ADMIN] as const;
@@ -10,7 +9,6 @@ const prescribingRoles = [Role.ADMIN] as const;
 
 export const patient360Routes = Router();
 patient360Routes.use(requireAuth);
-patient360Routes.use(redactFinancialsForNonAdmin);
 
 patient360Routes.get('/medicines', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.listMedicines(req, res).catch(next); });
 patient360Routes.get('/templates', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.listTemplates(req, res).catch(next); });

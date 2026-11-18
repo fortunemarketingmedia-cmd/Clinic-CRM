@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import type { Prisma, Role } from '@prisma/client';
 import { Role as RoleEnum } from '@prisma/client';
 import type { z } from 'zod';
@@ -253,6 +254,26 @@ export const formsService = {
     return this.withAccessUrl(file);
   },
   async listFiles(query: z.infer<typeof fileQuerySchema>, actor: Actor) { requireCareRole(actor); await requirePatient(query.patientId, actor); const files = await formsRepository.listFiles(query); return files.filter((file) => canAccessFile(actor.role, file.visibility) && (actor.role === 'ADMIN' || !financialFileTypes.has(file.fileType))).map((file) => this.withAccessUrl(file)); },
-  withAccessUrl<T extends { id: string; storageKey: string | null; url: string; derivedFiles?: Array<{ id: string; storageKey: string | null; url: string; variant: string }> }>(file: T) { const expiresAt = Date.now() + 5 * 60_000; const token = fileStorageService.createAccessToken(file.id, expiresAt); const { storageKey: _storageKey, url: _url, derivedFiles, ...safe } = file; void _storageKey; void _url; const derivativeUrls = Object.fromEntries((derivedFiles ?? []).map((derived) => { const derivedToken = fileStorageService.createAccessToken(derived.id, expiresAt); return [derived.variant.toLowerCase(), `/files/${derived.id}/content?token=${encodeURIComponent(derivedToken)}`]; })); return { ...safe, accessUrl: `/files/${file.id}/content?token=${encodeURIComponent(token)}`, derivativeUrls, accessExpiresAt: new Date(expiresAt).toISOString() }; },
-  async fileContent(id: string, token: string) { if (!fileStorageService.verifyAccessToken(id, token)) throw new HttpError(403, 'File link is invalid or expired'); const file = await formsRepository.findFile(id); if (!file) throw new HttpError(404, 'File not found'); if (file.storageKey?.startsWith('legacy/')) { const legacy = fileStorageService.decodeLegacyDataUrl(file.url); return { ...legacy, filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id, cacheable: false }; } if (!file.storageKey) throw new HttpError(409, 'File has not been migrated to secure storage'); return { buffer: await fileStorageService.read(file.storageKey), mimeType: file.mimeType ?? 'application/octet-stream', filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id, cacheable: file.variant !== 'ORIGINAL' && file.fileType !== 'IDENTITY_DOCUMENT' }; },
+  withAccessUrl<T extends { id: string; storageKey: string | null; url: string; derivedFiles?: Array<{ id: string; storageKey: string | null; url: string; variant: string }> }>(file: T) {
+    const { storageKey: _storageKey, url: _url, derivedFiles, ...safe } = file;
+    void _storageKey; void _url;
+    return { ...safe, accessUrl: `/files/${file.id}/content`, derivativeUrls: Object.fromEntries(
+      (derivedFiles ?? []).map((derived) => [derived.variant.toLowerCase(), `/files/${derived.id}/content`]),
+    ) };
+  },
+  async fileContent(id: string, actor: Actor) {
+    requireCareRole(actor);
+    const file = await formsRepository.findFile(id);
+    if (!file) throw new HttpError(404, 'File not found');
+    await requirePatient(file.patientId, actor);
+    if (!canAccessFile(actor.role, file.visibility) || (actor.role !== 'ADMIN' && financialFileTypes.has(file.fileType))) {
+      throw new HttpError(403, 'File access is restricted');
+    }
+    if (file.storageKey?.startsWith('legacy/')) {
+      const legacy = fileStorageService.decodeLegacyDataUrl(file.url);
+      return { stream: Readable.from(legacy.buffer), cleanup: async () => undefined, mimeType: legacy.mimeType, filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id };
+    }
+    if (!file.storageKey) throw new HttpError(409, 'File has not been migrated to secure storage');
+    return { ...await fileStorageService.openRead(file.storageKey, file.sizeBytes, file.storedSizeBytes), mimeType: file.mimeType ?? 'application/octet-stream', filename: file.originalFilename ?? file.name, checksum: file.checksum ?? file.id };
+  },
 };

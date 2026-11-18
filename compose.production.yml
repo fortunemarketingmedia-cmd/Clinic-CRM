@@ -12,7 +12,7 @@ x-app-security: &app-security
 
 services:
   postgres:
-    image: postgres:17.6-alpine
+    image: postgres:17.12-alpine@sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7
     command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "max_connections=100"]
     restart: unless-stopped
     environment:
@@ -37,7 +37,7 @@ services:
     cpus: 2.0
 
   redis:
-    image: redis:7.4.1-alpine
+    image: redis:7.4.11-alpine@sha256:d9436322172a5b482c187bf1f363d3c4fea086fcca6b9c8a94de8f0f39ed3193
     restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
@@ -57,61 +57,21 @@ services:
     cpus: 0.5
 
   clamav:
-    image: clamav/clamav:1.4
+    image: clamav/clamav:1.4.6@sha256:4cc4350d3fded380caf1799e76c0d1c93f3fa40af99c0cb2862ec0c9b117718a
     restart: unless-stopped
     networks:
       - data
+      - egress
     healthcheck:
       test: ["CMD-SHELL", "printf 'PING\\n' | nc 127.0.0.1 3310 | grep PONG"]
       interval: 30s
       timeout: 10s
-      retries: 20
-      start_period: 90s
+      retries: 3
+      start_period: 120s
     security_opt:
       - no-new-privileges:true
-    mem_limit: 1g
+    mem_limit: 4g
     cpus: 1.0
-
-  minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: server /data
-    restart: unless-stopped
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}
-    volumes:
-      - minio_data:/data
-    networks:
-      - data
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-    mem_limit: 1g
-    cpus: 1.0
-
-  minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
-    restart: "no"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD}
-      S3_BUCKET: ${S3_BUCKET:?Set S3_BUCKET}
-      S3_KEY_PREFIX: ${S3_KEY_PREFIX:-revive-crm}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY}
-    depends_on:
-      - minio
-    networks:
-      - data
-    entrypoint: ["/bin/sh", "/config/init-minio.sh"]
-    volumes:
-      - ./deploy/minio/init-minio.sh:/config/init-minio.sh:ro
-    security_opt:
-      - no-new-privileges:true
 
   migrate:
     build:
@@ -120,6 +80,8 @@ services:
       target: migration
     env_file:
       - ${HOSTINGER_ENV_FILE:-deploy/hostinger/.env.hostinger}
+    environment:
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:-${DATABASE_URL:?Set DATABASE_URL}}
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,6 +89,8 @@ services:
         condition: service_healthy
     networks:
       - data
+    volumes:
+      - patient_files:/private-files
     profiles: ["tools"]
     security_opt:
       - no-new-privileges:true
@@ -137,17 +101,83 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ${HOSTINGER_ENV_FILE:-deploy/hostinger/.env.hostinger}
     environment:
+      DATABASE_URL: "${DATABASE_URL:-}"
+      PORT: "${PORT:-4000}"
+      TRUST_PROXY_HOPS: "${TRUST_PROXY_HOPS:-0}"
+      NODE_ENV: production
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:-}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:-}"
+      ACCESS_TOKEN_TTL: "${ACCESS_TOKEN_TTL:-15m}"
+      REFRESH_TOKEN_TTL: "${REFRESH_TOKEN_TTL:-7d}"
+      REFRESH_TOKEN_DAYS: "${REFRESH_TOKEN_DAYS:-7}"
+      REFRESH_TOKEN_COOKIE_NAME: "${REFRESH_TOKEN_COOKIE_NAME:-revive_refresh_token}"
+      COOKIE_DOMAIN: "${COOKIE_DOMAIN:-}"
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:3000}"
+      FRONTEND_URLS: "${FRONTEND_URLS:-}"
+      FILE_STORAGE_PROVIDER: "${FILE_STORAGE_PROVIDER:-local}"
+      FILE_STORAGE_ROOT: "${FILE_STORAGE_ROOT:-}"
+      S3_ENDPOINT: "${S3_ENDPOINT:-}"
+      S3_REGION: "${S3_REGION:-ap-south-1}"
+      S3_BUCKET: "${S3_BUCKET:-}"
+      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:-}"
+      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-}"
+      S3_FORCE_PATH_STYLE: "${S3_FORCE_PATH_STYLE:-false}"
+      S3_KEY_PREFIX: "${S3_KEY_PREFIX:-revive-crm}"
+      S3_SERVER_SIDE_ENCRYPTION: "${S3_SERVER_SIDE_ENCRYPTION:-none}"
+      S3_KMS_KEY_ID: "${S3_KMS_KEY_ID:-}"
+      FILE_ENCRYPTION_KEY: "${FILE_ENCRYPTION_KEY:-}"
+      FILE_ACCESS_SECRET: "${FILE_ACCESS_SECRET:-}"
+      MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-10485760}"
+      MIN_STORAGE_FREE_BYTES: "${MIN_STORAGE_FREE_BYTES:-1073741824}"
+      MAX_IMAGE_PIXELS: "${MAX_IMAGE_PIXELS:-64000000}"
+      REDIS_URL: "${REDIS_URL:-}"
+      REDIS_KEY_PREFIX: "${REDIS_KEY_PREFIX:-revive:}"
       RUN_BACKGROUND_WORKER: "false"
+      METRICS_SECRET: "${METRICS_SECRET:-}"
+      CLAMAV_HOST: "${CLAMAV_HOST:-}"
+      CLAMAV_PORT: "${CLAMAV_PORT:-3310}"
+      FILE_SCAN_REQUIRED: "${FILE_SCAN_REQUIRED:-false}"
+      GOOGLE_ADS_INGEST_SECRET: "${GOOGLE_ADS_INGEST_SECRET:-}"
+      META_ADS_INGEST_SECRET: "${META_ADS_INGEST_SECRET:-}"
+      WEBSITE_LEAD_INGEST_SECRET: "${WEBSITE_LEAD_INGEST_SECRET:-}"
+      EMAIL_ENABLED: "${EMAIL_ENABLED:-false}"
+      WHATSAPP_ENABLED: "${WHATSAPP_ENABLED:-false}"
+      PAYMENT_GATEWAY_ENABLED: "${PAYMENT_GATEWAY_ENABLED:-false}"
+      PAYMENT_GATEWAY_SECRET: "${PAYMENT_GATEWAY_SECRET:-}"
+      INTEGRATION_ENCRYPTION_KEY: "${INTEGRATION_ENCRYPTION_KEY:-}"
+      META_GRAPH_API_URL: "${META_GRAPH_API_URL:-https://graph.facebook.com}"
+      META_GRAPH_API_VERSION: "${META_GRAPH_API_VERSION:-v23.0}"
+      WHATSAPP_PHONE_NUMBER_ID: "${WHATSAPP_PHONE_NUMBER_ID:-}"
+      WHATSAPP_BUSINESS_ACCOUNT_ID: "${WHATSAPP_BUSINESS_ACCOUNT_ID:-}"
+      WHATSAPP_ACCESS_TOKEN: "${WHATSAPP_ACCESS_TOKEN:-}"
+      WHATSAPP_APPOINTMENT_TEMPLATE_NAME: "${WHATSAPP_APPOINTMENT_TEMPLATE_NAME:-appointment_confirmation}"
+      WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE: "${WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE:-en_US}"
+      GOOGLE_ADS_API_URL: "${GOOGLE_ADS_API_URL:-https://googleads.googleapis.com}"
+      GOOGLE_ADS_API_VERSION: "${GOOGLE_ADS_API_VERSION:-v20}"
+      GOOGLE_OAUTH_TOKEN_URL: "${GOOGLE_OAUTH_TOKEN_URL:-https://oauth2.googleapis.com/token}"
+      GOOGLE_OAUTH_AUTH_URL: "${GOOGLE_OAUTH_AUTH_URL:-https://accounts.google.com/o/oauth2/v2/auth}"
+      BACKEND_PUBLIC_URL: "${BACKEND_PUBLIC_URL:-http://localhost:4000}"
+      INTEGRATION_JOB_POLL_MS: "${INTEGRATION_JOB_POLL_MS:-10000}"
+      INTEGRATION_WORKER_ID: "${INTEGRATION_WORKER_ID:-revive-integration-worker}"
+      PROVIDER_REQUEST_TIMEOUT_MS: "${PROVIDER_REQUEST_TIMEOUT_MS:-20000}"
+      SHUTDOWN_TIMEOUT_MS: "${SHUTDOWN_TIMEOUT_MS:-10000}"
+      MFA_ISSUER: "${MFA_ISSUER:-Revive Clinic CRM}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_SECURE: "${SMTP_SECURE:-false}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+    volumes:
+      - patient_files:/private-files
     ports:
       - "127.0.0.1:4100:4000"
     depends_on:
       postgres:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
       clamav:
         condition: service_healthy
     networks:
@@ -169,20 +199,84 @@ services:
       dockerfile: backend/Dockerfile
     command: ["node", "dist/src/worker.js"]
     restart: unless-stopped
-    env_file:
-      - ${HOSTINGER_ENV_FILE:-deploy/hostinger/.env.hostinger}
     environment:
+      DATABASE_URL: "${DATABASE_URL:-}"
+      PORT: "${PORT:-4000}"
+      TRUST_PROXY_HOPS: "${TRUST_PROXY_HOPS:-0}"
+      NODE_ENV: production
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:-}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET:-}"
+      ACCESS_TOKEN_TTL: "${ACCESS_TOKEN_TTL:-15m}"
+      REFRESH_TOKEN_TTL: "${REFRESH_TOKEN_TTL:-7d}"
+      REFRESH_TOKEN_DAYS: "${REFRESH_TOKEN_DAYS:-7}"
+      REFRESH_TOKEN_COOKIE_NAME: "${REFRESH_TOKEN_COOKIE_NAME:-revive_refresh_token}"
+      COOKIE_DOMAIN: "${COOKIE_DOMAIN:-}"
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:3000}"
+      FRONTEND_URLS: "${FRONTEND_URLS:-}"
+      FILE_STORAGE_PROVIDER: "${FILE_STORAGE_PROVIDER:-local}"
+      FILE_STORAGE_ROOT: "${FILE_STORAGE_ROOT:-}"
+      S3_ENDPOINT: "${S3_ENDPOINT:-}"
+      S3_REGION: "${S3_REGION:-ap-south-1}"
+      S3_BUCKET: "${S3_BUCKET:-}"
+      S3_ACCESS_KEY_ID: "${S3_ACCESS_KEY_ID:-}"
+      S3_SECRET_ACCESS_KEY: "${S3_SECRET_ACCESS_KEY:-}"
+      S3_FORCE_PATH_STYLE: "${S3_FORCE_PATH_STYLE:-false}"
+      S3_KEY_PREFIX: "${S3_KEY_PREFIX:-revive-crm}"
+      S3_SERVER_SIDE_ENCRYPTION: "${S3_SERVER_SIDE_ENCRYPTION:-none}"
+      S3_KMS_KEY_ID: "${S3_KMS_KEY_ID:-}"
+      FILE_ENCRYPTION_KEY: "${FILE_ENCRYPTION_KEY:-}"
+      FILE_ACCESS_SECRET: "${FILE_ACCESS_SECRET:-}"
+      MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-10485760}"
+      MIN_STORAGE_FREE_BYTES: "${MIN_STORAGE_FREE_BYTES:-1073741824}"
+      MAX_IMAGE_PIXELS: "${MAX_IMAGE_PIXELS:-64000000}"
+      REDIS_URL: "${REDIS_URL:-}"
+      REDIS_KEY_PREFIX: "${REDIS_KEY_PREFIX:-revive:}"
       RUN_BACKGROUND_WORKER: "true"
+      METRICS_SECRET: "${METRICS_SECRET:-}"
+      CLAMAV_HOST: "${CLAMAV_HOST:-}"
+      CLAMAV_PORT: "${CLAMAV_PORT:-3310}"
+      FILE_SCAN_REQUIRED: "${FILE_SCAN_REQUIRED:-false}"
+      GOOGLE_ADS_INGEST_SECRET: "${GOOGLE_ADS_INGEST_SECRET:-}"
+      META_ADS_INGEST_SECRET: "${META_ADS_INGEST_SECRET:-}"
+      WEBSITE_LEAD_INGEST_SECRET: "${WEBSITE_LEAD_INGEST_SECRET:-}"
+      EMAIL_ENABLED: "${EMAIL_ENABLED:-false}"
+      WHATSAPP_ENABLED: "${WHATSAPP_ENABLED:-false}"
+      PAYMENT_GATEWAY_ENABLED: "${PAYMENT_GATEWAY_ENABLED:-false}"
+      PAYMENT_GATEWAY_SECRET: "${PAYMENT_GATEWAY_SECRET:-}"
+      INTEGRATION_ENCRYPTION_KEY: "${INTEGRATION_ENCRYPTION_KEY:-}"
+      META_GRAPH_API_URL: "${META_GRAPH_API_URL:-https://graph.facebook.com}"
+      META_GRAPH_API_VERSION: "${META_GRAPH_API_VERSION:-v23.0}"
+      WHATSAPP_PHONE_NUMBER_ID: "${WHATSAPP_PHONE_NUMBER_ID:-}"
+      WHATSAPP_BUSINESS_ACCOUNT_ID: "${WHATSAPP_BUSINESS_ACCOUNT_ID:-}"
+      WHATSAPP_ACCESS_TOKEN: "${WHATSAPP_ACCESS_TOKEN:-}"
+      WHATSAPP_APPOINTMENT_TEMPLATE_NAME: "${WHATSAPP_APPOINTMENT_TEMPLATE_NAME:-appointment_confirmation}"
+      WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE: "${WHATSAPP_APPOINTMENT_TEMPLATE_LANGUAGE:-en_US}"
+      GOOGLE_ADS_API_URL: "${GOOGLE_ADS_API_URL:-https://googleads.googleapis.com}"
+      GOOGLE_ADS_API_VERSION: "${GOOGLE_ADS_API_VERSION:-v20}"
+      GOOGLE_OAUTH_TOKEN_URL: "${GOOGLE_OAUTH_TOKEN_URL:-https://oauth2.googleapis.com/token}"
+      GOOGLE_OAUTH_AUTH_URL: "${GOOGLE_OAUTH_AUTH_URL:-https://accounts.google.com/o/oauth2/v2/auth}"
+      BACKEND_PUBLIC_URL: "${BACKEND_PUBLIC_URL:-http://localhost:4000}"
+      INTEGRATION_JOB_POLL_MS: "${INTEGRATION_JOB_POLL_MS:-10000}"
       INTEGRATION_WORKER_ID: revive-worker-1
+      PROVIDER_REQUEST_TIMEOUT_MS: "${PROVIDER_REQUEST_TIMEOUT_MS:-20000}"
+      SHUTDOWN_TIMEOUT_MS: "${SHUTDOWN_TIMEOUT_MS:-10000}"
+      MFA_ISSUER: "${MFA_ISSUER:-Revive Clinic CRM}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_SECURE: "${SMTP_SECURE:-false}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+    volumes:
+      - patient_files:/private-files
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
     networks:
       - data
+      - egress
     healthcheck:
       test: ["CMD", "node", "-e", "process.kill(1, 0)"]
       interval: 30s
@@ -220,7 +314,7 @@ services:
 
 
   database-backup:
-    image: postgres:17.6-alpine
+    image: postgres:17.12-alpine@sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7
     restart: unless-stopped
     environment:
       PGHOST: postgres
@@ -230,6 +324,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      MIN_BACKUP_FREE_KIB: ${MIN_BACKUP_FREE_KIB:-10485760}
     depends_on:
       postgres:
         condition: service_healthy
@@ -245,64 +340,73 @@ services:
       - ALL
     mem_limit: 512m
     cpus: 0.75
+    healthcheck:
+      test: ["CMD-SHELL", "find /backups -maxdepth 1 -name .database-success -mmin -1500 | grep -q ."]
+      interval: 30s
+      start_period: 2m
 
   file-backup:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
     restart: unless-stopped
-    environment:
-      S3_ENDPOINT: ${S3_ENDPOINT:?Set S3_ENDPOINT}
-      S3_BUCKET: ${S3_BUCKET:?Set S3_BUCKET}
-      S3_KEY_PREFIX: ${S3_KEY_PREFIX:-revive-crm}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:?Set S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:?Set S3_SECRET_ACCESS_KEY}
-      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
-      MC_CONFIG_DIR: /tmp/.mc
+    network_mode: none
     depends_on:
-      minio-init:
-        condition: service_completed_successfully
+      database-backup:
+        condition: service_healthy
+    environment:
+      RESTIC_REPOSITORY: /backups/private-restic
+      RESTIC_PASSWORD: ${LOCAL_BACKUP_PASSWORD:?Set LOCAL_BACKUP_PASSWORD}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      MIN_BACKUP_FREE_KIB: ${MIN_BACKUP_FREE_KIB:-10485760}
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-14}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-8}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
     volumes:
+      - patient_files:/private-files:ro
       - ${BACKUP_HOST_PATH:-/srv/revive-crm/backups}:/backups
-      - ./deploy/backup/object-backup.sh:/config/object-backup.sh:ro
-    entrypoint: ["/bin/sh", "/config/object-backup.sh"]
-    networks:
-      - data
+      - ./deploy/backup/restic-backup.sh:/config/backup.sh:ro
+    entrypoint: ["/bin/sh", "/config/backup.sh", "local"]
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=32m
     mem_limit: 512m
-    cpus: 0.75
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "find /backups -maxdepth 1 -name .local-success -mmin -1500 | grep -q ."]
+      interval: 30s
+      start_period: 2m
 
   offsite-backup:
-    image: restic/restic:0.17.3
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
     profiles: ["offsite"]
     restart: unless-stopped
     environment:
       RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
       RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
-      AWS_ACCESS_KEY_ID: ${OFFSITE_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${OFFSITE_SECRET_ACCESS_KEY:-}
-      OFFSITE_BACKUP_INTERVAL_SECONDS: ${OFFSITE_BACKUP_INTERVAL_SECONDS:-86400}
+      LOCAL_BACKUP_PASSWORD: ${LOCAL_BACKUP_PASSWORD:?Set LOCAL_BACKUP_PASSWORD}
+      BACKUP_INTERVAL_SECONDS: ${OFFSITE_BACKUP_INTERVAL_SECONDS:-86400}
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-14}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-8}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
     volumes:
-      - ${BACKUP_HOST_PATH:-/srv/revive-crm/backups}:/backups:ro
-      - ./deploy/backup/restic-backup.sh:/usr/local/bin/revive-offsite-backup:ro
-      - restic_cache:/root/.cache/restic
-    entrypoint: ["/usr/local/bin/revive-offsite-backup"]
-    networks:
-      - edge
+      - ${BACKUP_HOST_PATH:-/srv/revive-crm/backups}:/backups
+      - ${OFFSITE_SSH_DIR:-./deploy/hostinger/offsite-ssh}:/root/.ssh:ro
+      - ./deploy/backup/restic-backup.sh:/config/backup.sh:ro
+    entrypoint: ["/bin/sh", "/config/backup.sh", "offsite"]
+    networks: [egress]
     security_opt:
       - no-new-privileges:true
-    cap_drop:
-      - ALL
+    mem_limit: 512m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD-SHELL", "find /backups -maxdepth 1 -name .offsite-success -mmin -1500 | grep -q ."]
+      interval: 5m
+      start_period: 10m
 
 networks:
   edge:
+  egress:
   data:
     internal: true
 
 volumes:
   postgres_data:
-  minio_data:
-  restic_cache:
+  patient_files:

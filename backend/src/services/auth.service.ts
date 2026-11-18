@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { AccessLevel as AccessLevelEnum, UserStatus, type AccessLevel, type Role } from '@prisma/client';
+import { Prisma, AccessLevel as AccessLevelEnum, UserStatus, type AccessLevel, type Role } from '@prisma/client';
 import { refreshTokenRepository } from '../repositories/refresh-token.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { HttpError } from '../utils/http-error.js';
@@ -27,7 +27,7 @@ const timingEqualiserHash = bcrypt.hashSync('timing-equaliser-not-a-password', 1
 // A refresh token presented again this long after it was rotated is treated as stolen (see refresh below).
 const refreshReuseGraceMs = 60_000;
 
-function isOperationalAccount(accessLevel: AccessLevel) {
+function isOperationalAccount(accessLevel: AccessLevel): accessLevel is 'ADMIN' | 'RECEPTIONIST' {
   return accessLevel === AccessLevelEnum.ADMIN || accessLevel === AccessLevelEnum.RECEPTIONIST;
 }
 
@@ -74,13 +74,14 @@ export const authService = {
         verified = verifyTotp(secret, mfa.code);
       } else if (mfa?.recoveryCode && Array.isArray(user.mfaRecoveryCodes)) {
         const hashes = user.mfaRecoveryCodes.filter((item): item is string => typeof item === 'string');
-        for (let index = 0; index < hashes.length; index += 1) if (await bcrypt.compare(mfa.recoveryCode.toUpperCase(), hashes[index])) { verified = true; hashes.splice(index, 1); await prisma.user.update({ where: { id: user.id }, data: { mfaRecoveryCodes: hashes } }); break; }
+        for (let index = 0; index < hashes.length; index += 1) if (await bcrypt.compare(mfa.recoveryCode.toUpperCase(), hashes[index])) { hashes.splice(index, 1); const claimed = await prisma.user.updateMany({ where: { id: user.id, mfaEnabled: true, mfaRecoveryCodes: { equals: user.mfaRecoveryCodes as Prisma.InputJsonValue } }, data: { mfaRecoveryCodes: hashes } }); verified = claimed.count === 1; break; }
       }
       if (!mfa?.code && !mfa?.recoveryCode) return { mfaRequired: true as const };
       if (!verified) { await integrationRepository.createLoginEvent({ userId: user.id, email, success: false, reason: 'INVALID_MFA', ipAddress: meta.ipAddress, userAgent: meta.userAgent }); throw new HttpError(401, 'Invalid MFA code'); }
     }
 
-    const accessPayload = { sub: user.id, role: user.accessLevel as Role };
+    const session = { userId: user.id, role: user.accessLevel, version: user.sessionVersion };
+    const accessPayload = { sub: user.id, role: session.role, version: session.version };
     const refreshToken = signRefreshToken({ ...accessPayload, jti: createTokenId() });
 
     await refreshTokenRepository.create({
@@ -89,7 +90,7 @@ export const authService = {
       userAgent: meta.userAgent,
       ipAddress: meta.ipAddress,
       expiresAt: getRefreshTokenExpiry(),
-    });
+    }, session);
     await integrationRepository.createLoginEvent({ userId: user.id, email, success: true, ipAddress: meta.ipAddress, userAgent: meta.userAgent });
 
     return {
@@ -108,34 +109,30 @@ export const authService = {
       // A rotated token coming back well after rotation means a copy of it was taken: end every session of that user.
       // Within the grace window it is a second tab (or a retried request) racing the same rotation, which is harmless.
       const previous = await refreshTokenRepository.findByHash(tokenHash);
-      if (previous?.revokedAt && previous.userId === payload.sub && Date.now() - previous.revokedAt.getTime() > refreshReuseGraceMs) {
+      if (previous?.revokedAt && previous.userId === payload.sub && previous.user.sessionVersion === (payload.version ?? 0) && Date.now() - previous.revokedAt.getTime() > refreshReuseGraceMs) {
         await refreshTokenRepository.revokeAllForUser(previous.userId);
       }
       throw new HttpError(401, 'Invalid refresh token');
     }
-    if (storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE || !isOperationalAccount(storedToken.user.accessLevel)) {
+    if (storedToken.userId !== payload.sub || storedToken.user.status !== UserStatus.ACTIVE || !isOperationalAccount(storedToken.user.accessLevel) || storedToken.user.accessLevel !== payload.role || storedToken.user.sessionVersion !== (payload.version ?? 0)) {
       throw new HttpError(401, 'Invalid refresh token');
     }
 
-    await refreshTokenRepository.revokeByHash(tokenHash);
+    const session = { userId: storedToken.userId, role: storedToken.user.accessLevel, version: storedToken.user.sessionVersion };
+    const accessPayload = { sub: session.userId, role: session.role, version: session.version };
+    const nextRefreshToken = signRefreshToken({ ...accessPayload, jti: createTokenId() });
 
-    const nextRefreshToken = signRefreshToken({
-      sub: storedToken.user.id,
-      role: storedToken.user.accessLevel as Role,
-      jti: createTokenId(),
-    });
-
-    await refreshTokenRepository.create({
+    await refreshTokenRepository.rotate(tokenHash, {
       tokenHash: hashToken(nextRefreshToken),
       userId: storedToken.user.id,
       userAgent: meta.userAgent,
       ipAddress: meta.ipAddress,
       expiresAt: getRefreshTokenExpiry(),
-    });
+    }, session);
 
     return {
       user: serializeUser(storedToken.user),
-      accessToken: signAccessToken({ sub: storedToken.user.id, role: storedToken.user.accessLevel as Role }),
+      accessToken: signAccessToken(accessPayload),
       refreshToken: nextRefreshToken,
     };
   },
@@ -149,7 +146,7 @@ export const authService = {
   },
 
   async logoutAll(userId: string) {
-    await refreshTokenRepository.revokeAllForUser(userId);
+    await refreshTokenRepository.endAllSessions(userId);
   },
 
   async getCurrentUser(userId: string) {

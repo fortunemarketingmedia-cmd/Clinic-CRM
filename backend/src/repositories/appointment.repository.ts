@@ -1,6 +1,7 @@
 import type { AppointmentResource, AppointmentStatus, AppointmentType, EnquirySource, Prisma } from '@prisma/client';
 import crypto from 'node:crypto';
-import { prisma } from '../config/db.js';
+import { HttpError } from '../utils/http-error.js';
+import { prisma, type DbTransaction } from '../config/db.js';
 
 type AppointmentFilters = {
   branchId?: string;
@@ -11,6 +12,17 @@ type AppointmentFilters = {
   page: number;
   pageSize: number;
 };
+
+type Slot = { branchId: string; appointmentAt: Date; endAt?: Date | null; durationMinutes?: number; bufferMinutes?: number; doctorId?: string | null; therapistId?: string | null; resourceId?: string | null; equipmentId?: string | null; roomNumber?: number | null; status?: AppointmentStatus };
+async function guardSlot(tx: DbTransaction, slot: Slot, excludeId?: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`appointment:${slot.branchId}`}))`;
+  if (slot.status && ['CANCELLED', 'COMPLETED', 'NO_SHOW'].includes(slot.status)) return;
+  const ids = [slot.doctorId, slot.therapistId, slot.resourceId, slot.equipmentId].filter(Boolean) as string[];
+  if (!ids.length && !slot.roomNumber) return;
+  const endsAt = new Date((slot.endAt ?? new Date(slot.appointmentAt.getTime() + (slot.durationMinutes ?? 30) * 60_000)).getTime() + (slot.bufferMinutes ?? 0) * 60_000);
+  const rows = await tx.appointment.findMany({ where: { branchId: slot.branchId, id: excludeId ? { not: excludeId } : undefined, status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] }, appointmentAt: { lt: endsAt }, OR: [{ doctorId: { in: ids } }, { therapistId: { in: ids } }, { resourceId: { in: ids } }, { equipmentId: { in: ids } }, ...(slot.roomNumber ? [{ roomNumber: slot.roomNumber }] : [])] }, select: { appointmentAt: true, endAt: true, durationMinutes: true, bufferMinutes: true } });
+  if (rows.some((row) => (row.endAt?.getTime() ?? row.appointmentAt.getTime() + row.durationMinutes * 60_000) + row.bufferMinutes * 60_000 > slot.appointmentAt.getTime())) throw new HttpError(409, 'The selected staff member or resource is not available for this interval');
+}
 
 export const appointmentRepository = {
   async list(filters: AppointmentFilters) {
@@ -67,23 +79,6 @@ export const appointmentRepository = {
     });
   },
 
-  findSlotConflict(branchId: string, appointmentAt: Date, resourceType: AppointmentResource, roomNumber?: number | null, excludeId?: string) {
-    return prisma.appointment.findFirst({
-      where: {
-        branchId,
-        appointmentAt,
-        resourceType,
-        roomNumber: resourceType === 'TREATMENT_ROOM' ? roomNumber : null,
-        id: excludeId ? { not: excludeId } : undefined,
-        status: { notIn: ['CANCELLED', 'COMPLETED', 'NO_SHOW'] },
-      },
-      include: {
-        branch: true,
-        lead: true,
-      },
-    });
-  },
-
   createQrToken() {
     return crypto.randomBytes(24).toString('hex');
   },
@@ -114,6 +109,7 @@ export const appointmentRepository = {
     bookingChannel?: string;
   }) {
     return prisma.$transaction(async (tx) => {
+      await guardSlot(tx, data);
       const lead = await tx.lead.create({
         data: {
           qrToken: this.createQrToken(),
@@ -126,8 +122,7 @@ export const appointmentRepository = {
           personId: data.personId,
           appointmentAt: data.appointmentAt,
           appointmentType: data.appointmentType,
-          status: 'CONVERTED',
-          convertedAt: new Date(),
+          status: 'APPOINTMENT_BOOKED',
           ownerId: data.createdById,
           nextAction: 'Confirm appointment',
           nextActionDueAt: data.appointmentAt,
@@ -194,6 +189,7 @@ export const appointmentRepository = {
     bookingChannel?: string;
   }) {
     return prisma.$transaction(async (tx) => {
+      await guardSlot(tx, data);
       const appointment = await tx.appointment.create({
         data: {
           ...data,
@@ -207,8 +203,7 @@ export const appointmentRepository = {
           branchId: data.branchId,
           appointmentAt: data.appointmentAt,
           appointmentType: data.appointmentType,
-          status: 'CONVERTED',
-          convertedAt: new Date(),
+          status: 'APPOINTMENT_BOOKED',
         },
       });
 
@@ -261,6 +256,8 @@ export const appointmentRepository = {
     }>,
   ) {
     return prisma.$transaction(async (tx) => {
+      const existing = await tx.appointment.findUniqueOrThrow({ where: { id } });
+      await guardSlot(tx, { ...existing, ...data }, id);
       const appointment = await tx.appointment.update({
         where: { id },
         data,
@@ -290,7 +287,4 @@ export const appointmentRepository = {
     });
   },
 
-  delete(id: string) {
-    return prisma.appointment.delete({ where: { id } });
-  },
 };

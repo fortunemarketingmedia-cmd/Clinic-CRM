@@ -1,3 +1,4 @@
+import { rateLimit } from '../middleware/rate-limit.js';
 import { Router } from 'express';
 import { formsController } from '../controllers/forms.controller.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -27,7 +28,7 @@ consentRoutes.get('/:id/signatures/:signer', (req, res, next) => { formsControll
 consentRoutes.get('/:id/pdf', (req, res, next) => { formsController.consentPdf(req, res).catch(next); });
 
 export const fileRoutes = Router();
-fileRoutes.get('/:id/content', (req, res, next) => { formsController.fileContent(req, res).catch(next); });
 fileRoutes.use(requireAuth);
+fileRoutes.get('/:id/content', (req, res, next) => { formsController.fileContent(req, res).catch(next); });
 fileRoutes.get('/', (req, res, next) => { formsController.listFiles(req, res).catch(next); });
-fileRoutes.post('/', patientFileUpload.single('file'), (req, res, next) => { formsController.uploadFile(req, res).catch(next); });
+fileRoutes.post('/', rateLimit({ windowMs: 60_000, max: 20, keyPrefix: 'file-upload', key: (req) => req.user!.id }), patientFileUpload.single('file'), (req, res, next) => { formsController.uploadFile(req, res).catch(next); });

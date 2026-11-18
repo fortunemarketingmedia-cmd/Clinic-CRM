@@ -38,6 +38,7 @@ export function buildAppointmentTemplatePayload(mobile: string) {
 export const whatsappAppointmentService = {
   isConfigured() {
     return Boolean(
+      env.WHATSAPP_ENABLED === 'true' &&
       env.WHATSAPP_PHONE_NUMBER_ID &&
         env.WHATSAPP_BUSINESS_ACCOUNT_ID &&
         env.WHATSAPP_ACCESS_TOKEN,

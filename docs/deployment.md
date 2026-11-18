@@ -1,151 +1,120 @@
-# Hostinger VPS production deployment
+# Hostinger local-storage deployment
 
-The production stack is designed for one Ubuntu Hostinger VPS. Docker Compose runs Caddy, the Next.js frontend, Express backend, PostgreSQL, private MinIO object storage, database migrations, and daily backups. Only TCP 80/443, UDP 443, and the chosen SSH port are public. PostgreSQL, MinIO, and application container ports stay on private Docker networks.
+The current release candidate uses the existing VPS, host Nginx, PostgreSQL, Redis, API, frontend, worker, ClamAV, a private Docker file volume and encrypted Restic backups. Existing websites and certificates retain their current Nginx configuration. Production object storage is local. The S3-compatible adapter supports an approved future Cloudflare R2 migration.
 
-This is a production baseline, not a claim that deployment has no operational risk. DNS, secrets, provider accounts, restore testing, clinic acceptance, and ongoing monitoring require the deployment owner.
+The deployment requires explicit approval. The live stack still uses its original file store. Copying files, changing database permissions, installing timers and switching traffic are live changes.
 
-## 1. Size and prepare the VPS
+## Environment and capacity
 
-Use Ubuntu 24.04 LTS (22.04 LTS is also supported), at least 4 vCPU, 8 GB RAM, and enough NVMe capacity for the database, patient files, backups, and 40% free headroom. Enable Hostinger snapshots, but do not treat a snapshot on the same provider as the only backup.
+Use the measurements and verdict in the [local VPS release report](audit/hostinger-local-release-2026-11-18.md). Reserve capacity for other hosted applications. ClamAV receives 4 GiB for signature reloads. API, worker and frontend use up to 1 GiB each. PostgreSQL uses 2 GiB, Redis 320 MiB, and backup jobs 512 MiB each.
 
-Create a non-root sudo user with an SSH key, disable password/root SSH login after verifying key access in a second terminal, and run:
+Copy the environment example into the protected live checkout and replace its values through the secret manager. Keep mode 0600. POSTGRES_USER owns migrations. DATABASE_URL uses the restricted revive_runtime identity and a 12–15 connection pool. MIGRATION_DATABASE_URL uses the separate owner. The API and worker environment allowlists exclude the migration DSN and owner credentials.
 
-```sh
-sudo SSH_PORT=22 DEPLOY_USER="$USER" ./deploy/hostinger/bootstrap-ubuntu.sh
-```
+Set FILE_STORAGE_PROVIDER=local and FILE_STORAGE_ROOT=/private-files. Preserve the existing FILE_ENCRYPTION_KEY. The patient_files named volume mounts into the API, worker, migration tools and read-only local backup. File and directory modes are 0600 and 0700. Runtime UID is 1000.
 
-If SSH uses another port, supply it above. Log out and back in afterward. The script installs Docker, Compose, UFW, Fail2ban, unattended security updates, opens only SSH/HTTP/HTTPS, and creates `/opt/revive-crm` plus `/srv/revive-crm/backups`.
+Keep PAYMENT_GATEWAY_ENABLED, EMAIL_ENABLED and WHATSAPP_ENABLED false until their providers are verified. Staff can record cash, UPI, card and bank payments manually. No gateway credential is required for this configuration.
 
-Merge `deploy/hostinger/docker-daemon.json.example` into `/etc/docker/daemon.json` to cap container logs; do not overwrite existing daemon settings blindly. Restart Docker during a maintenance window.
+## Independent backup prerequisite
 
-## 2. DNS and firewall
+Set LOCAL_BACKUP_PASSWORD to a separate strong repository password. Store it and the file-encryption key outside the VPS in the approved secret manager. Configure RESTIC_REPOSITORY as an independent SFTP repository and set a different RESTIC_PASSWORD. Mount a pinned-host-key SSH configuration and backup-only key at OFFSITE_SSH_DIR.
 
-Keep the existing `www.reviveskinclinics.in` website unchanged. Add these two DNS A records at its current DNS provider and point both at the CRM VPS public IP:
+PostgreSQL dumps use gzip level 6. Restic deduplicates and encrypts the dumps and file volume. The local repository is /backups/private-restic. Offsite backup copies its authenticated snapshots into the independent repository. Initialize that repository only after its destination and host key are verified and approved.
 
-- `crm.reviveskinclinics.in` — frontend
-- `api.crm.reviveskinclinics.in` — backend
+    dc() { docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml "$@"; }
+    dc --profile offsite run --rm --no-deps --entrypoint restic offsite-backup init
 
-Remove any public DNS record for MinIO or PostgreSQL. Caddy obtains and renews TLS certificates automatically once DNS resolves and ports 80/443 reach the VPS.
+A folder or volume on the primary VPS cannot satisfy disaster recovery. Missing independent restore or key-recovery evidence blocks approval.
 
-## 3. Install the repository and secrets
+## Approved cutover
 
-Put the approved repository checkout in `/opt/revive-crm`. On the VPS only:
+Run from the approved release checkout. Record previous application image digests and protected configuration. Keep the live Compose project name unchanged to preserve its PostgreSQL volume.
 
-```sh
-cd /opt/revive-crm
-cp deploy/hostinger/.env.hostinger.example deploy/hostinger/.env.hostinger
-chmod 600 deploy/hostinger/.env.hostinger
-```
+1. Pause clinic writes and outbound workers in the maintenance window. Preserve matching database and encrypted-file backups with verified offsite copies.
+2. Copy existing private objects into patient_files using a separate protected migration environment and the original encryption key and key prefix. Never mount production files into test containers.
+3. Apply migrations, grant the restricted role, verify the local file inventory, take the encrypted snapshot and start applications.
+4. Verify both roles, clinical and financial records, original images, signed documents, malware rejection, private downloads, HTTPS, backup age and alert delivery before reopening traffic.
 
-Replace every placeholder. Generate each security value independently; never reuse output:
+The file utility defaults to verification. It inventories referenced files, signatures and consent PDFs, authenticates encrypted bytes and available database hashes, preserves source objects and retains record associations. Prepare the migration image with the original private source connection and explicitly mounted destination volume.
 
-```sh
-openssl rand -base64 48  # JWT/signing/ingest secrets
-openssl rand -base64 32  # FILE_ENCRYPTION_KEY and integration encryption
-```
+    dc build migrate
+    dc --profile tools run --rm --no-deps migrate node scripts/transfer-private-files.mjs to-local
+    dc --profile tools run --rm --no-deps -e CONFIRM_FILE_MIGRATION=I_UNDERSTAND_PATIENT_FILES_WILL_BE_COPIED migrate node scripts/transfer-private-files.mjs to-local --copy
+    dc --profile tools run --rm --no-deps migrate node scripts/transfer-private-files.mjs verify-local
 
-`FILE_ENCRYPTION_KEY` is the master key for patient documents. Back it up separately in an encrypted password manager or secret vault. Losing it makes stored patient files unrecoverable; leaking it requires a controlled key rotation and file re-encryption.
+Keep source credentials confined to the temporary migration environment. The API and worker remain on local storage.
 
-The PostgreSQL password appears both as `POSTGRES_PASSWORD` and URL-encoded inside `DATABASE_URL`. MinIO root credentials must be different from the S3 application credentials; startup creates a prefix-scoped, non-admin application identity automatically. Leave `COOKIE_DOMAIN` empty so the refresh cookie stays host-only, and use the exact HTTPS frontend/API URLs everywhere else.
+    chmod 600 deploy/hostinger/.env.hostinger
+    docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml config --quiet
+    ./deploy/hostinger/deploy.sh
 
-Validate interpolation without printing the rendered config into support chats:
+The script applies tracked migrations, runs restricted-role SQL, sets file-volume ownership, verifies referenced local files and takes a local encrypted snapshot before starting applications. It preserves old orphaned storage services and volumes. Remove those only through an approved cleanup after acceptance. Missing or corrupt referenced files stop deployment.
 
-```sh
-docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml config --quiet
-```
+Migration order follows the earlier chain, then 20261117120000_patient_number_by_year, 20261117180000_financial_idempotency, 20261118120000_staff_session_version and 20261118140000_file_stored_size. These changes are additive. Existing stored-byte counts remain null until measured.
 
-## 4. First deployment
+## Backups, monitoring and restore
 
-Run:
+    dc run --rm --no-deps database-backup once
+    dc run --rm --no-deps file-backup once
+    dc --profile offsite run --rm --no-deps offsite-backup once
+    LOCAL_BACKUP_PASSWORD="$LOCAL_BACKUP_PASSWORD" BACKUP_HOST_PATH=/srv/revive-crm/backups ./deploy/hostinger/verify-backups.sh
+    dc --profile offsite up -d offsite-backup
 
-```sh
-./deploy/hostinger/deploy.sh
-```
+Backups run daily. Retention is 14 daily, eight weekly and 12 monthly Restic snapshots. Local and independent integrity checks complete before success markers advance. Dumps and snapshots require at least 10 GiB free space before writing to the shared VPS disk.
 
-The release script validates secret-file permissions and Compose configuration, pulls infrastructure images, builds the applications, starts PostgreSQL and MinIO, makes the file bucket private and versioned, takes a pre-migration backup, runs `prisma migrate deploy`, and starts the complete stack.
+The monitor checks marker freshness, required containers, HTTPS and disk use above 75%. Install the supplied service and timer only during the approved deployment. Configure HEALTH_URL, BACKUP_HOST_PATH, HOSTINGER_ENV_FILE and the approved ALERT_WEBHOOK_URL in /etc/revive-crm/monitor.env.
 
-Inspect status and logs:
+    sudo install -m 0644 deploy/hostinger/revive-monitor.service deploy/hostinger/revive-monitor.timer /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now revive-monitor.timer
+    sudo systemctl start revive-monitor.service
 
-```sh
-docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml ps
-docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml logs --tail=200 backend frontend caddy database-backup file-backup
-```
+Verify an alert reaches its recipient. Configure independent external uptime monitoring, since a monitor on the VPS cannot report total VPS failure.
 
-Do not run `prisma migrate reset`, `prisma db push`, or the demo seed in production.
+Restore into a new private directory and database. Retrieve the snapshot's dump and files, restore the PostgreSQL dump and verify table fingerprints and file downloads with the independently recovered encryption key.
 
-## 5. Create the initial Admin
+    dc run --rm --no-deps --entrypoint restic file-backup snapshots --host revive-crm
+    dc run --rm --no-deps --entrypoint restic file-backup restore latest --host revive-crm --target /backups/recovery-drill --verify
 
-Run this once with a unique password, then remove the command from shell history if the shell retained it:
+Repeat the drill from the independent repository and record elapsed recovery time.
 
-```sh
-BOOTSTRAP_ADMIN_CONFIRM=CREATE_INITIAL_PRODUCTION_ADMIN \
-BOOTSTRAP_ADMIN_NAME='Clinic Administrator' \
-BOOTSTRAP_ADMIN_EMAIL='admin@reviveskinclinics.in' \
-BOOTSTRAP_ADMIN_PASSWORD='unique-password-from-your-password-manager' \
-BOOTSTRAP_BRANCH_NAME='Main Clinic' \
-BOOTSTRAP_BRANCH_ADDRESS='Clinic address' \
-BOOTSTRAP_BRANCH_PHONE='Clinic phone' \
-docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml run --rm backend npm run bootstrap:admin
-```
+## Staff recovery
 
-The command refuses to overwrite an existing account. Enroll MFA immediately.
+Apply the session-version migration first. An authorized operator verifies employee identity, then resets the password using the documented command. Recovery revokes old API and refresh sessions, audits the event and preserves Receptionist MFA and branches. Passwords require 14 characters and at most 72 UTF-8 bytes.
 
-### Recover an existing production Admin
+    read -r -s -p 'New Receptionist password: ' RESET_RECEPTIONIST_PASSWORD
+    export RESET_RECEPTIONIST_CONFIRM=RESET_EXISTING_PRODUCTION_RECEPTIONIST
+    export RESET_RECEPTIONIST_EMAIL='staff@clinic.invalid'
+    export RESET_RECEPTIONIST_PASSWORD
+    dc run --rm --no-deps -e RESET_RECEPTIONIST_CONFIRM -e RESET_RECEPTIONIST_EMAIL -e RESET_RECEPTIONIST_PASSWORD backend npm run reset:receptionist-password
+    unset RESET_RECEPTIONIST_PASSWORD RESET_RECEPTIONIST_EMAIL RESET_RECEPTIONIST_CONFIRM
 
-The demo seed credentials are deliberately unavailable in production. If the initial Admin exists but its password is lost, reset it from the VPS with a new, unique password of at least 14 characters containing uppercase, lowercase, numeric, and special characters:
+Admin recovery uses RESET_ADMIN_CONFIRM=RESET_EXISTING_PRODUCTION_ADMIN, RESET_ADMIN_EMAIL, RESET_ADMIN_PASSWORD and npm run reset:admin-password. Only Admin recovery supports the separate explicit MFA-removal override. Deliver replacements through the clinic's secure credential channel.
 
-```sh
-RESET_ADMIN_CONFIRM=RESET_EXISTING_PRODUCTION_ADMIN \
-RESET_ADMIN_EMAIL='admin@reviveskinclinics.in' \
-RESET_ADMIN_PASSWORD='new-unique-password-from-your-password-manager' \
-docker compose --env-file deploy/hostinger/.env.hostinger -f compose.production.yml run --rm backend npm run reset:admin-password
-```
+## Future R2 migration
 
-This reactivates only an existing Admin and revokes all of its refresh sessions. It refuses to modify Receptionist or other accounts. If MFA access is also lost, add the separate explicit override below, then sign in and enroll MFA again immediately:
+Local storage remains active. Future R2 uses FILE_STORAGE_PROVIDER=s3, the account's HTTPS R2 endpoint, region auto, the same key prefix, and S3_SERVER_SIDE_ENCRYPTION=none. Application AES-256-GCM encryption remains active.
 
-```sh
-RESET_ADMIN_DISABLE_MFA=I_UNDERSTAND_MFA_WILL_BE_REMOVED
-```
+    dc --profile tools run --rm --no-deps migrate node scripts/transfer-private-files.mjs to-r2
+    dc --profile tools run --rm --no-deps -e CONFIRM_FILE_MIGRATION=I_UNDERSTAND_PATIENT_FILES_WILL_BE_COPIED migrate node scripts/transfer-private-files.mjs to-r2 --copy
 
-If the recovery command reports that the account does not exist, use the initial Admin bootstrap command above instead. Remove recovery commands containing passwords from shell history and store the new credential only in the approved password manager.
+The verified copy skips matching encrypted bytes and resumes without changing database associations. Rerun it while local uploads continue. Freeze writes during final inventory and copy, verify zero missing or failed objects, and switch only after approval. Retain local copies. Before rollback after R2 accepted new files, freeze writes and run the approved to-local copy, then verify the complete local inventory.
 
-## 6. Existing patient-file migration
+The R2 connection remains unverified until tested with an actual R2 account. [Cloudflare conditional operations](https://developers.cloudflare.com/r2/api/s3/conditional-operations/)
 
-Back up `backend/storage/private`, use the same production file-encryption key and MinIO settings, then run the controlled migration. It encrypts each file with AES-256-GCM before upload, records the plaintext SHA-256 in private metadata, skips verified matches, and never deletes the source:
+## Rollback
 
-```sh
-cd backend
-CONFIRM_FILE_MIGRATION=I_UNDERSTAND_PATIENT_FILES_WILL_BE_UPLOADED npm run storage:migrate:s3
-```
+Pause writes and jobs and preserve the failed state and logs. Restore approved previous image digests and protected configuration and verify continuity. Keep additive database columns.
 
-Verify representative before/after photos, documents, prescriptions, consent PDFs, and invoices before removing the old source copy.
+The new text-compression envelope requires the candidate decoder. An older application lacking it must use the matching pre-release database and file snapshot or an explicitly tested forward recovery. Reconcile writes created after the snapshot before switching restored data into service.
 
-## 7. Backups and restore readiness
+An application predating session-version checks requires JWT secret rotation during the approved rollback. Preserve the file-encryption key.
 
-The `backup` service creates a verified PostgreSQL custom-format dump every 24 hours, retains 14 days by default, and mirrors encrypted MinIO objects to `/srv/revive-crm/backups/files/current`. Check it with:
+Before release, tag the recorded API, worker and frontend images for rollback. Put those three tags in a protected rollback Compose override under their matching service names. The following command uses the prior configuration and only replaces the application services, leaving the patched infrastructure and volumes in place.
 
-```sh
-sudo BACKUP_HOST_PATH=/srv/revive-crm/backups ./deploy/hostinger/verify-backups.sh
-```
+    docker compose -p revive-crm --env-file "$PREVIOUS_ENV" -f "$PREVIOUS_COMPOSE" -f "$ROLLBACK_IMAGES" \
+      up -d --no-deps --no-build backend worker frontend
 
-This local backup is not enough for a VPS failure. Sync `/srv/revive-crm/backups` at least daily to an encrypted destination in another provider/account and alert if it is stale. Also enable Hostinger snapshots. Before launch, restore the newest dump and file mirror into a disposable staging system and record the recovery time and evidence. Never discover whether backups restore during a real incident.
+Use a separate staging project or recovery server for data restoration. With its PostgreSQL admin configured, restore the selected matching backup into a new database.
 
-## 8. Release and rollback procedure
-
-For every release:
-
-1. Review and commit the intended changes; require CI to pass.
-2. Pull the approved commit on the VPS.
-3. Run `./deploy/hostinger/deploy.sh`; it takes a pre-migration backup.
-4. Confirm both HTTPS endpoints, `/api/health`, login/MFA, appointment, upload/download, prescription/PDF, invoice print, and notifications.
-5. Keep the previous Git commit and images available until acceptance is complete.
-
-Application rollback is a checkout/build of the previous approved commit. Database rollback is not automatic: prefer additive, backward-compatible migrations. Restore a database only through the tested recovery procedure because it discards newer records.
-
-## 9. Monitoring and maintenance
-
-At minimum, alert on HTTPS failure, `/api/health` failure, container restart loops, backup age/failure, HTTP 5xx spikes, disk above 75%, memory pressure, certificate errors, and integration-job failures. Hostinger monitoring alone does not understand application health, so configure an external uptime/alert destination.
-
-Monthly: install/reboot for security updates in a maintenance window, review audit logs and users, verify backups, check disk growth, and test one critical workflow. Quarterly: perform a disposable restore drill and dependency/security review.
-
-The remaining human-owned launch items are tracked in [`go-live-manual-checklist.md`](./go-live-manual-checklist.md).
+    createdb revive_recovery_review
+    pg_restore --exit-on-error --no-owner --no-privileges --dbname=revive_recovery_review "$VERIFIED_DUMP"

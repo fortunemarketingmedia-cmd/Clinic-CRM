@@ -9,6 +9,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 export const metadata: Metadata = {
   title: 'Revive Clinic CRM',
   description: 'Clinic CRM for leads, appointments, patient care, communication, and operations.',
+  icons: { icon: '/revive-logo.png' },
 };
 
 export const viewport: Viewport = {

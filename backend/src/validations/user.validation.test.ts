@@ -15,3 +15,8 @@ test('new passwords need a letter and a number and must fit bcrypt', () => {
   assert.equal(createUserSchema.safeParse({ ...base, password: `A1${'x'.repeat(71)}` }).success, false);
   assert.equal(createUserSchema.safeParse({ ...base, password: 'Clinic2026' }).success, true);
 });
+
+test('multi-byte passwords cannot be silently truncated by bcrypt', () => {
+  assert.equal(createUserSchema.safeParse({ ...base, password: `A1${'é'.repeat(36)}` }).success, false);
+  assert.equal(createUserSchema.safeParse({ ...base, password: `A1${'é'.repeat(35)}` }).success, true);
+});

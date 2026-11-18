@@ -10,6 +10,7 @@ export const estimateQuerySchema = z.object({ branchId: z.string().optional(), p
 export const estimateStatusSchema = z.object({ status: z.nativeEnum(EstimateStatus) });
 
 export const invoiceSchema = z.object({
+  idempotencyKey: z.string().min(8).max(128).optional(),
   patientId: z.string().min(1), branchId: z.string().min(1), dueDate: z.coerce.date().optional(), notes: z.string().optional(), terms: z.string().optional(), discountReason: z.string().optional(),
   items: z.array(billingItemSchema).min(1).optional(), serviceName: z.string().min(2).optional(), consultationFee: z.coerce.number().min(0).default(0), packageFee: z.coerce.number().min(0).default(0), discount: z.coerce.number().min(0).default(0), gstAmount: z.coerce.number().min(0).default(0),
 }).refine((value) => value.items?.length || value.serviceName, { message: 'Invoice items are required', path: ['items'] });
@@ -18,7 +19,7 @@ export const invoiceIssueSchema = z.object({ dueDate: z.coerce.date().optional()
 export const invoiceUpdateSchema = z.object({ invoiceDate: z.coerce.date().optional(), dueDate: z.coerce.date().nullable().optional(), notes: z.string().optional(), terms: z.string().optional() }).refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 export const invoiceCancelSchema = z.object({ reason: z.string().trim().min(3) });
 
-export const paymentSchema = z.object({ patientId: z.string().min(1), branchId: z.string().optional(), amount: z.coerce.number().positive(), mode: z.nativeEnum(PaymentMode), paidAt: z.coerce.date().optional(), reference: z.string().optional(), notes: z.string().optional(), allocations: z.array(z.object({ invoiceId: z.string().min(1), amount: z.coerce.number().positive() })).optional() });
+export const paymentSchema = z.object({ idempotencyKey: z.string().min(8).max(128).optional(), patientId: z.string().min(1), branchId: z.string().optional(), amount: z.coerce.number().positive(), mode: z.nativeEnum(PaymentMode), paidAt: z.coerce.date().optional(), reference: z.string().optional(), notes: z.string().optional(), allocations: z.array(z.object({ invoiceId: z.string().min(1), amount: z.coerce.number().positive() })).optional() });
 export const paymentQuerySchema = z.object({ branchId: z.string().optional(), patientId: z.string().optional(), invoiceId: z.string().optional() });
 export const paymentReverseSchema = z.object({ reason: z.string().trim().min(3) });
 export const paymentAllocationSchema = z.object({ invoiceId: z.string().min(1), amount: z.coerce.number().positive() });

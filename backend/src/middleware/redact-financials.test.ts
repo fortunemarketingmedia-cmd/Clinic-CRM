@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Request, Response } from 'express';
-import { redactFinancials, redactFinancialsForNonAdmin } from './redact-financials.js';
+import { sensitiveResponse } from './sensitive-response.js';
+import { redactFinancials } from './redact-financials.js';
 
 test('financial fields are removed at every depth while operational data is kept', () => {
   const patient = {
@@ -25,8 +26,8 @@ for (const role of ['ADMIN', 'RECEPTIONIST'] as const) {
     let result: unknown;
     let continued = false;
     const req = { user: { id: 'u1', role } } as Request;
-    const res = { json(value: unknown) { result = value; return this; } } as Response;
-    redactFinancialsForNonAdmin(req, res, () => { continued = true; });
+    const res = { setHeader() { return this; }, json(value: unknown) { result = value; return this; } } as unknown as Response;
+    sensitiveResponse(req, res, () => { continued = true; });
     res.json(body);
     assert.equal(continued, true);
     assert.deepEqual(result, role === 'ADMIN' ? body : { data: { id: 'p1', appointments: [{ id: 'a1' }] } });
@@ -34,3 +35,7 @@ for (const role of ['ADMIN', 'RECEPTIONIST'] as const) {
     assert.equal(body.data.appointments[0].unitPrice, 500);
   });
 }
+
+test('financial events and waitlist estimates cannot bypass response redaction', () => {
+  assert.deepEqual(redactFinancials({ estimatedAmount: '999', timeline: [{ type: 'PAYMENT_COLLECTED', description: 'Rs 999' }, { type: 'APPOINTMENT_BOOKED', description: 'Booked' }] }), { timeline: [{ type: 'APPOINTMENT_BOOKED', description: 'Booked' }] });
+});

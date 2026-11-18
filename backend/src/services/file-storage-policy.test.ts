@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fileStorageService } from './file-storage.service.js';
+import { malwareScannerService } from './malware-scanner.service.js';
 
 test('secure file access tokens are scoped and expire', () => {
   const token = fileStorageService.createAccessToken('file-a', Date.now() + 60_000);
@@ -19,4 +20,15 @@ test('malformed image content is rejected before storage or PDF rendering', asyn
     fileStorageService.writeBase64('patient-a', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+3xqN9QAAAABJRU5ErkJggg==', 'image/png'),
     /PNG content is invalid/,
   );
+});
+
+test('base64 uploads are scanned before storage', async (t) => {
+  const bytes = Buffer.from('Scanner regression fixture');
+  const blocked = new Error('Scanner rejected the file');
+  const scan = t.mock.method(malwareScannerService, 'scan', async (buffer: Buffer) => {
+    assert.deepEqual(buffer, bytes);
+    throw blocked;
+  });
+  await assert.rejects(fileStorageService.writeBase64('patient-a', bytes.toString('base64'), 'text/plain'), blocked);
+  assert.equal(scan.mock.callCount(), 1);
 });

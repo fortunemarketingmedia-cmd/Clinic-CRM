@@ -11,3 +11,10 @@ backend/storage
 coverage
 *.log
 .DS_Store
+
+**/.next-*
+**/tmp
+docs/ui-review
+backend/tests
+
+backend/scripts/*ui-test*.ts

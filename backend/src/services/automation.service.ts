@@ -1,3 +1,4 @@
+import { postAutomationWebhook } from './webhook-client.js';
 import type { AutomationTrigger, Prisma, Role } from '@prisma/client';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
@@ -53,19 +54,6 @@ function matches(data: Record<string, unknown>, conditions: Condition[]) {
     if (condition.operator === 'GT') return Number(current) > Number(condition.value);
     return Number(current) < Number(condition.value);
   });
-}
-function safeWebhook(url: string) {
-  const parsed = new URL(url);
-  if (parsed.protocol !== 'https:') throw new Error('Automation webhooks must use HTTPS');
-  const host = parsed.hostname.toLowerCase();
-  if (
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host === '::1' ||
-    /^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./.test(host)
-  )
-    throw new Error('Private network webhook targets are not allowed');
-  return parsed.toString();
 }
 
 export const automationService = {
@@ -299,18 +287,10 @@ export const automationService = {
         },
       });
     } else if (action.type === 'TRIGGER_WEBHOOK') {
-      const url = safeWebhook(String(config.url));
-      const response = await fetch(url, {
-        method: 'POST',
-        signal: AbortSignal.timeout(env.PROVIDER_REQUEST_TIMEOUT_MS),
-        headers: { 'content-type': 'application/json', 'x-revive-event-id': execution.id },
-        body: JSON.stringify({
-          eventId: execution.id,
-          referenceType: execution.referenceType,
-          referenceId: execution.referenceId,
-          trigger: execution.automation.trigger,
-        }),
-      });
+      const response = await postAutomationWebhook(String(config.url), {
+        eventId: execution.id, referenceType: execution.referenceType,
+        referenceId: execution.referenceId, trigger: execution.automation.trigger,
+      }, execution.id, env.PROVIDER_REQUEST_TIMEOUT_MS);
       if (!response.ok) throw new Error(`Automation webhook failed (${response.status})`);
     } else if (action.type === 'SEND_CONVERSION_EVENT' && lead)
       await integrationService.createConversion(

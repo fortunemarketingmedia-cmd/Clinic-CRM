@@ -1,0 +1,52 @@
+{
+  "fixture": {
+    "leads": 3049,
+    "patients": 1014,
+    "appointments": 2040
+  },
+  "runtime": "v24.11.1",
+  "dashboard": {
+    "p50Ms": 10.45,
+    "p95Ms": 13.44,
+    "bytes": 8917,
+    "samples": 10
+  },
+  "patients": {
+    "p50Ms": 2.21,
+    "p95Ms": 2.55,
+    "bytes": 11451,
+    "samples": 10
+  },
+  "leads": {
+    "p50Ms": 5.37,
+    "p95Ms": 5.93,
+    "bytes": 35484,
+    "samples": 10
+  },
+  "calendar": {
+    "p50Ms": 8.38,
+    "p95Ms": 13.12,
+    "bytes": 136490,
+    "samples": 10
+  },
+  "search": {
+    "p50Ms": 5.78,
+    "p95Ms": 6.97,
+    "bytes": 6323,
+    "samples": 10
+  },
+  "analytics": {
+    "p50Ms": 19.62,
+    "p95Ms": 40.88,
+    "bytes": 79075,
+    "samples": 10
+  },
+  "load": {
+    "requests": 80,
+    "concurrency": 8,
+    "failures": 0,
+    "elapsedMs": 253.05,
+    "cpuMs": 671.267,
+    "rssMiB": 443.3
+  }
+}

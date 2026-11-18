@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
-import { env } from '../config/env.js';
 import { HttpError } from '../utils/http-error.js';
 import multer from 'multer';
 
@@ -18,6 +17,10 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
     });
   }
 
+  if (error instanceof Error && ['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(error.name)) {
+    return res.status(401).json({ message: 'Invalid or expired token', correlationId: req.correlationId });
+  }
+
   if (error instanceof HttpError) {
     return res
       .status(error.statusCode)
@@ -25,6 +28,7 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2034') return res.status(409).json({ message: 'This record changed during your request. Refresh and try again.', correlationId: req.correlationId });
     if (error.code === 'P2002')
       return res.status(409).json({
         message: 'A record with these unique details already exists',
@@ -52,10 +56,9 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
       timestamp: new Date().toISOString(),
       correlationId: req.correlationId,
       method: req.method,
-      path: req.path,
+      path: req.route?.path ?? 'unmatched',
       errorType: error instanceof Error ? error.name : 'UnknownError',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      ...(env.NODE_ENV !== 'production' && error instanceof Error ? { stack: error.stack } : {}),
+      message: 'Unhandled request failure',
     }),
   );
 

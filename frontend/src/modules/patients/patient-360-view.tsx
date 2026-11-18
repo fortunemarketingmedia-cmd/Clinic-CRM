@@ -3,8 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowLeft, CalendarCheck2, CircleDollarSign, Download, HeartPulse, Plus, Printer, ReceiptText, Search, ShieldAlert, Stethoscope, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ClientPagination, usePagedList } from '@/components/ui/client-pagination';
@@ -23,11 +24,12 @@ import type { StaffMember } from '@/types/front-desk';
 import type { PatientSession, TreatmentPackage } from '@/types/patient';
 import { AppointmentRecordActions } from '../appointments/appointment-record-actions';
 import { ConsultationBookingDialog } from '../appointments/consultation-booking-dialog';
-import { RoomBookingDialog } from '../front-desk/schedules-view';
+const RoomBookingDialog = dynamic(() => import('../front-desk/schedules-view').then((module) => module.RoomBookingDialog), { loading: () => <PageSkeleton /> });
 import { PatientFollowUpsPanel } from './patient-follow-ups-panel';
-import { PatientDocumentsPanel, PatientGalleryPanel } from './patient-forms-files-panel';
+const PatientDocumentsPanel = dynamic(() => import('./patient-forms-files-panel').then((module) => module.PatientDocumentsPanel), { loading: () => <PageSkeleton /> });
+const PatientGalleryPanel = dynamic(() => import('./patient-forms-files-panel').then((module) => module.PatientGalleryPanel), { loading: () => <PageSkeleton /> });
 import { EncounterEditDialog, InvoiceEditDialog, PackageEditDialog, PatientEditDialog, TreatmentRecordEditDialog } from './patient-record-actions';
-import { PatientTreatmentPanel } from './patient-treatment-panel';
+const PatientTreatmentPanel = dynamic(() => import('./patient-treatment-panel').then((module) => module.PatientTreatmentPanel), { loading: () => <PageSkeleton /> });
 import { TreatmentConsentsCard } from './signed-consents';
 
 const tabs = ['Overview', 'Appointments', 'Care History', 'Billing', 'Prescriptions', 'Medical Profile', 'Treatment', 'Documents', 'Follow-ups'] as const;
@@ -286,7 +288,7 @@ function ChangeAppointmentRoomModal({ appointment, onClose, onSaved }: { appoint
 }
 
 function Overview({ patient, canSeeFinance, onChooseTreatment }: { patient: Patient360; canSeeFinance: boolean; onChooseTreatment: () => void }) {
-  const latestAppointment = patient.summary.lastVisit ?? patient.appointments[0];
+  const latestAppointment = patient.summary.lastVisit;
   const profile = patient.medicalProfile;
   const registrationSource = patient.registrationSource ?? patient.lead?.source;
   const consent = (allowed?: boolean) => <StatusBadge tone={allowed ? 'success' : 'neutral'}>{allowed ? 'Allowed' : 'Not recorded'}</StatusBadge>;
@@ -412,6 +414,7 @@ function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; c
 
 type InvoiceDraftItem = { category: 'CONSULTATION' | 'TREATMENT' | 'CUSTOM'; description: string; quantity: string; unitPrice: string; discount: string };
 function InvoiceModal({ patient, onClose, onSaved }: { patient: Patient360; onClose: () => void; onSaved: () => void }) {
+  const writeKey = useRef(crypto.randomUUID());
   const [invoiceFor, setInvoiceFor] = useState<'SERVICES' | 'PACKAGE'>('SERVICES');
   const [gst, setGst] = useState(true);
   const [gstPercent, setGstPercent] = useState('18');
@@ -443,9 +446,9 @@ function InvoiceModal({ patient, onClose, onSaved }: { patient: Patient360; onCl
         const purchased = await apiRequest<{ data: { id: string } }>('/billing/patient-packages', { method: 'POST', body: JSON.stringify({ patientId: patient.id, branchId: patient.branchId, packageMasterId: packageMaster.id, discount, taxPercent: activeTaxPercent, paidAmount: paymentAmount, notes: notes || undefined }) });
         patientPackageId = purchased.data.id;
       }
-      const created = await apiRequest<{ data: { id: string } }>('/billing/invoices', { method: 'POST', body: JSON.stringify({ patientId: patient.id, branchId: patient.branchId, notes: notes || undefined, terms: terms || undefined, discountReason: discount > 0 ? invoiceFor === 'PACKAGE' ? `Package discount ${packageDiscountPercent}%` : 'Invoice discount' : undefined, items: billingItems.map((item, index) => ({ type: item.category === 'PACKAGE' ? 'PACKAGE' : item.category === 'CUSTOM' ? 'CUSTOM' : 'SERVICE', description: item.description.trim(), packageMasterId: item.category === 'PACKAGE' ? packageMaster?.id : undefined, patientPackageId: item.category === 'PACKAGE' ? patientPackageId : undefined, quantity: Number(item.quantity), unitPrice: Number(item.unitPrice), discount: Number(item.discount), taxPercent: activeTaxPercent, sortOrder: (index + 1) * 10 })) }) });
+      const created = await apiRequest<{ data: { id: string } }>('/billing/invoices', { method: 'POST', headers: { 'Idempotency-Key': writeKey.current }, body: JSON.stringify({ patientId: patient.id, branchId: patient.branchId, notes: notes || undefined, terms: terms || undefined, discountReason: discount > 0 ? invoiceFor === 'PACKAGE' ? `Package discount ${packageDiscountPercent}%` : 'Invoice discount' : undefined, items: billingItems.map((item, index) => ({ type: item.category === 'PACKAGE' ? 'PACKAGE' : item.category === 'CUSTOM' ? 'CUSTOM' : 'SERVICE', description: item.description.trim(), packageMasterId: item.category === 'PACKAGE' ? packageMaster?.id : undefined, patientPackageId: item.category === 'PACKAGE' ? patientPackageId : undefined, quantity: Number(item.quantity), unitPrice: Number(item.unitPrice), discount: Number(item.discount), taxPercent: activeTaxPercent, sortOrder: (index + 1) * 10 })) }) });
       await apiRequest(`/billing/invoices/${created.data.id}/issue`, { method: 'POST', body: JSON.stringify({ terms: terms || undefined }) });
-      if (paymentAmount > 0) await apiRequest(`/billing/invoices/${created.data.id}/payments`, { method: 'POST', body: JSON.stringify({ patientId: patient.id, amount: paymentAmount, mode: paymentMode, paidAt, allocations: [{ invoiceId: created.data.id, amount: paymentAmount }] }) });
+      if (paymentAmount > 0) await apiRequest(`/billing/invoices/${created.data.id}/payments`, { method: 'POST', headers: { 'Idempotency-Key': `${writeKey.current}-payment` }, body: JSON.stringify({ patientId: patient.id, amount: paymentAmount, mode: paymentMode, paidAt, allocations: [{ invoiceId: created.data.id, amount: paymentAmount }] }) });
       return created;
     },
     onSuccess: onSaved,
@@ -457,11 +460,12 @@ function InvoiceModal({ patient, onClose, onSaved }: { patient: Patient360; onCl
 }
 
 function PaymentModal({ patient, invoice, onClose, onSaved }: { patient: Patient360; invoice: Patient360['invoices'][number]; onClose: () => void; onSaved: () => void }) {
+  const paymentKey = useRef(crypto.randomUUID());
   const outstanding = Number(invoice.outstandingAmount ?? Math.max(0, Number(invoice.totalAmount) - Number(invoice.paidAmount ?? 0)));
   const [amount, setAmount] = useState(String(outstanding));
   const [mode, setMode] = useState('UPI');
   const mutation = useMutation({
-    mutationFn: () => apiRequest(`/billing/invoices/${invoice.id}/payments`, { method: 'POST', body: JSON.stringify({ patientId: patient.id, amount: Number(amount), mode, allocations: [{ invoiceId: invoice.id, amount: Number(amount) }] }) }),
+    mutationFn: () => apiRequest(`/billing/invoices/${invoice.id}/payments`, { method: 'POST', headers: { 'Idempotency-Key': paymentKey.current }, body: JSON.stringify({ patientId: patient.id, amount: Number(amount), mode, allocations: [{ invoiceId: invoice.id, amount: Number(amount) }] }) }),
     onSuccess: onSaved,
   });
   return <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/40 p-4">

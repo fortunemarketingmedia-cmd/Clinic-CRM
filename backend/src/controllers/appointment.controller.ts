@@ -1,3 +1,4 @@
+import { accessService } from '../services/access.service.js';
 import type { Request, Response } from 'express';
 import { AppointmentResource, AppointmentStatus, Role } from '@prisma/client';
 import { appointmentService } from '../services/appointment.service.js';
@@ -46,6 +47,7 @@ export const appointmentController = {
     }
 
     const input = createAppointmentSchema.parse(req.body);
+    await accessService.assertBranchAccess(req.user.id, req.user.role, input.branchId);
     const appointment = await appointmentService.createAppointment({ ...input, createdById: req.user.id }, { userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId });
     return res.status(201).json({ data: appointment });
   },
@@ -54,6 +56,7 @@ export const appointmentController = {
     if (!req.user) throw new HttpError(401, 'Authentication required');
     const existingAppointment = await appointmentService.getAppointment(req.params.id, req.user);
     const input = updateAppointmentSchema.parse(req.body);
+    if (input.branchId) await accessService.assertBranchAccess(req.user.id, req.user.role, input.branchId);
     assertStatusPermission(req.user.role, input.status, existingAppointment.resourceType);
     const appointment = await appointmentService.updateAppointment(req.params.id, input, { userId: req.user.id, ipAddress: req.ip, device: req.header('user-agent'), correlationId: req.correlationId });
     return res.json({ data: appointment });

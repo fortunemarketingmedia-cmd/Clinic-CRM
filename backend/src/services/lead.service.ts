@@ -158,6 +158,9 @@ export const leadService = {
       throw new HttpError(404, 'Lead not found');
     }
     if (access) await accessService.assertBranchAccess(access.id, access.role, lead.branchId);
+    if (access?.role === 'RECEPTIONIST' && lead.person?.patient && lead.person.patient.branchId !== lead.branchId) {
+      return { ...lead, person: { ...lead.person, patient: null } };
+    }
 
     return lead;
   },

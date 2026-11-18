@@ -76,7 +76,7 @@ export const formsRepository = {
     return prisma.patientFile.upsert({
       where: { originalFileId_variant: { originalFileId: data.originalFileId, variant: data.variant } },
       create: data,
-      update: { storageKey: data.storageKey, url: data.url, mimeType: data.mimeType, sizeBytes: data.sizeBytes, checksum: data.checksum, width: data.width, height: data.height, optimizationStatus: 'READY' },
+      update: { storageKey: data.storageKey, url: data.url, mimeType: data.mimeType, sizeBytes: data.sizeBytes, storedSizeBytes: data.storedSizeBytes, checksum: data.checksum, width: data.width, height: data.height, optimizationStatus: 'READY' },
     });
   },
   updateFileOptimization(id: string, optimizationStatus: string, dimensions?: { width?: number; height?: number }) { return prisma.patientFile.update({ where: { id }, data: { optimizationStatus, ...dimensions } }); },

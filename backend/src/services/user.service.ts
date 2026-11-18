@@ -1,6 +1,5 @@
 import bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
-import { forgetUserAccess } from '../middleware/auth.js';
 import { refreshTokenRepository } from '../repositories/refresh-token.repository.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { HttpError } from '../utils/http-error.js';
@@ -62,7 +61,6 @@ export const userService = {
     const updated = await userRepository.update(id, input);
     // Signed-in sessions must not keep the old access level or survive deactivation.
     if ((input.status && input.status !== user.status) || (input.role && input.role !== user.accessLevel) || input.branchIds) {
-      forgetUserAccess(id);
       if ((input.status && input.status !== 'ACTIVE') || (input.role && input.role !== user.accessLevel)) await refreshTokenRepository.revokeAllForUser(id);
     }
     return { ...updated, role: updated.accessLevel };
@@ -84,7 +82,6 @@ export const userService = {
     }
 
     await refreshTokenRepository.revokeAllForUser(id);
-    forgetUserAccess(id);
     return userRepository.delete(id);
   },
 };

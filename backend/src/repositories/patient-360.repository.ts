@@ -14,7 +14,7 @@ export const patient360Repository = {
     return prisma.patient.findUnique({ where: { id }, select: { id: true, branchId: true, leadId: true, personId: true } });
   },
 
-  async getPatient360(id: string) {
+  async getPatient360(id: string, branchId?: string) {
     const patient = await prisma.patient.findUnique({
       where: { id },
       include: {
@@ -38,6 +38,7 @@ export const patient360Repository = {
 
     const appointments = await prisma.appointment.findMany({
       where: {
+        branchId,
         OR: [
           ...(patient.leadId ? [{ leadId: patient.leadId }] : []),
           ...(patient.personId ? [{ lead: { personId: patient.personId } }] : []),
