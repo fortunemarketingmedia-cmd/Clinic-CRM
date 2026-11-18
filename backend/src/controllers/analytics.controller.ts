@@ -27,6 +27,12 @@ export const analyticsController = {
     const data = await analyticsService.overview(query, req.user);
     return res.json({ data });
   },
+  async operations(req: Request, res: Response) {
+    if (!req.user) throw new HttpError(401, 'Authentication required');
+    const query = analyticsQuerySchema.parse(req.query);
+    const data = await analyticsService.operations(query, req.user);
+    return res.json({ data });
+  },
   async dashboard(req: Request, res: Response) {
     if (!req.user) throw new HttpError(401, 'Authentication required');
     const query = analyticsQuerySchema.parse(req.query);

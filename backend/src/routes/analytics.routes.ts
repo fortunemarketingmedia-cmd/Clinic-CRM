@@ -13,6 +13,10 @@ analyticsRoutes.get('/dashboard', requireRole(Role.ADMIN, Role.RECEPTIONIST), (r
   analyticsController.dashboard(req, res).catch(next);
 });
 
+analyticsRoutes.get('/operations', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => {
+  analyticsController.operations(req, res).catch(next);
+});
+
 // Everything below is administrator-only.
 analyticsRoutes.use(requireRole(Role.ADMIN));
 

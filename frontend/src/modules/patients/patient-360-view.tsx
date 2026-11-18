@@ -38,7 +38,7 @@ type MedicineOption = { id: string; name: string; genericName?: string | null; s
 type PackageMasterOption = { id: string; branchId?: string | null; name: string; totalSessions: number; validityDays: number; price: string; taxPercent: string; active: boolean };
 const clinicalRoles = ['ADMIN'];
 const prescriberRoles = ['ADMIN'];
-const billingRoles = ['ADMIN'];
+const billingRoles = ['ADMIN', 'RECEPTIONIST'];
 const operationalRoles = ['ADMIN', 'RECEPTIONIST'];
 const format = (value?: string | null) => value ? new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());

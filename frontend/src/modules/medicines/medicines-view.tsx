@@ -21,7 +21,7 @@ const emptyMedicine: MedicineInput = { name: '', genericName: '', strength: '', 
 export function MedicinesView() {
   const client = useQueryClient();
   const { session, hasHydrated } = useSessionStore();
-  const isAdmin = session?.user.role === 'ADMIN';
+  const isAdmin = session?.user.role === 'ADMIN' || session?.user.role === 'RECEPTIONIST';
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState<'' | MedicineStatus>('');

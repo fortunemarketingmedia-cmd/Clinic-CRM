@@ -8,8 +8,8 @@ import readXlsxFile from 'read-excel-file/node';
 
 type Actor = AuditContext & { id: string; role: Role };
 
-function requireAdmin(actor: Actor) {
-  if (actor.role !== Role.ADMIN) throw new HttpError(403, 'Medicine master changes require administrator access');
+function requireMedicineAccess(actor: Actor) {
+  if (actor.role !== Role.ADMIN && actor.role !== Role.RECEPTIONIST) throw new HttpError(403, 'Medicine access is required');
 }
 
 async function assertUnique(name: string, strength: string | undefined, excludeId?: string) {
@@ -95,14 +95,14 @@ export const medicineService = {
     return forms.flatMap((item) => (item.form ? [item.form] : []));
   },
   async create(input: z.infer<typeof medicineSchema>, actor: Actor) {
-    requireAdmin(actor);
+    requireMedicineAccess(actor);
     await assertUnique(input.name, input.strength);
     const medicine = await medicineRepository.create(input);
     await auditService.record(actor, { action: 'MEDICINE_CREATED', entity: 'Medicine', entityId: medicine.id, newValue: { name: medicine.name, strength: medicine.strength, status: medicine.status } });
     return medicine;
   },
   async import(file: Express.Multer.File | undefined, actor: Actor) {
-    requireAdmin(actor);
+    requireMedicineAccess(actor);
     if (!file) throw new HttpError(400, 'Choose a CSV or Excel file to import');
     const parsed = await parseImport(file);
     const unique = new Map<string, ImportRow>();
@@ -112,7 +112,7 @@ export const medicineService = {
     return { received: parsed.length, imported: result.count, skipped: parsed.length - result.count };
   },
   async update(id: string, input: z.infer<typeof medicineUpdateSchema>, actor: Actor) {
-    requireAdmin(actor);
+    requireMedicineAccess(actor);
     const existing = await medicineRepository.findById(id);
     if (!existing) throw new HttpError(404, 'Medicine not found');
     const name = input.name ?? existing.name;
@@ -123,7 +123,7 @@ export const medicineService = {
     return medicine;
   },
   async remove(id: string, actor: Actor) {
-    requireAdmin(actor);
+    requireMedicineAccess(actor);
     const existing = await medicineRepository.findById(id);
     if (!existing) throw new HttpError(404, 'Medicine not found');
     const references = await medicineRepository.countPrescriptionItems(id);

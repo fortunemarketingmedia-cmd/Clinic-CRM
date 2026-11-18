@@ -39,8 +39,8 @@ type TrendPoint = {
   patients: number;
   appointments: number;
   followUps: number;
-  billed: number;
-  collected: number;
+  billed?: number;
+  collected?: number;
 };
 type AnalyticsOverview = {
   totals: {
@@ -60,7 +60,7 @@ type AnalyticsOverview = {
     id: string;
     name: string;
     activeLeads: number;
-    _count: { leads: number; appointments: number; patients: number; invoices: number };
+    _count: { leads: number; appointments: number; patients: number; invoices?: number };
   }>;
   analytics: {
     range: { from: string; to: string };
@@ -82,7 +82,7 @@ type AnalyticsOverview = {
       byChannel: Breakdown;
       byActivity: Breakdown;
     };
-    financial: {
+    financial?: {
       invoices: number;
       subtotal: number;
       discounts: number;
@@ -143,9 +143,9 @@ export function AnalyticsView({ mode = 'CRM' }: { mode?: AnalyticsMode }) {
     return params.toString();
   }, [branchId, dateFrom, dateTo]);
   const analyticsQuery = useQuery({
-    queryKey: ['analytics-command-centre', queryString],
+    queryKey: ['analytics-command-centre', isAdmin, queryString],
     queryFn: () =>
-      apiRequest<{ data: AnalyticsOverview }>(`/analytics${queryString ? `?${queryString}` : ''}`),
+      apiRequest<{ data: AnalyticsOverview }>(`/analytics${isAdmin ? '' : '/operations'}${queryString ? `?${queryString}` : ''}`),
     enabled: Boolean(isAdmin || branchId),
   });
 
@@ -261,7 +261,7 @@ export function AnalyticsView({ mode = 'CRM' }: { mode?: AnalyticsMode }) {
         </Card>
       ) : (
         <>
-          {mode === 'FINANCE' ? <FinancialTab overview={overview} trend={trend} branchId={branchId} /> : null}
+          {mode === 'FINANCE' && isAdmin ? <FinancialTab overview={overview} trend={trend} branchId={branchId} /> : null}
           {mode === 'CRM' && tab === 'EXECUTIVE' ? <ExecutiveTab overview={overview} trend={trend} /> : null}
           {mode === 'CRM' && tab === 'LEADS' ? <LeadsTab overview={overview} trend={trend} /> : null}
           {mode === 'CRM' && tab === 'PATIENTS' ? <PatientsTab overview={overview} trend={trend} /> : null}

@@ -56,7 +56,7 @@ export const navigationSections = [
         label: 'Analytics',
         icon: BarChart3,
         href: '/reports',
-        roles: doctorReviveRoles,
+        roles: allOperational,
       },
       { label: 'Finance', icon: Wallet, href: '/finance', roles: doctorReviveRoles },
     ],
@@ -65,7 +65,7 @@ export const navigationSections = [
     label: 'Administration',
     items: [
       { label: 'Master Records', icon: ClipboardCheck, href: '/clients', roles: allOperational },
-      { label: 'Medicines', icon: Pill, href: '/medicines', roles: doctorReviveRoles },
+      { label: 'Medicines', icon: Pill, href: '/medicines', roles: allOperational },
       { label: 'Settings', icon: Settings, href: '/settings', roles: doctorReviveRoles },
     ],
   },
