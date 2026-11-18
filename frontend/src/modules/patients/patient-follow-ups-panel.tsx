@@ -87,7 +87,7 @@ export function PatientFollowUpsPanel({ patient }: { patient: Patient360 }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{item.activityType}</span><StatusBadge tone={overdue ? 'danger' : alerting ? 'warning' : 'info'}>{overdue ? 'Overdue' : alerting ? 'Due soon' : 'Upcoming'}</StatusBadge></div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1"><CalendarClock className="size-3.5" />{formatWhen(item.dueAt)}</span><span className="inline-flex items-center gap-1"><BellRing className="size-3.5" />Reminder {formatWhen(item.reminderAt ?? item.dueAt)}</span><span>{channelLabel(item.channel)}</span><span>{item.assignedUser.name}</span></div>
-            {item.notes ? <p className="mt-1 text-sm">{item.notes}</p> : null}
+            {item.notes ? <p className="mt-1 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{item.notes}</p> : null}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <Button type="button" className="h-8 px-2.5 text-xs" onClick={() => setCompleting(item)}><CheckCircle2 className="size-3.5" />Mark done</Button>

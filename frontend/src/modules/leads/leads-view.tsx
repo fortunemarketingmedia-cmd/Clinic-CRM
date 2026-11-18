@@ -758,15 +758,15 @@ export function LeadsView() {
 
       {selectedLead ? (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="lead-detail-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedLead(null); }}>
-          <Card className="mx-auto max-w-4xl">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
+          <Card className="mx-auto w-full max-w-4xl min-w-0">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 [overflow-wrap:anywhere]">
                 <h2 id="lead-detail-title" className="text-xl font-semibold">{selectedLead.name}</h2>
                 <p className="text-sm text-muted-foreground">
                   {selectedLead.mobile} - {sourceLabel(selectedLead.source)} - {selectedLead.branch?.name ?? 'Branch'}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" onClick={() => startEdit(selectedLead)}>
                   <Edit3 className="size-4" />
                   Edit
@@ -784,9 +784,9 @@ export function LeadsView() {
               <Detail label="Interested treatment" value={selectedLead.interestedTreatment ?? '-'} />
               <Detail label="Next follow-up" value={formatDateTime(selectedLead.nextFollowupAt)} />
               <Detail label="Last contacted" value={formatDateTime(selectedLead.lastContactedAt)} />
-              <Detail label="Email" value={selectedLead.email ?? '-'} breakWords />
+              <Detail label="Email" value={selectedLead.email ?? '-'} />
               <Detail label="Campaign" value={selectedLead.adLeads?.[0]?.campaignName ?? '-'} />
-              <Detail label="Follow-up notes" value={selectedLead.followupNotes ?? '-'} />
+              <Detail label="Follow-up notes" value={selectedLead.followupNotes ?? '-'} className="sm:col-span-2 lg:col-span-4" />
             </div>
 
             <div className="mt-6">
@@ -794,11 +794,11 @@ export function LeadsView() {
               <div className="mt-3 space-y-3">
                 {selectedLeadTimelineQuery.data?.data.map((event) => (
                   <div key={event.id} className="rounded-md border border-border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-medium">{event.title}</div>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0 font-medium [overflow-wrap:anywhere]">{event.title}</div>
                       <div className="text-xs text-muted-foreground">{formatDateTime(event.createdAt)}</div>
                     </div>
-                    {event.description ? <div className="mt-1 text-muted-foreground">{event.description}</div> : null}
+                    {event.description ? <div className="mt-1 whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">{event.description}</div> : null}
                   </div>
                 ))}
                 {!selectedLeadTimelineQuery.isLoading && selectedLeadTimelineQuery.data?.data.length === 0 ? (
@@ -837,11 +837,11 @@ function Metric({ label, value, suffix = '' }: { label: string; value: number; s
   );
 }
 
-function Detail({ label, value, breakWords = false }: { label: string; value: string | number; breakWords?: boolean }) {
+function Detail({ label, value, className = '' }: { label: string; value: string | number; className?: string }) {
   return (
-    <div className="rounded-md border border-border p-3">
+    <div className={`min-w-0 rounded-md border border-border p-3 ${className}`}>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`mt-1 text-sm font-medium ${breakWords ? 'break-all' : ''}`}>{value}</div>
+      <div className="mt-1 min-w-0 whitespace-pre-wrap text-sm font-medium [overflow-wrap:anywhere]">{value}</div>
     </div>
   );
 }

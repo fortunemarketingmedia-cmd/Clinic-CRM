@@ -151,7 +151,7 @@ function AppointmentsPanel({ patient, canEdit, invalidate }: { patient: Patient3
   const completed = appointments.filter((appointment) => appointment.status === 'COMPLETED').sort((a, b) => +new Date(b.appointmentAt) - +new Date(a.appointmentAt));
   const cancelled = appointments.filter((appointment) => ['CANCELLED', 'NO_SHOW'].includes(appointment.status)).sort((a, b) => +new Date(b.appointmentAt) - +new Date(a.appointmentAt));
   const renderAppointment = (appointment: Appointment) => <div key={appointment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
-    <div><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{appointment.service?.name ?? label(appointment.appointmentType)}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold">{label(appointment.status)}</span></div><div className="mt-1 text-xs text-muted-foreground">{format(appointment.appointmentAt)}{appointment.doctor?.name ? ` · ${appointment.doctor.name}` : ''}{appointment.resourceType === 'TREATMENT_ROOM' ? ` · Room ${appointment.roomNumber ?? 'not assigned'}` : ''}</div>{appointment.notes ? <p className="mt-1 text-sm text-muted-foreground">{appointment.notes}</p> : null}</div>
+    <div><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{appointment.service?.name ?? label(appointment.appointmentType)}</span><span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold">{label(appointment.status)}</span></div><div className="mt-1 text-xs text-muted-foreground">{format(appointment.appointmentAt)}{appointment.doctor?.name ? ` · ${appointment.doctor.name}` : ''}{appointment.resourceType === 'TREATMENT_ROOM' ? ` · Room ${appointment.roomNumber ?? 'not assigned'}` : ''}</div>{appointment.notes ? <p className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">{appointment.notes}</p> : null}</div>
     <div className="flex flex-wrap items-center gap-1.5">
       {canEdit && appointment.resourceType === 'TREATMENT_ROOM' && !finished(appointment) ? <Button type="button" variant="secondary" className="h-8 px-2.5 text-xs" onClick={() => setRoomEdit(appointment)}>Change room</Button> : null}
       <AppointmentRecordActions appointment={appointment} canEdit={canEdit} name={patient.fullName} onChanged={invalidate} />
@@ -358,7 +358,7 @@ function Overview({ patient, canSeeFinance, onChooseTreatment }: { patient: Pati
     </aside>
   </div>;
 }
-function Row({ title, value }: { title: string; value?: React.ReactNode }) { return <div className="flex items-start justify-between gap-4 border-b border-border py-2.5 text-[13px] last:border-b-0"><dt className="shrink-0 text-muted-foreground">{title}</dt><dd className="min-w-0 break-words text-right font-medium">{value || <span className="font-normal text-muted-foreground">Not recorded</span>}</dd></div>; }
+function Row({ title, value }: { title: string; value?: React.ReactNode }) { return <div className="flex items-start justify-between gap-4 border-b border-border py-2.5 text-[13px] last:border-b-0"><dt className="shrink-0 text-muted-foreground">{title}</dt><dd className="min-w-0 text-right font-medium [overflow-wrap:anywhere]">{value || <span className="font-normal text-muted-foreground">Not recorded</span>}</dd></div>; }
 function BillingPanel({ patient, canBill, invalidate }: { patient: Patient360; canBill: boolean; invalidate: () => void }) {
   const [payingInvoice, setPayingInvoice] = useState<Patient360['invoices'][number] | null>(null);
   const [showInvoice, setShowInvoice] = useState(false);
@@ -483,7 +483,7 @@ function PaymentModal({ patient, invoice, onClose, onSaved }: { patient: Patient
     </Card>
   </div>;
 }
-function Detail({ title, value }: { title: string; value?: string | null }) { return <div><dt className="text-xs font-medium text-muted-foreground">{title}</dt><dd className="mt-1 whitespace-pre-wrap text-sm">{value || 'Not recorded'}</dd></div>; }
+function Detail({ title, value }: { title: string; value?: string | null }) { return <div><dt className="text-xs font-medium text-muted-foreground">{title}</dt><dd className="mt-1 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{value || 'Not recorded'}</dd></div>; }
 function MedicalProfile({ patient, canEdit, invalidate }: { patient: Patient360; canEdit: boolean; invalidate: () => void }) {
   const profile = patient.medicalProfile; const [editing, setEditing] = useState(false);
   const [values, setValues] = useState({ skinConcern: profile?.skinConcern ?? '', hairConcern: profile?.hairConcern ?? '', medicalHistory: profile?.medicalHistory ?? '', surgicalHistory: profile?.surgicalHistory ?? '', currentMedications: profile?.currentMedications ?? '', allergyToDrugs: profile?.allergyToDrugs ?? '', productAllergies: profile?.productAllergies ?? '', foodAllergies: profile?.foodAllergies ?? '', familyHistory: profile?.familyHistory ?? '', smokingStatus: profile?.smokingStatus ?? '', alcoholHistory: profile?.alcoholHistory ?? '', pregnancyStatus: profile?.pregnancyStatus ?? '', breastfeedingStatus: profile?.breastfeedingStatus ?? '', previousAestheticProcedures: profile?.previousAestheticProcedures ?? '', clinicalAlerts: profile?.clinicalAlerts ?? '', criticalAlert: Boolean(profile?.criticalAlert), reasonForChange: '' });

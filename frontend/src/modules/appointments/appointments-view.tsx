@@ -1531,9 +1531,9 @@ function AppointmentWorkflowActions({ appointment, onReschedule, onAction }: { a
 
 function AppointmentDetail({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-md border border-border p-3">
+    <div className="min-w-0 rounded-md border border-border p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-sm font-medium">{value}</div>
+      <div className="mt-1 whitespace-pre-wrap text-sm font-medium [overflow-wrap:anywhere]">{value}</div>
     </div>
   );
 }

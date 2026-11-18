@@ -256,8 +256,8 @@ export function TasksView() {
                 className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"
               >
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 font-medium">{task.title}<StatusBadge tone={task.priority === 'URGENT' ? 'danger' : task.priority === 'HIGH' ? 'warning' : 'neutral'} className="font-normal capitalize">{task.priority.toLowerCase()} priority</StatusBadge></div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 font-medium [overflow-wrap:anywhere]">{task.title}<StatusBadge tone={task.priority === 'URGENT' ? 'danger' : task.priority === 'HIGH' ? 'warning' : 'neutral'} className="font-normal capitalize">{task.priority.toLowerCase()} priority</StatusBadge></div>
+                  <div className="whitespace-pre-wrap text-sm text-muted-foreground [overflow-wrap:anywhere]">
                     {task.description || task.type.replaceAll('_', ' ')}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
