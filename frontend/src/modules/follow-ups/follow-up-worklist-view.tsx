@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
+import { filterAndRankSearch } from '@/lib/search';
 import { useSessionStore } from '@/store/session-store';
 import type { FollowUp } from '@/types/foundation';
 import { FollowUpRecordActions } from './work-record-actions';
@@ -58,8 +59,8 @@ export function FollowUpWorklistView() {
     COMPLETED: items.filter((item) => tabFor(item) === 'COMPLETED').length,
   }), [items]);
   const visible = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return items.filter((item) => tabFor(item) === tab && (!assignee || item.assignedUser.id === assignee) && (!term || [item.person.fullName, item.person.primaryMobile, item.activityType, item.notes, item.lead?.interestedTreatment].some((value) => value?.toLowerCase().includes(term))));
+    const scoped = items.filter((item) => tabFor(item) === tab && (!assignee || item.assignedUser.id === assignee));
+    return filterAndRankSearch(scoped, search, (item) => [item.person.fullName, item.person.primaryMobile], (item) => [item.activityType, item.notes, item.lead?.interestedTreatment]);
   }, [assignee, items, search, tab]);
   const complete = useMutation({
     mutationFn: () => apiRequest(`/follow-ups/${selected?.id}/complete`, { method: 'POST', body: JSON.stringify({ outcome: outcome.trim(), notes: outcome.trim(), resolution: 'CLOSED' }) }),

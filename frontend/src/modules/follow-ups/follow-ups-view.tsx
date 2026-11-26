@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { BoardSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { filterAndRankSearch } from '@/lib/search';
 import { apiRequest } from '@/services/api';
 import { LeadEditDialog } from '@/modules/leads/lead-record-actions';
 import { useSessionStore } from '@/store/session-store';
@@ -187,20 +188,12 @@ export function FollowUpsView() {
   const leads = useMemo(() => leadsQuery.data?.data ?? [], [leadsQuery.data]);
   const staff = useMemo(() => staffQuery.data?.data ?? [], [staffQuery.data]);
   const filteredLeads = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return leads.filter((lead) => {
-      const matchesSearch =
-        !term ||
-        lead.name.toLowerCase().includes(term) ||
-        lead.mobile.includes(term) ||
-        lead.interestedTreatment?.toLowerCase().includes(term);
-      return (
-        matchesSearch &&
-        (!ownerFilter || lead.ownerId === ownerFilter) &&
-        (!sourceFilter || lead.source === sourceFilter) &&
-        (!priorityFilter || lead.priority === priorityFilter)
-      );
-    });
+    const scoped = leads.filter((lead) =>
+      (!ownerFilter || lead.ownerId === ownerFilter) &&
+      (!sourceFilter || lead.source === sourceFilter) &&
+      (!priorityFilter || lead.priority === priorityFilter),
+    );
+    return filterAndRankSearch(scoped, search, (lead) => [lead.name, lead.mobile], (lead) => [lead.interestedTreatment]);
   }, [leads, ownerFilter, priorityFilter, search, sourceFilter]);
   const pipelineLeads = useMemo(
     () => filteredLeads.filter((lead) => showAllClosed || isRecentlyClosed(lead)),

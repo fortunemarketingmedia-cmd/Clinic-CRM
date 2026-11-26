@@ -1,5 +1,6 @@
 import type { AdPlatform, Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
+import { normalizeSearchTerm, textSearchVariants } from '../utils/search.js';
 
 export type AdLeadInput = {
   platform: AdPlatform;
@@ -22,16 +23,18 @@ export type AdLeadInput = {
 
 export const adLeadRepository = {
   list(filters: { platform?: AdPlatform; branchId?: string; search?: string }) {
+    const search = normalizeSearchTerm(filters.search);
+    const textVariants = textSearchVariants(search);
     return prisma.adLead.findMany({
       where: {
         platform: filters.platform,
         branchId: filters.branchId,
-        OR: filters.search
+        OR: search
           ? [
-              { name: { contains: filters.search, mode: 'insensitive' } },
-              { mobile: { contains: filters.search, mode: 'insensitive' } },
-              { campaignName: { contains: filters.search, mode: 'insensitive' } },
-              { adName: { contains: filters.search, mode: 'insensitive' } },
+              ...textVariants.map((filter) => ({ name: filter })),
+              { mobile: { contains: search, mode: 'insensitive' } },
+              ...textVariants.map((filter) => ({ campaignName: filter })),
+              ...textVariants.map((filter) => ({ adName: filter })),
             ]
           : undefined,
       },

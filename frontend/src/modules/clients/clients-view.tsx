@@ -104,6 +104,9 @@ export function ClientsView() {
     return params.toString();
   }, [branchId, dateFrom, dateTo, debouncedSearch, leadPage, source, status]);
   const leadsQuery = useQuery({ queryKey: ['master-leads', leadsQueryString], queryFn: () => apiRequest<{ data: Lead[]; meta: PaginationMeta }>(`/leads?${leadsQueryString}`), placeholderData: keepPreviousData, enabled: branchReady });
+  const searchIsSettling = search.trim() !== debouncedSearch;
+  const patientSearchPending = searchIsSettling || patientsQuery.isPlaceholderData || patientsQuery.isFetching;
+  const leadSearchPending = searchIsSettling || leadsQuery.isPlaceholderData || leadsQuery.isFetching;
   const uniquePatients = useMemo(() => {
     const seen = new Set<string>();
     return (patientsQuery.data?.data ?? []).filter((patient) => {
@@ -182,7 +185,7 @@ export function ClientsView() {
               </tr>
             </thead>
             <tbody>
-              {visiblePatients.map((patient) => (
+              {patientSearchPending ? <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>Searching patients...</td></tr> : visiblePatients.map((patient) => (
                 <tr key={patient.id} className="border-t border-border">
                   <td className="px-4 py-3">
                     <Link href={`/patients/${patient.id}`} className="font-medium text-primary hover:underline">{patient.fullName}</Link>
@@ -195,7 +198,7 @@ export function ClientsView() {
                   <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5"><EditButton onClick={() => setEditingPatient(patient)} /><DeleteRecordButton kind="patient" id={patient.id} what="patient" name={`${patient.fullName} · ${patient.patientNo}`} warning="Their open follow-ups, tasks, waitlist entries and upcoming appointments are removed as well." /></div></td>
                 </tr>
               ))}
-              {!patientsQuery.isLoading && (visiblePatients.length === 0 || patientsQuery.isError) ? (
+              {!patientSearchPending && !patientsQuery.isLoading && (visiblePatients.length === 0 || patientsQuery.isError) ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted-foreground" colSpan={6}>
                     {patientsQuery.isError ? 'Clients could not be loaded. Please try again.' : 'No clients found.'}
@@ -228,7 +231,7 @@ export function ClientsView() {
               </tr>
             </thead>
             <tbody>
-              {leadsQuery.data?.data.map((lead) => (
+              {leadSearchPending ? <tr><td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>Searching leads...</td></tr> : leadsQuery.data?.data.map((lead) => (
                 <tr key={lead.id} className="border-t border-border">
                   <td className="px-4 py-3">
                     <Link href={`/leads/${lead.id}`} className="font-medium text-primary hover:underline">{lead.name}</Link>
@@ -242,7 +245,7 @@ export function ClientsView() {
                   <td className="px-4 py-3"><div className="flex flex-wrap gap-1.5"><EditButton onClick={() => setEditingLead(lead)} /><DeleteRecordButton kind="lead" id={lead.id} what="lead" name={`${lead.name} · ${lead.mobile}`} warning="Its open follow-ups, tasks and upcoming appointments are removed as well." /></div></td>
                 </tr>
               ))}
-              {!leadsQuery.isLoading && (leadsQuery.data?.data.length === 0 || leadsQuery.isError) ? (
+              {!leadSearchPending && !leadsQuery.isLoading && (leadsQuery.data?.data.length === 0 || leadsQuery.isError) ? (
                 <tr>
                   <td className="px-4 py-8 text-center text-muted-foreground" colSpan={7}>
                     {leadsQuery.isError ? 'Lead records could not be loaded. Please try again.' : 'No lead records found.'}

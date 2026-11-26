@@ -19,6 +19,7 @@ import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import type { AdLead, AdPlatform } from '@/types/ad-lead';
 import type { Branch } from '@/types/branch';
 import type { Lead, LeadStatus, TimelineEvent } from '@/types/lead';
@@ -97,6 +98,7 @@ export function LeadsView() {
   const { session, selectedBranchId, setSelectedBranchId, hasHydrated } = useSessionStore();
 
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
   const [status, setStatus] = useState<LeadStatus | ''>('');
   const [source, setSource] = useState<LeadSource | ''>('');
   const [createdFrom, setCreatedFrom] = useState('');
@@ -161,8 +163,8 @@ export function LeadsView() {
       params.set('source', activeTab);
     }
 
-    if (search.trim()) {
-      params.set('search', search.trim());
+    if (debouncedSearch) {
+      params.set('search', debouncedSearch);
     }
 
     if (createdFrom && activeTab !== 'ARCHIVED') {
@@ -184,7 +186,7 @@ export function LeadsView() {
     params.set('page', String(page));
     params.set('pageSize', '50');
     return params.toString();
-  }, [activeBranchId, activeTab, archiveLostReason, archiveOutcome, archiveOwner, archiveTreatment, createdFrom, createdTo, isAdmin, page, search, source, status]);
+  }, [activeBranchId, activeTab, archiveLostReason, archiveOutcome, archiveOwner, archiveTreatment, createdFrom, createdTo, debouncedSearch, isAdmin, page, source, status]);
 
   useEffect(() => { setPage(1); }, [activeBranchId, activeTab, archiveLostReason, archiveOutcome, archiveOwner, archiveTreatment, createdFrom, createdTo, search, source, status]);
 

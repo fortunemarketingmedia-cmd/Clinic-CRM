@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
+import { normalizeSearchTerm, rankSearchResult, textSearchVariants } from '../utils/search.js';
 
 const encounterInclude = {
   doctor: { select: { id: true, name: true } },
@@ -129,8 +130,26 @@ export const patient360Repository = {
     return prisma.prescription.update({ where: { id }, data: { status: 'SIGNED', signedById: userId, signedAt: new Date() }, include: { items: true, doctor: { select: { id: true, name: true } }, signedBy: { select: { id: true, name: true } } } });
   },
 
-  listMedicines(search?: string) {
-    return prisma.medicine.findMany({ where: { status: 'ACTIVE', OR: search ? [{ name: { contains: search, mode: 'insensitive' } }, { genericName: { contains: search, mode: 'insensitive' } }, { strength: { contains: search, mode: 'insensitive' } }, { form: { contains: search, mode: 'insensitive' } }] : undefined }, orderBy: { name: 'asc' }, take: 50 });
+  async listMedicines(search?: string) {
+    const term = normalizeSearchTerm(search);
+    const textVariants = textSearchVariants(term);
+    const medicines = await prisma.medicine.findMany({
+      where: {
+        status: 'ACTIVE',
+        OR: term ? [
+          ...textVariants.map((filter) => ({ name: filter })),
+          ...textVariants.map((filter) => ({ genericName: filter })),
+          { strength: { startsWith: term, mode: 'insensitive' } },
+          { form: { startsWith: term, mode: 'insensitive' } },
+        ] : undefined,
+      },
+      orderBy: { name: 'asc' },
+      take: term ? 100 : 50,
+    });
+    if (!term) return medicines;
+    return medicines
+      .sort((left, right) => rankSearchResult(term, [left.name], [left.genericName, left.strength, left.form]) - rankSearchResult(term, [right.name], [right.genericName, right.strength, right.form]) || left.name.localeCompare(right.name))
+      .slice(0, 50);
   },
   listTemplates(branchId?: string) {
     return prisma.clinicalTemplate.findMany({ where: { active: true, OR: branchId ? [{ branchId: null }, { branchId }] : [{ branchId: null }] }, orderBy: { name: 'asc' } });

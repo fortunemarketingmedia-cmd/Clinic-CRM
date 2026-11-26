@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { cn } from '@/lib/utils';
+import { filterAndRankSearch } from '@/lib/search';
 import { consentKeysForTreatment, generalConsentKey, parseConsentText } from '@/lib/treatment-consents';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
@@ -163,7 +164,12 @@ function TreatmentCatalog({ treatments, loading, error, templatesByKey, signedNa
     for (const service of treatments) counts.set(service.category || 'Other treatments', (counts.get(service.category || 'Other treatments') ?? 0) + 1);
     return [...counts.entries()];
   }, [treatments]);
-  const filtered = treatments.filter((service) => (category === 'All' || (service.category || 'Other treatments') === category) && `${service.name} ${service.category ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const filtered = filterAndRankSearch(
+    treatments.filter((service) => category === 'All' || (service.category || 'Other treatments') === category),
+    search,
+    (service) => [service.name],
+    (service) => [service.category],
+  );
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = Math.min(page, pages);
   const visible = filtered.slice((current - 1) * pageSize, current * pageSize);

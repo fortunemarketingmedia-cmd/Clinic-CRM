@@ -1,6 +1,7 @@
 import type { EnquirySource, LeadStatus, Prisma, Sex } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
+import { normalizeSearchTerm, textSearchVariants } from '../utils/search.js';
 
 type PatientInput = {
   personId?: string;
@@ -32,21 +33,23 @@ function currentPatientNumberYear(now = new Date()) {
 
 export const patientRepository = {
   async list(filters: { branchId?: string; search?: string; leadStatus?: LeadStatus; leadSource?: EnquirySource; page: number; pageSize: number }) {
+    const search = normalizeSearchTerm(filters.search);
+    const textVariants = textSearchVariants(search);
     const where: Prisma.PatientWhereInput = {
         branchId: filters.branchId,
         lead: filters.leadStatus || filters.leadSource ? { status: filters.leadStatus, source: filters.leadSource } : undefined,
-        OR: filters.search
+        OR: search
           ? [
-              { fullName: { contains: filters.search, mode: 'insensitive' } },
-              { mobile: { contains: filters.search, mode: 'insensitive' } },
-              { email: { contains: filters.search, mode: 'insensitive' } },
-              { patientNo: { contains: filters.search, mode: 'insensitive' } },
+              ...textVariants.map((filter) => ({ fullName: filter })),
+              { mobile: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { patientNo: { contains: search, mode: 'insensitive' } },
             ]
           : undefined,
       };
     const [items, total] = await prisma.$transaction([
       prisma.patient.findMany({ where, select: { id: true, patientNo: true, fullName: true, mobile: true, email: true, age: true, sex: true, status: true, branchId: true, createdAt: true, updatedAt: true, branch: true, lead: { select: { id: true, status: true, source: true, appointmentAt: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: search ? [{ fullName: 'asc' }, { createdAt: 'desc' }] : { createdAt: 'desc' },
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
       }),

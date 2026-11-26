@@ -2,6 +2,7 @@ import type { AppointmentResource, AppointmentStatus, AppointmentType, EnquirySo
 import crypto from 'node:crypto';
 import { HttpError } from '../utils/http-error.js';
 import { prisma, type DbTransaction } from '../config/db.js';
+import { normalizeSearchTerm, textSearchVariants } from '../utils/search.js';
 
 type AppointmentFilters = {
   branchId?: string;
@@ -26,6 +27,8 @@ async function guardSlot(tx: DbTransaction, slot: Slot, excludeId?: string) {
 
 export const appointmentRepository = {
   async list(filters: AppointmentFilters) {
+    const search = normalizeSearchTerm(filters.search);
+    const textVariants = textSearchVariants(search);
     const where: Prisma.AppointmentWhereInput = {
         branchId: filters.branchId,
         status: filters.status,
@@ -36,11 +39,11 @@ export const appointmentRepository = {
                 lte: filters.dateTo,
               }
             : undefined,
-        lead: filters.search
+        lead: search
           ? {
               OR: [
-                { name: { contains: filters.search, mode: 'insensitive' } },
-                { mobile: { contains: filters.search, mode: 'insensitive' } },
+                ...textVariants.map((filter) => ({ name: filter })),
+                { mobile: { contains: search, mode: 'insensitive' } },
               ],
             }
           : undefined,

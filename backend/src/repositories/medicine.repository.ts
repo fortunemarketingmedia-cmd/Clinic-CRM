@@ -1,5 +1,6 @@
 import type { MedicineStatus, Prisma } from '@prisma/client';
 import { prisma } from '../config/db.js';
+import { normalizeSearchTerm, textSearchVariants } from '../utils/search.js';
 
 type MedicineFilters = {
   search?: string;
@@ -11,16 +12,17 @@ type MedicineFilters = {
 };
 
 function where(filters: Pick<MedicineFilters, 'search' | 'status' | 'form'>): Prisma.MedicineWhereInput {
-  const search = filters.search?.trim();
+  const search = normalizeSearchTerm(filters.search);
+  const textVariants = textSearchVariants(search);
   return {
     status: filters.status,
     form: filters.form ? { equals: filters.form, mode: 'insensitive' } : undefined,
     OR: search
       ? [
-          { name: { contains: search, mode: 'insensitive' } },
-          { genericName: { contains: search, mode: 'insensitive' } },
-          { strength: { contains: search, mode: 'insensitive' } },
-          { form: { contains: search, mode: 'insensitive' } },
+          ...textVariants.map((filter) => ({ name: filter })),
+          ...textVariants.map((filter) => ({ genericName: filter })),
+          { strength: { startsWith: search, mode: 'insensitive' } },
+          { form: { startsWith: search, mode: 'insensitive' } },
         ]
       : undefined,
   };

@@ -1,6 +1,7 @@
 import type { AppointmentType, EnquirySource, LeadPriority, LeadStatus, Prisma, Role } from '@prisma/client';
 import crypto from 'node:crypto';
 import { prisma } from '../config/db.js';
+import { normalizeSearchTerm, textSearchVariants } from '../utils/search.js';
 
 type LeadFilters = {
   branchId?: string;
@@ -36,6 +37,8 @@ export const leadRepository = {
   },
 
   async list(filters: LeadFilters) {
+    const search = normalizeSearchTerm(filters.search);
+    const textVariants = textSearchVariants(search);
     const archivedStatuses: LeadStatus[] = ['APPOINTMENT_BOOKED', 'BOOKED', 'CONFIRMED', 'CONVERTED', 'LOST', 'DISQUALIFIED'];
     const archiveStatusFilter = filters.archiveOutcome === 'WON' ? { in: archivedStatuses.slice(0, 4) } : filters.archiveOutcome === 'LOST' ? { in: archivedStatuses.slice(4) } : { in: archivedStatuses };
     const closedRange = { gte: filters.closedFrom, lte: filters.closedTo };
@@ -57,17 +60,17 @@ export const leadRepository = {
               lte: filters.createdTo,
             }
           : undefined,
-        OR: filters.search
+        OR: search
           ? [
-              { name: { contains: filters.search, mode: 'insensitive' } },
-              { mobile: { contains: filters.search, mode: 'insensitive' } },
-              { email: { contains: filters.search, mode: 'insensitive' } },
+              ...textVariants.map((filter) => ({ name: filter })),
+              { mobile: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
             ]
           : undefined,
       };
     const [items, total] = await prisma.$transaction([
       prisma.lead.findMany({ where, select: { id: true, qrToken: true, name: true, mobile: true, email: true, address: true, source: true, status: true, priority: true, nextFollowupAt: true, lastContactedAt: true, followupNotes: true, interestedTreatment: true, appointmentType: true, appointmentAt: true, convertedAt: true, closedAt: true, branchId: true, personId: true, ownerId: true, nextAction: true, nextActionDueAt: true, qualificationStatus: true, qualificationNotes: true, leadScore: true, scoreCategory: true, lostReason: true, lostNotes: true, disqualificationReason: true, createdAt: true, updatedAt: true, branch: true, patient: true, person: true, owner: { select: { id: true, name: true } }, adLeads: { select: { id: true, platform: true, campaignName: true } } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: search ? [{ name: 'asc' }, { createdAt: 'desc' }] : { createdAt: 'desc' },
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
       }),

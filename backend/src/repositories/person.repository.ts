@@ -1,5 +1,6 @@
 import type { PersonRecordStatus, PreferredChannel, Prisma, Sex } from '@prisma/client';
 import { prisma } from '../config/db.js';
+import { normalizeSearchTerm, textSearchVariants } from '../utils/search.js';
 
 export type PersonInput = {
   fullName: string;
@@ -40,20 +41,22 @@ function branchScope(branchIds?: string[]): Prisma.PersonWhereInput {
 
 export const personRepository = {
   list(filters: { search?: string; status?: PersonRecordStatus; take: number; branchIds?: string[] }) {
+    const search = normalizeSearchTerm(filters.search);
+    const textVariants = textSearchVariants(search);
     return prisma.person.findMany({
       where: {
         AND: [branchScope(filters.branchIds)],
         recordStatus: filters.status,
-        OR: filters.search
+        OR: search
           ? [
-              { fullName: { contains: filters.search, mode: 'insensitive' } },
-              { primaryMobile: { contains: filters.search } },
-              { email: { contains: filters.search, mode: 'insensitive' } },
+              ...textVariants.map((filter) => ({ fullName: filter })),
+              { primaryMobile: { contains: search } },
+              { email: { contains: search, mode: 'insensitive' } },
             ]
           : undefined,
       },
       include: { preferredBranch: true, patient: { where: { branchId: filters.branchIds ? { in: filters.branchIds } : undefined, deletedAt: null } }, _count: { select: { leads: { where: { deletedAt: null, branchId: filters.branchIds ? { in: filters.branchIds } : undefined } } } } },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: search ? [{ fullName: 'asc' }, { updatedAt: 'desc' }] : { updatedAt: 'desc' },
       take: filters.take,
     });
   },

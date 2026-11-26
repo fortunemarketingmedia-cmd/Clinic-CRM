@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Search, UserRound, X } from 'lucide-react';
 import { useState } from 'react';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Patient360View } from '@/modules/patients/patient-360-view';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -18,16 +19,17 @@ type PatientDirectorySearchProps = {
 
 export function PatientDirectorySearch({ branchId, title, description }: PatientDirectorySearchProps) {
   const [term, setTerm] = useState('');
+  const debouncedTerm = useDebouncedValue(term.trim(), 200);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const query = useQuery({
-    queryKey: ['patient-directory-search', branchId, term.trim()],
+    queryKey: ['patient-directory-search', branchId, debouncedTerm],
     queryFn: () => {
-      const params = new URLSearchParams({ search: term.trim() });
+      const params = new URLSearchParams({ search: debouncedTerm });
       params.set('pageSize', '50');
       if (branchId) params.set('branchId', branchId);
       return apiRequest<{ data: Patient[] }>(`/patients?${params.toString()}`);
     },
-    enabled: term.trim().length >= 2,
+    enabled: debouncedTerm.length >= 1,
   });
   const patients = (query.data?.data ?? []).slice(0, 6);
 
@@ -53,9 +55,9 @@ export function PatientDirectorySearch({ branchId, title, description }: Patient
             placeholder="Search patient name, mobile, or client number"
           />
         </label>
-        {term.trim().length >= 2 ? (
+        {term.trim().length >= 1 ? (
           <div className="mt-3 overflow-hidden rounded-lg border border-border">
-            {query.isLoading ? (
+            {term.trim() !== debouncedTerm || query.isLoading || query.isFetching ? (
               <p className="p-4 text-sm text-muted-foreground">Searching Patient Master...</p>
             ) : query.isError ? (
               <p className="p-4 text-sm text-red-700">Patient Master could not be searched. Please try again.</p>

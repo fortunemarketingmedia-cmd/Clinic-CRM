@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { SegmentedTabs } from '@/components/ui/data-visuals';
 import { RowsSkeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/services/api';
+import { filterAndRankSearch } from '@/lib/search';
 import { FollowUpRecordActions, TaskRecordActions } from '@/modules/follow-ups/work-record-actions';
 import { useSessionStore } from '@/store/session-store';
 import type { FollowUp, Task } from '@/types/foundation';
@@ -83,13 +84,13 @@ export function NotificationsView() {
   ].sort((a, b) => new Date(a.alertAt).getTime() - new Date(b.alertAt).getTime()), [followUps.data, tasks.data]);
 
   const now = Date.now();
-  const visible = rows.filter((row) => {
+  const visibleForTab = rows.filter((row) => {
     const completed = ['COMPLETED', 'CANCELLED'].includes(row.status);
     const alertDue = new Date(row.alertAt).getTime() <= now;
     const matchesTab = tab === 'COMPLETED' ? completed : tab === 'DUE' ? !completed && alertDue : !completed && !alertDue;
-    const term = search.trim().toLowerCase();
-    return matchesTab && (!term || [row.title, row.detail, row.personName, row.mobile, row.branch].some((value) => value?.toLowerCase().includes(term)));
+    return matchesTab;
   });
+  const visible = filterAndRankSearch(visibleForTab, search, (row) => [row.personName, row.mobile, row.title], (row) => [row.detail, row.branch]);
   const dueCount = rows.filter((row) => !['COMPLETED', 'CANCELLED'].includes(row.status) && new Date(row.alertAt).getTime() <= now).length;
   const overdueCount = rows.filter((row) => !['COMPLETED', 'CANCELLED'].includes(row.status) && new Date(row.dueAt).getTime() < now).length;
   const upcomingCount = rows.filter((row) => !['COMPLETED', 'CANCELLED'].includes(row.status) && new Date(row.alertAt).getTime() > now).length;

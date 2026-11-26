@@ -28,6 +28,7 @@ import { Select } from '@/components/ui/select';
 import { PageSkeleton } from '@/components/ui/skeleton';
 import { ApiError, apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import type { Appointment, ClinicService } from '@/types/appointment';
 import type { Branch } from '@/types/branch';
 import type { AppointmentStatus } from '@/types/appointment';
@@ -293,6 +294,7 @@ export function AppointmentsView() {
   const [calendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()));
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search.trim(), 250);
   const [status, setStatus] = useState<AppointmentStatus | ''>('');
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -354,13 +356,13 @@ export function AppointmentsView() {
     const params = new URLSearchParams();
     if (!isAdmin || activeBranchId) params.set('branchId', activeBranchId);
     if (status) params.set('status', status);
-    if (search.trim()) params.set('search', search.trim());
+    if (debouncedSearch) params.set('search', debouncedSearch);
     params.set('dateFrom', new Date(`${localDateKey(activeRange.start)}T00:00:00`).toISOString());
     params.set('dateTo', new Date(`${localDateKey(activeRange.end)}T23:59:59`).toISOString());
     // The calendar needs the complete visible date range in one response.
     params.set('pageSize', '500');
     return params.toString();
-  }, [activeBranchId, activeRange.end, activeRange.start, isAdmin, search, status]);
+  }, [activeBranchId, activeRange.end, activeRange.start, debouncedSearch, isAdmin, status]);
 
   const appointmentsQuery = useQuery({
     queryKey: ['appointments', appointmentQueryString],

@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { TableSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { filterAndRankSearch } from '@/lib/search';
 import { apiRequest } from '@/services/api';
 import { AppointmentRecordActions } from '@/modules/appointments/appointment-record-actions';
 import { useSessionStore } from '@/store/session-store';
@@ -121,15 +122,8 @@ export function DailyClientQueueView() {
   const inConsultationCount = selectedDayRecords.filter((item) => item.status === 'IN_CONSULTATION').length;
   const practitioners = useMemo(() => Array.from(new Set(records.map(practitionerName))).sort(), [records]);
   const filteredRecords = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return selectedDayRecords.filter((item) => {
-      const matches =
-        !term ||
-        clientName(item).toLowerCase().includes(term) ||
-        item.lead?.mobile?.includes(term) ||
-        serviceName(item).toLowerCase().includes(term);
-      return matches && (!stage || item.queueStage === stage) && (!practitioner || practitionerName(item) === practitioner);
-    });
+    const scoped = selectedDayRecords.filter((item) => (!stage || item.queueStage === stage) && (!practitioner || practitionerName(item) === practitioner));
+    return filterAndRankSearch(scoped, search, (item) => [clientName(item), item.lead?.mobile], (item) => [serviceName(item)]);
   }, [practitioner, search, selectedDayRecords, stage]);
   const pagedQueue = usePagedList(filteredRecords, 10);
 
