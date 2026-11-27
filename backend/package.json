@@ -17,6 +17,7 @@
     "prisma:medicines": "node scripts/import-medicine-catalog.mjs",
     "catalog:sync": "tsx src/scripts/sync-rate-card.ts",
     "consents:sync": "tsx src/scripts/sync-procedure-consents.ts",
+    "appointments:backfill-patient-links": "tsx src/scripts/backfill-appointment-patient-links.ts",
     "data:reset:operational": "node prisma/clear-operational-data.mjs",
     "bootstrap:admin": "node scripts/bootstrap-production-admin.mjs",
     "reset:admin-password": "node scripts/reset-production-password.mjs ADMIN",
