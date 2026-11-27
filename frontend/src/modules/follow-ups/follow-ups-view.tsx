@@ -683,7 +683,6 @@ function MoveLeadDialog({
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
-      queryClient.invalidateQueries({ queryKey: ['daily-client-queue'] });
       onClose();
     },
     onError: (bookingError) => {

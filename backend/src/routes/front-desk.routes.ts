@@ -10,7 +10,6 @@ frontDeskRoutes.get('/resources', (req, res, next) => frontDeskController.resour
 frontDeskRoutes.get('/staff', (req, res, next) => frontDeskController.staff(req, res).catch(next));
 frontDeskRoutes.get('/schedules', (req, res, next) => frontDeskController.schedules(req, res).catch(next));
 frontDeskRoutes.get('/availability', (req, res, next) => frontDeskController.availability(req, res).catch(next));
-frontDeskRoutes.get('/today-queue', (req, res, next) => frontDeskController.queue(req, res).catch(next));
 frontDeskRoutes.get('/schedule-appointments', (req, res, next) => frontDeskController.scheduleAppointments(req, res).catch(next));
 frontDeskRoutes.post('/services', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => frontDeskController.createService(req, res).catch(next));
 frontDeskRoutes.post('/resources', requireRole(Role.ADMIN, Role.RECEPTIONIST), (req, res, next) => frontDeskController.createResource(req, res).catch(next));

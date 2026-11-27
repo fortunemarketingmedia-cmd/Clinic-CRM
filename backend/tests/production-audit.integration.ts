@@ -752,6 +752,13 @@ await test('production audit HTTP integration', async (t) => {
       const patient = await prisma.patient.findUniqueOrThrow({ where: { leadId: lead.id } });
       assert.equal(patient.patientNo, registered.data.data.patientNo);
       assert.equal(patient.branchId, a.id);
+      const qrAppointment = await prisma.appointment.findFirstOrThrow({
+        where: { leadId: lead.id, bookingSource: 'QR_REGISTRATION' },
+        orderBy: { appointmentAt: 'desc' },
+      });
+      assert.equal(qrAppointment.status, 'SCHEDULED');
+      assert.equal(qrAppointment.resourceType, 'CONSULTATION');
+      assert.ok(Math.abs(qrAppointment.appointmentAt.getTime() - Date.now()) < 60_000);
       const appointmentId = booked.data.data.id;
       assert.equal((await request(`/appointments/${appointmentId}`, receptionToken)).data.data.status, 'SCHEDULED');
       assert.equal((await request(`/appointments/${appointmentId}/cancel`, receptionToken, { reason: 'Synthetic registration test completed' })).status, 200);

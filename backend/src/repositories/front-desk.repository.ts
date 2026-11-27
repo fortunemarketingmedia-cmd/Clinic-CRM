@@ -146,23 +146,6 @@ export const frontDeskRepository = {
       data: { status: 'NO_SHOW', noShowReason: 'Treatment-room booking expired at the end of its scheduled day' },
     });
   },
-  todayQueue(branchId: string, start: Date, end: Date) {
-    return prisma.appointment.findMany({
-      where: {
-        branchId,
-        appointmentAt: { gte: start, lte: end },
-        status: { in: ['WAITING', 'IN_CONSULTATION'] },
-      },
-      include: {
-        lead: { include: { patient: true } },
-        service: true,
-        doctor: { select: { id: true, name: true } },
-        therapist: { select: { id: true, name: true } },
-        resource: true,
-      },
-      orderBy: { appointmentAt: 'asc' },
-    });
-  },
   scheduleAppointments(filters: {
     branchId?: string;
     dateFrom: Date;

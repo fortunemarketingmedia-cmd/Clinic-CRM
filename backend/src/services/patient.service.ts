@@ -10,6 +10,7 @@ import { formsRepository } from '../repositories/forms.repository.js';
 import { validateSubmission, type SnapshotField } from './form-policy.js';
 import { accessService } from './access.service.js';
 import { settingsService } from './settings.service.js';
+import { appointmentRepository } from '../repositories/appointment.repository.js';
 
 function requireBranchForReceptionist(role: Role, branchId?: string) {
   if (role === RoleEnum.RECEPTIONIST && !branchId) {
@@ -34,6 +35,20 @@ async function validateRegistrationSubmission(branchId: string | undefined, valu
 async function recordRegistrationSubmission(patientId: string, branchId: string | undefined, values: Record<string, unknown>, metadata?: { ipAddress?: string; deviceMetadata?: string }) {
   const template = await validateRegistrationSubmission(branchId, values); if (!template?.versions[0]) return;
   await formsRepository.createSubmission({ templateId: template.id, templateVersionId: template.versions[0].id, patientId, values: values as Prisma.InputJsonValue, status: 'SUBMITTED', ipAddress: metadata?.ipAddress, deviceMetadata: metadata?.deviceMetadata });
+}
+
+async function bookQrAppointment(patient: { id: string; patientNo: string; leadId?: string | null }, submittedAt: Date) {
+  const result = await appointmentRepository.createForQrSubmission(patient.id, submittedAt);
+  if (result.created) {
+    await timelineRepository.create({
+      leadId: result.appointment.leadId,
+      patientId: patient.id,
+      type: 'APPOINTMENT_BOOKED',
+      title: 'Appointment booked from QR registration',
+      description: submittedAt.toISOString(),
+    });
+  }
+  return result.appointment;
 }
 
 export const patientService = {
@@ -320,6 +335,7 @@ export const patientService = {
     },
     submissionMetadata?: { ipAddress?: string; deviceMetadata?: string },
   ) {
+    const submittedAt = new Date();
     if (qrToken === 'clinic') {
       const settings = await settingsService.getSettings();
       if (!settings.qrRegistrationEnabled) throw new HttpError(404, 'Registration link not found');
@@ -369,6 +385,7 @@ export const patientService = {
         description: patient.patientNo,
       });
       await recordRegistrationSubmission(patient.id, undefined, input as unknown as Record<string, unknown>, submissionMetadata);
+      await bookQrAppointment(patient, submittedAt);
       return patient;
     }
 
@@ -410,6 +427,7 @@ export const patientService = {
           title: 'QR form submitted',
         });
         await recordRegistrationSubmission(patient.id, patient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
+        await bookQrAppointment(patient, submittedAt);
         return patient;
       }
 
@@ -449,6 +467,7 @@ export const patientService = {
         description: patient.patientNo,
       });
       await recordRegistrationSubmission(patient.id, patient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
+      await bookQrAppointment(patient, submittedAt);
       return patient;
     }
 
@@ -489,6 +508,7 @@ export const patientService = {
       title: 'QR form submitted',
     });
     await recordRegistrationSubmission(updatedPatient.id, updatedPatient.branchId, input as unknown as Record<string, unknown>, submissionMetadata);
+    await bookQrAppointment(updatedPatient, submittedAt);
     return updatedPatient;
   },
 };

@@ -1,19 +1,18 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarPlus, CheckCircle2, ExternalLink, ListChecks, UserPlus, X } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, ExternalLink, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { createContext, useCallback, useContext, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { StatusBadge, type StatusTone } from '@/components/ui/status-badge';
 import { apiRequest } from '@/services/api';
 import { useSessionStore } from '@/store/session-store';
 import type { Branch } from '@/types/branch';
 
-export type QuickAction = 'lead' | 'appointment' | 'queue';
+export type QuickAction = 'lead' | 'appointment';
 const QuickActionContext = createContext<(action: QuickAction) => void>(() => undefined);
 export const useQuickAction = () => useContext(QuickActionContext);
 
@@ -27,7 +26,6 @@ export function QuickActionProvider({ children }: { children: ReactNode }) {
       {children}
       {active === 'lead' ? <QuickLeadDialog onClose={close} /> : null}
       {active === 'appointment' ? <QuickAppointmentDialog onClose={close} /> : null}
-      {active === 'queue' ? <QuickQueueDrawer onClose={close} /> : null}
     </QuickActionContext.Provider>
   );
 }
@@ -142,30 +140,5 @@ function QuickAppointmentDialog({ onClose }: { onClose: () => void }) {
       {create.isError ? <p role="alert" className="text-sm text-red-700 sm:col-span-2">{create.error.message}</p> : null}
       <div className="flex justify-end gap-2 sm:col-span-2"><Button type="button" variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" loading={create.isPending}><CalendarPlus className="size-4" />Book appointment</Button></div>
     </form>
-  </Shell>;
-}
-
-type QueueRow = { id: string; appointmentAt: string; status: string; queueStage?: string; lead?: { name: string; mobile: string } | null; doctor?: { name: string } | null };
-const queueTone = (status: string): StatusTone => status === 'IN_CONSULTATION' ? 'info' : status === 'WAITING' ? 'warning' : 'neutral';
-
-function QuickQueueDrawer({ onClose }: { onClose: () => void }) {
-  const { selectedBranchId } = useSessionStore();
-  const { branches } = useBranches();
-  const branchId = selectedBranchId || '';
-  const query = useQuery({
-    queryKey: ['quick-queue', branchId],
-    queryFn: () => apiRequest<{ data: QueueRow[] }>(`/front-desk/today-queue?${new URLSearchParams({ branchId }).toString()}`),
-    enabled: Boolean(branchId),
-    refetchInterval: 20_000,
-  });
-  const rows = query.data?.data ?? [];
-  const branchName = branches.find((branch) => branch.id === branchId)?.name;
-  return <Shell side title="Today's client queue" description={branchName ? `${branchName} · refreshes automatically` : 'Choose a branch to see its queue'} onClose={onClose}>
-    {!branchId ? <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">The queue is shown one branch at a time. Pick a branch from the selector in the top bar, then reopen this panel.</p>
-      : query.isLoading ? <p className="py-8 text-center text-sm text-muted-foreground">Loading queue…</p>
-      : query.isError ? <p role="alert" className="py-8 text-center text-sm text-red-700">The queue could not be loaded.</p>
-      : !rows.length ? <p className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No clients are waiting or in consultation right now.</p>
-      : <ul className="divide-y divide-border">{rows.map((row, index) => <li key={row.id} className="flex items-center gap-3 py-3"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-xs font-semibold text-primary">{index + 1}</span><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{row.lead?.name ?? 'Client'}</div><div className="truncate text-xs text-muted-foreground">{new Date(row.appointmentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}{row.doctor?.name ? ` · ${row.doctor.name}` : ''}</div></div><StatusBadge tone={queueTone(row.status)} className="capitalize">{row.status.replaceAll('_', ' ').toLowerCase()}</StatusBadge></li>)}</ul>}
-    <Link href="/daily-client-queue" onClick={onClose} className="mt-5 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full bg-primary text-sm font-medium text-white hover:bg-primary-hover"><ListChecks className="size-4" aria-hidden />Open full queue</Link>
   </Shell>;
 }

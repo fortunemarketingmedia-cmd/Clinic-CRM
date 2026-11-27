@@ -27,6 +27,7 @@ import path from 'node:path';
 type Actor = AuditContext & { id: string; role: Role };
 const clinicalRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
 const signingRoles: Role[] = [RoleEnum.ADMIN, RoleEnum.RECEPTIONIST];
+const prescribingRoles: Role[] = [RoleEnum.ADMIN];
 const logoPath = path.resolve(process.cwd(), '../frontend/public/revive-logo.png');
 
 async function requirePatient(patientId: string, actor: Actor) {
@@ -163,7 +164,7 @@ export const patient360Service = {
 
   async listPrescriptions(patientId: string, actor: Actor) { requireClinicalRole(actor); await requirePatient(patientId, actor); return patient360Repository.listPrescriptions(patientId); },
   async createPrescription(patientId: string, input: z.infer<typeof prescriptionSchema>, actor: Actor) {
-    if (!signingRoles.includes(actor.role)) throw new HttpError(403, 'Only doctors or clinic administrators can create prescriptions');
+    if (!prescribingRoles.includes(actor.role)) throw new HttpError(403, 'Only doctors or clinic administrators can create prescriptions');
     const patient = await requirePatient(patientId, actor); const { items, ...prescription } = input;
     const prescriptionNo = `REV-RX-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const created = await patient360Repository.createPrescription({ patientId, prescriptionNo, ...prescription, status: 'SIGNED', signedById: actor.id, signedAt: new Date(), items: { create: items } });
@@ -172,7 +173,7 @@ export const patient360Service = {
     return created;
   },
   async signPrescription(id: string, actor: Actor) {
-    if (!signingRoles.includes(actor.role)) throw new HttpError(403, 'Only doctors or clinic administrators can sign prescriptions');
+    if (!prescribingRoles.includes(actor.role)) throw new HttpError(403, 'Only doctors or clinic administrators can sign prescriptions');
     const prescription = await patient360Repository.findPrescription(id); if (!prescription) throw new HttpError(404, 'Prescription not found');
     await requirePatient(prescription.patientId, actor);
     if (prescription.status !== 'DRAFT') throw new HttpError(409, 'Only draft prescriptions can be signed');

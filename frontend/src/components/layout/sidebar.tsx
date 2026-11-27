@@ -9,7 +9,6 @@ import {
   ListTodo,
   Settings,
   Users,
-  Rows3,
   Stethoscope,
   BellRing,
   Pill,
@@ -45,7 +44,6 @@ export const navigationSections = [
     label: 'Front Desk',
     items: [
       { label: 'Appointments', icon: CalendarDays, href: '/appointments', roles: allOperational },
-      { label: 'Daily Client Queue', icon: Rows3, href: '/daily-client-queue', roles: allOperational },
       { label: 'Schedules & Rooms', icon: Stethoscope, href: '/schedules', roles: allOperational },
     ],
   },

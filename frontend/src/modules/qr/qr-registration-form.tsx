@@ -95,7 +95,7 @@ export function QrRegistrationForm({ token, onSuccess, initialBranchId }: { toke
       <Card className="w-full max-w-xl text-center">
         <CheckCircle2 className="mx-auto size-10 text-primary" />
         <h1 className="mt-4 text-2xl font-semibold">Profile submitted</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Thank you. Revive Clinic has received your details.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Thank you. Your consultation appointment has been booked for today at the submission time.</p>
       </Card>
     );
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, CalendarPlus, CheckCircle2, ChevronDown, Clock3, ListChecks, LogOut, Menu, UserPlus, X } from 'lucide-react';
+import { Bell, CalendarPlus, CheckCircle2, ChevronDown, Clock3, LogOut, Menu, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -75,7 +75,6 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
   const quickLinks: Array<{ action: QuickAction; label: string; icon: typeof UserPlus }> = [
     { action: 'lead', label: 'Add lead', icon: UserPlus },
     { action: 'appointment', label: 'Book appointment', icon: CalendarPlus },
-    { action: 'queue', label: 'Client queue', icon: ListChecks },
   ];
   return (
     <header className="relative z-30 flex items-center gap-3 px-4 py-4 sm:px-6 lg:px-8">

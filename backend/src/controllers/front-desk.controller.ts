@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { frontDeskService } from '../services/front-desk.service.js';
 import { HttpError } from '../utils/http-error.js';
-import { availabilityQuerySchema, branchQuerySchema, catalogQuerySchema, exceptionSchema, resourceSchema, scheduleAppointmentsQuerySchema, scheduleQuerySchema, scheduleSchema, serviceSchema } from '../validations/front-desk.validation.js';
+import { availabilityQuerySchema, catalogQuerySchema, exceptionSchema, resourceSchema, scheduleAppointmentsQuerySchema, scheduleQuerySchema, scheduleSchema, serviceSchema } from '../validations/front-desk.validation.js';
 import { accessService } from '../services/access.service.js';
 import { auditService } from '../services/audit.service.js';
 
@@ -24,11 +24,6 @@ export const frontDeskController = {
   async createSchedule(req: Request, res: Response) { const input = scheduleSchema.parse(req.body); await guard(req, input.branchId); const data = await frontDeskService.createSchedule(input); await auditService.record(audit(req, input.branchId), { action: 'STAFF_SCHEDULE_CREATED', entity: 'StaffSchedule', entityId: data.id }); res.status(201).json({ data }); },
   async createException(req: Request, res: Response) { const input = exceptionSchema.parse(req.body); await guard(req, input.branchId); const data = await frontDeskService.createException(input); await auditService.record(audit(req, input.branchId), { action: 'SCHEDULE_EXCEPTION_CREATED', entity: 'ScheduleException', entityId: data.id }); res.status(201).json({ data }); },
   async availability(req: Request, res: Response) { const query = availabilityQuerySchema.parse(req.query); await guard(req, query.branchId); res.json({ data: await frontDeskService.availability(query) }); },
-  async queue(req: Request, res: Response) {
-    if (!req.user) throw new HttpError(401, 'Authentication required');
-    const { branchId, dateFrom, dateTo } = branchQuerySchema.parse(req.query);
-    res.json({ data: await frontDeskService.todayQueue(branchId, req.user.id, req.user.role, dateFrom, dateTo) });
-  },
   async scheduleAppointments(req: Request, res: Response) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

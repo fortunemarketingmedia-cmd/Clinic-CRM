@@ -6,6 +6,7 @@ import { requireRole } from '../middleware/role.js';
 
 const clinicalRoles = [Role.ADMIN] as const;
 const prescribingRoles = [Role.ADMIN] as const;
+const prescriptionReadRoles = [Role.ADMIN, Role.RECEPTIONIST] as const;
 
 export const patient360Routes = Router();
 patient360Routes.use(requireAuth);
@@ -24,7 +25,7 @@ patient360Routes.patch('/treatment-plans/:id', requireRole(...clinicalRoles), (r
 patient360Routes.get('/patients/:patientId/procedure-sessions', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.listProcedureSessions(req, res).catch(next); });
 patient360Routes.post('/patients/:patientId/procedure-sessions', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.createProcedureSession(req, res).catch(next); });
 patient360Routes.patch('/procedure-sessions/:id', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.updateProcedureSession(req, res).catch(next); });
-patient360Routes.get('/patients/:patientId/prescriptions', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.listPrescriptions(req, res).catch(next); });
+patient360Routes.get('/patients/:patientId/prescriptions', requireRole(...prescriptionReadRoles), (req, res, next) => { patient360Controller.listPrescriptions(req, res).catch(next); });
 patient360Routes.post('/patients/:patientId/prescriptions', requireRole(...prescribingRoles), (req, res, next) => { patient360Controller.createPrescription(req, res).catch(next); });
 patient360Routes.post('/prescriptions/:id/sign', requireRole(...prescribingRoles), (req, res, next) => { patient360Controller.signPrescription(req, res).catch(next); });
-patient360Routes.get('/prescriptions/:id/pdf', requireRole(...clinicalRoles), (req, res, next) => { patient360Controller.prescriptionPdf(req, res).catch(next); });
+patient360Routes.get('/prescriptions/:id/pdf', requireRole(...prescriptionReadRoles), (req, res, next) => { patient360Controller.prescriptionPdf(req, res).catch(next); });

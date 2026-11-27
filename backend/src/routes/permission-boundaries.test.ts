@@ -6,8 +6,11 @@ import { errorHandler } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
 import { analyticsController } from '../controllers/analytics.controller.js';
 import { billingController } from '../controllers/billing.controller.js';
+import { patient360Controller } from '../controllers/patient-360.controller.js';
+import { patient360Service } from '../services/patient-360.service.js';
 import { analyticsRoutes } from './analytics.routes.js';
 import { billingRoutes } from './billing.routes.js';
+import { patient360Routes } from './patient-360.routes.js';
 
 // Remove only authentication in this isolated router test; preserve every role middleware.
 function withoutAuthentication(router: Router) {
@@ -22,6 +25,7 @@ async function request(role: 'ADMIN' | 'RECEPTIONIST', path: string, method = 'G
   app.use((req, _res, next) => { req.user = { id: 'test-user', role }; next(); });
   app.use('/api/analytics', withoutAuthentication(analyticsRoutes));
   app.use('/api/billing', withoutAuthentication(billingRoutes));
+  app.use('/api/clinical', withoutAuthentication(patient360Routes));
   app.use(errorHandler);
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', resolve));
@@ -66,4 +70,23 @@ test('receptionist can call operational analytics and billing URLs', async (t) =
   for (const path of ['/api/analytics/operations?branchId=branch-1', '/api/billing/invoices?branchId=branch-1&patientId=patient-1', '/api/billing/payments?branchId=branch-1&patientId=patient-1', '/api/billing/patient-packages?branchId=branch-1&patientId=patient-1']) {
     assert.equal((await request('RECEPTIONIST', path)).status, 200, path);
   }
+});
+
+test('receptionist can view prescription PDFs but cannot create or sign prescriptions', async (t) => {
+  t.mock.method(patient360Controller, 'prescriptionPdf', async (_req: Request, res: Response) => res.type('application/pdf').send('pdf'));
+  t.mock.method(patient360Controller, 'listPrescriptions', async (_req: Request, res: Response) => res.json({ data: [] }));
+  t.mock.method(patient360Controller, 'createPrescription', async (_req: Request, res: Response) => res.status(201).json({ data: {} }));
+  t.mock.method(patient360Controller, 'signPrescription', async (_req: Request, res: Response) => res.json({ data: {} }));
+
+  assert.equal((await request('RECEPTIONIST', '/api/clinical/patients/patient-1/prescriptions')).status, 200);
+  assert.equal((await request('RECEPTIONIST', '/api/clinical/prescriptions/prescription-1/pdf')).status, 200);
+  assert.equal((await request('RECEPTIONIST', '/api/clinical/patients/patient-1/prescriptions', 'POST')).status, 403);
+  assert.equal((await request('RECEPTIONIST', '/api/clinical/prescriptions/prescription-1/sign', 'POST')).status, 403);
+});
+
+test('prescription service denies receptionist creation before repository access', async () => {
+  await assert.rejects(
+    patient360Service.createPrescription('patient-1', {} as never, { id: 'receptionist-1', role: 'RECEPTIONIST', correlationId: 'test-correlation' }),
+    (error: unknown) => Boolean(error && typeof error === 'object' && 'statusCode' in error && error.statusCode === 403),
+  );
 });

@@ -8,7 +8,7 @@ import { apiEventStream, ApiError, DATA_CHANGED_EVENT, type DataChangeDetail } f
 
 const dashboardQueries = [['dashboard-overview'], ['analytics'], ['analytics-command-centre'], ['reports'], ['clients-analytics']];
 const leadQueries = [['leads'], ['master-leads'], ['lead-profile'], ['lead-timeline'], ['lead-duplicates'], ['ad-leads-summary'], ['sales-pipeline']];
-const appointmentQueries = [['appointments'], ['today-queue'], ['daily-client-queue'], ['waitlist'], ['schedule-appointments']];
+const appointmentQueries = [['appointments'], ['waitlist'], ['schedule-appointments']];
 const patientQueries = [['patients'], ['clients-patients'], ['patient-360'], ['patient-sessions'], ['patient-visits']];
 const patientFileQueries = [['patient-files'], ['patient-gallery'], ['secure-patient-files'], ['patient-form-submissions'], ['patient-consents']];
 
@@ -39,7 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           queries: {
             staleTime: (query) => {
               const root = String(query.queryKey[0] ?? '');
-              if (['today-queue', 'daily-client-queue', 'appointments', 'schedule-appointments'].includes(root)) return 10_000;
+              if (['appointments', 'schedule-appointments'].includes(root)) return 10_000;
               if (['branches', 'settings', 'appointment-services', 'appointment-resources', 'patient-form-templates', 'patient-consent-templates'].includes(root)) return 10 * 60_000;
               return 30_000;
             },

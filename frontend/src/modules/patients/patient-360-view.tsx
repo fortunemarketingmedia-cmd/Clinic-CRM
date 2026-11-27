@@ -85,7 +85,6 @@ export function Patient360View({ patientId, embedded = false }: { patientId: str
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['patient-360', patientId] }),
-        queryClient.invalidateQueries({ queryKey: ['daily-client-queue'] }),
         queryClient.invalidateQueries({ queryKey: ['appointments'] }),
       ]);
       setComposer('encounter');

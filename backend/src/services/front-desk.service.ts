@@ -1,4 +1,3 @@
-import type { Role } from '@prisma/client';
 import type { z } from 'zod';
 import { frontDeskRepository } from '../repositories/front-desk.repository.js';
 import type { availabilityQuerySchema } from '../validations/front-desk.validation.js';
@@ -44,17 +43,6 @@ export const frontDeskService = {
     const clock = clinicClock(input.startsAt);
     const outsideSchedule = schedules.some((userSchedules) => userSchedules.length > 0 && !userSchedules.some((schedule) => schedule.weekday === clock.weekday && clock.minutes >= schedule.startMinutes && clock.minutes + input.durationMinutes <= schedule.endMinutes));
     return { available: conflicts.length === 0 && exceptions.length === 0 && !outsideSchedule, startsAt: input.startsAt, endsAt: end, conflicts, exceptions, outsideSchedule };
-  },
-
-  async todayQueue(branchId: string, userId: string, role: Role, dateFrom?: Date, dateTo?: Date) {
-    await accessService.assertBranchAccess(userId, role, branchId);
-    const now = new Date();
-    const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(now);
-    const start = dateFrom ?? new Date(`${localDate}T00:00:00+05:30`);
-    const end = dateTo ?? new Date(`${localDate}T23:59:59.999+05:30`);
-    const records = await frontDeskRepository.todayQueue(branchId, start, end);
-    const stage = (status: string) => ['REQUESTED', 'SLOT_PROPOSED', 'SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED', 'RESCHEDULED'].includes(status) ? 'EXPECTED' : status === 'CHECKED_IN' ? 'ARRIVED' : status === 'WAITING' ? 'WAITING' : status === 'IN_CONSULTATION' ? 'WITH_DOCTOR' : status === 'TREATMENT_IN_PROGRESS' ? 'TREATMENT' : status === 'BILLING_PENDING' ? 'BILLING' : 'COMPLETED';
-    return records.map((record) => ({ ...record, queueStage: stage(record.status) }));
   },
 
   async scheduleAppointments(filters: Parameters<typeof frontDeskRepository.scheduleAppointments>[0]) {

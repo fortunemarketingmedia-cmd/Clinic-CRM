@@ -1,9 +1,6 @@
 import type { Appointment, ClinicResource, ClinicService } from '@/types/appointment';
 import type { Person, WorkPriority } from '@/types/foundation';
 
-export type QueueStage =
-  'EXPECTED' | 'ARRIVED' | 'WAITING' | 'WITH_DOCTOR' | 'TREATMENT' | 'BILLING' | 'COMPLETED';
-export type QueueAppointment = Appointment & { queueStage: QueueStage };
 export type StaffSchedule = {
   id: string;
   userId: string;

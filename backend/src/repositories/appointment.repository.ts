@@ -86,6 +86,82 @@ export const appointmentRepository = {
     return crypto.randomBytes(24).toString('hex');
   },
 
+  createForQrSubmission(patientId: string, submittedAt: Date) {
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`qr-appointment:${patientId}`}))`;
+      const patient = await tx.patient.findUnique({ where: { id: patientId }, include: { lead: true } });
+      if (!patient) throw new HttpError(404, 'Patient not found');
+
+      let lead = patient.lead;
+      if (!lead) {
+        const branchUser = await tx.user.findFirst({
+          where: { status: 'ACTIVE', branchAccess: { some: { branchId: patient.branchId } } },
+          orderBy: { createdAt: 'asc' },
+        });
+        const creator = branchUser ?? await tx.user.findFirst({ where: { status: 'ACTIVE', role: 'ADMIN' }, orderBy: { createdAt: 'asc' } });
+        if (!creator) throw new HttpError(503, 'Clinic staff setup is required before QR appointments can be booked');
+        lead = await tx.lead.create({
+          data: {
+            qrToken: crypto.randomBytes(24).toString('hex'),
+            name: patient.fullName,
+            mobile: patient.mobile,
+            email: patient.email,
+            address: patient.address,
+            source: 'WALK_IN',
+            status: 'CONVERTED',
+            branchId: patient.branchId,
+            createdById: creator.id,
+            ownerId: creator.id,
+            personId: patient.personId,
+            appointmentAt: submittedAt,
+            appointmentType: 'CLINIC_VISIT',
+            nextAction: 'Attend consultation',
+            nextActionDueAt: submittedAt,
+            convertedAt: submittedAt,
+          },
+        });
+        await tx.patient.update({ where: { id: patient.id }, data: { leadId: lead.id } });
+      }
+
+      const clinicDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(submittedAt);
+      const dayStart = new Date(`${clinicDate}T00:00:00+05:30`);
+      const dayEnd = new Date(`${clinicDate}T23:59:59.999+05:30`);
+      const existing = await tx.appointment.findFirst({
+        where: {
+          leadId: lead.id,
+          resourceType: 'CONSULTATION',
+          appointmentAt: { gte: dayStart, lte: dayEnd },
+          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          deletedAt: null,
+        },
+        orderBy: { appointmentAt: 'asc' },
+      });
+      if (existing) return { appointment: existing, created: false };
+
+      const appointment = await tx.appointment.create({
+        data: {
+          leadId: lead.id,
+          branchId: patient.branchId,
+          appointmentAt: submittedAt,
+          endAt: new Date(submittedAt.getTime() + 30 * 60_000),
+          durationMinutes: 30,
+          bufferMinutes: 10,
+          appointmentType: 'CLINIC_VISIT',
+          resourceType: 'CONSULTATION',
+          status: 'SCHEDULED',
+          notes: 'Automatically booked from QR registration submission',
+          bookingSource: 'QR_REGISTRATION',
+          bookingChannel: 'PUBLIC_QR',
+        },
+      });
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: { appointmentAt: submittedAt, appointmentType: 'CLINIC_VISIT', nextAction: 'Attend consultation', nextActionDueAt: submittedAt },
+      });
+      return { appointment, created: true };
+    });
+  },
+
   createForIntake(data: {
     name: string;
     mobile: string;

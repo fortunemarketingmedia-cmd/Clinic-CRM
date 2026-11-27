@@ -3,14 +3,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  BellRing,
-  CalendarCheck2,
   CalendarClock,
-  CalendarDays,
   Clock,
   RotateCcw,
   Search,
-  UserCheck,
+  X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -19,9 +16,7 @@ import { z } from 'zod';
 import { DeleteRecordButton } from '@/components/ui/record-actions';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { ClientPagination, usePagedList } from '@/components/ui/client-pagination';
 import { PageHeader } from '@/components/ui/page-header';
-import { MetricCard } from '@/components/ui/metric-card';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -33,6 +28,7 @@ import type { Appointment, ClinicService } from '@/types/appointment';
 import type { Branch } from '@/types/branch';
 import type { AppointmentStatus } from '@/types/appointment';
 import type { Lead } from '@/types/lead';
+import { Patient360View } from '@/modules/patients/patient-360-view';
 
 type PackageMaster = {
   id: string;
@@ -293,16 +289,36 @@ export function AppointmentsView() {
   const canBookAppointment = isAdmin || isReceptionist;
   const [calendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()));
+  const [showDateAppointments, setShowDateAppointments] = useState(false);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search.trim(), 250);
   const [status, setStatus] = useState<AppointmentStatus | ''>('');
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
-  const [dateFilter, setDateFilter] = useState<'TODAY' | 'TOMORROW' | 'WEEK' | 'MONTH' | 'CUSTOM'>('MONTH');
+  const [dateFilter, setDateFilter] = useState<'TODAY' | 'TOMORROW' | 'WEEK' | 'MONTH' | 'CUSTOM'>('TODAY');
   const [customFrom, setCustomFrom] = useState(localDateKey(new Date()));
   const [customTo, setCustomTo] = useState(localDateKey(new Date()));
+
+  const openAppointment = (appointment: Appointment) => {
+    const patientId = appointment.lead?.patient?.id;
+    if (patientId) {
+      setSelectedPatientId(patientId);
+      return;
+    }
+    setSelectedAppointment(appointment);
+  };
+
+  useEffect(() => {
+    if (!selectedPatientId && !showDateAppointments) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedPatientId, showDateAppointments]);
 
   const branchesQuery = useQuery({
     queryKey: ['branches'],
@@ -389,22 +405,7 @@ export function AppointmentsView() {
   }, [appointments]);
 
   const selectedDayAppointments = appointmentsByDate[selectedDate] ?? [];
-  const pagedDay = usePagedList(selectedDayAppointments, 8);
   const selectedDateLabel = formatDate(selectedDate);
-  const appointmentCounts = {
-    total: appointments.length,
-    confirmed: appointments.filter((appointment) => appointment.status === 'CONFIRMED').length,
-    arrived: appointments.filter((appointment) => appointment.status === 'CHECKED_IN').length,
-    pending: appointments.filter((appointment) =>
-      ['RESCHEDULED', 'NO_SHOW'].includes(appointment.status),
-    ).length,
-  };
-  const defaultMetrics = [
-    { label: 'This month', value: appointmentCounts.total },
-    { label: 'Confirmed', value: appointmentCounts.confirmed },
-    { label: 'Arrived', value: appointmentCounts.arrived },
-    { label: 'Action needed', value: appointmentCounts.pending },
-  ];
 
   const form = useForm<AppointmentFormValues>({
     resolver: zodResolver(appointmentSchema),
@@ -438,6 +439,8 @@ export function AppointmentsView() {
   const formServiceId = form.watch('serviceId');
   const formPackageMasterId = form.watch('packageMasterId');
   const formBookingPlan = form.watch('bookingPlan');
+  const formLeadId = form.watch('leadId');
+  const formPatientName = form.watch('name');
   const formDurationMinutes = form.watch('durationMinutes') ?? 30;
   const formBufferMinutes = form.watch('bufferMinutes') ?? 0;
   const selectedRoomNumber = form.watch('roomNumber');
@@ -499,18 +502,7 @@ export function AppointmentsView() {
     return { serviceOptions, packageOptions };
   }, [availablePackageMasters, servicesQuery.data?.data]);
   const selectedTreatmentBillingValue = formPackageMasterId ? `package:${formPackageMasterId}` : formServiceId ? `service:${formServiceId}` : '';
-  const proposedLeadQueryString = useMemo(() => {
-    const params = new URLSearchParams({ status: 'APPOINTMENT_PROPOSED' });
-    if (!isAdmin || activeBranchId) params.set('branchId', activeBranchId);
-    return params.toString();
-  }, [activeBranchId, isAdmin]);
-  const proposedLeadsQuery = useQuery({
-    queryKey: ['appointment-proposed-leads', proposedLeadQueryString],
-    queryFn: () => apiRequest<{ data: Lead[] }>(`/leads?${proposedLeadQueryString}`),
-    enabled: Boolean(isAdmin || activeBranchId),
-  });
-  const proposedLeads = proposedLeadsQuery.data?.data ?? [];
-  const selectedLeadForBooking = proposedLeads.find((lead) => lead.id === form.watch('leadId'));
+  const selectedLeadForBooking = formLeadId ? { name: formPatientName || 'this lead' } : undefined;
   const roomAppointmentsQuery = useQuery({
     queryKey: [
       'appointment-room-availability',
@@ -663,7 +655,6 @@ export function AppointmentsView() {
       });
       setShowAppointmentForm(false);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      queryClient.invalidateQueries({ queryKey: ['appointment-proposed-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
     },
@@ -735,35 +726,6 @@ export function AppointmentsView() {
     });
   }
 
-  function startLeadBooking(lead: Lead) {
-    if (!canBookAppointment) return;
-    setEditingAppointment(null);
-    setShowAppointmentForm(true);
-    form.reset({
-      name: lead.name,
-      leadId: lead.id,
-      mobile: lead.mobile,
-      address: lead.address ?? '',
-      source: appointmentSourceFromLead(lead.source),
-      branchId: lead.branchId,
-      appointmentAt: lead.appointmentAt ? toDateTimeLocal(lead.appointmentAt) : '',
-      appointmentType: lead.appointmentType,
-      resourceType: 'CONSULTATION',
-      roomNumber: undefined,
-      notes: lead.interestedTreatment ? `Treatment concern: ${lead.interestedTreatment}` : '',
-      serviceId: '',
-      durationMinutes: STANDARD_CONSULTATION_MINUTES,
-      bufferMinutes: STANDARD_CONSULTATION_BUFFER_MINUTES,
-      doctorId: '',
-      resourceId: '',
-      equipmentId: '',
-      bookingPlan: 'CONSULTATION',
-      packageMasterId: '',
-      paymentStatus: 'NOT_PAID',
-      paymentMode: undefined,
-    });
-  }
-
   function onSubmit(values: AppointmentFormValues) {
     const consultationValues = {
       ...values,
@@ -810,51 +772,26 @@ export function AppointmentsView() {
         actions={canBookAppointment ? <Button type="button" onClick={() => setShowAppointmentForm(true)}><CalendarClock className="size-4" />Create New Appointment</Button> : null}
       />
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {defaultMetrics.map((metric, index) => (
-          <MetricCard key={metric.label} label={metric.label} value={metric.value} icon={[CalendarDays, CalendarCheck2, UserCheck, BellRing][index]} highlight={index === 0} hint={['Appointments in the visible month', 'Confirmed by reception', 'Checked in at the clinic', 'Awaiting a decision'][index]} />
-        ))}
+      <div role="tablist" aria-label="Appointment views" className="inline-flex rounded-xl border border-border bg-surface p-1 shadow-sm">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === 'calendar'}
+          className={`min-w-28 rounded-lg px-5 py-2.5 text-sm font-semibold transition ${viewMode === 'calendar' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+          onClick={() => setViewMode('calendar')}
+        >
+          Calendar
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === 'list'}
+          className={`min-w-28 rounded-lg px-5 py-2.5 text-sm font-semibold transition ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+          onClick={() => setViewMode('list')}
+        >
+          List
+        </button>
       </div>
-
-      {canBookAppointment ? <Card className="p-4">
-        <div className="flex flex-col gap-2 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-semibold">Lead appointment confirmations</h2>
-            <p className="text-sm text-muted-foreground">
-              Leads moved to Appointment proposed appear here until reception or a doctor books the actual slot.
-            </p>
-          </div>
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary">
-            {proposedLeads.length} pending
-          </span>
-        </div>
-        {proposedLeadsQuery.isLoading ? (
-          <p className="py-5 text-sm text-muted-foreground">Loading proposed leads...</p>
-        ) : proposedLeads.length ? (
-          <div className="mt-3 grid gap-3 xl:grid-cols-2">
-            {proposedLeads.map((lead) => (
-              <div key={lead.id} className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="font-medium">{lead.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {lead.mobile} - {lead.branch?.name ?? 'Branch not set'} - {lead.interestedTreatment ?? 'Treatment not specified'}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {lead.appointmentAt ? `Preferred slot: ${new Date(lead.appointmentAt).toLocaleString('en-IN')}` : 'No preferred slot recorded'}
-                  </div>
-                </div>
-                <Button type="button" variant="secondary" onClick={() => startLeadBooking(lead)}>
-                  Book appointment
-                </Button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="py-5 text-sm text-muted-foreground">
-            No proposed appointments are waiting for confirmation.
-          </p>
-        )}
-      </Card> : null}
 
       <Card>
         <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-center lg:justify-between">
@@ -873,20 +810,6 @@ export function AppointmentsView() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant={viewMode === 'calendar' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('calendar')}
-            >
-              Calendar
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === 'list' ? 'primary' : 'secondary'}
-              onClick={() => setViewMode('list')}
-            >
-              List
-            </Button>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
               <Input
@@ -984,7 +907,10 @@ export function AppointmentsView() {
                     isToday && !isSelected ? 'bg-amber-50/70 ring-1 ring-inset ring-amber-400' : '',
                     isSelected ? '!bg-primary/10 ring-2 ring-inset ring-primary shadow-sm' : '',
                   ].join(' ')}
-                  onClick={() => setSelectedDate(key)}
+                  onClick={() => {
+                    setSelectedDate(key);
+                    setShowDateAppointments(true);
+                  }}
                 >
                   <div className="flex flex-col items-center gap-1 sm:mb-2 sm:flex-row sm:justify-between">
                     <span
@@ -1036,7 +962,7 @@ export function AppointmentsView() {
         {viewMode === 'list' ? (
           <AppointmentList
             appointments={appointments}
-            onSelect={setSelectedAppointment}
+            onSelect={openAppointment}
             onEdit={startEdit}
             onAction={(appointment, action) =>
               updateAppointment.mutate({ id: appointment.id, values: appointmentActionPayload(action) })
@@ -1045,55 +971,52 @@ export function AppointmentsView() {
         ) : null}
       </Card>
 
-      {viewMode === 'calendar' ? (
-        <Card>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-base font-semibold">Schedule for {selectedDateLabel}</h2>
-              <p className="text-sm text-muted-foreground">
-                All appointments for the selected day, sorted by time.
-              </p>
+      {showDateAppointments ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby="date-appointments-title">
+          <Card className="max-h-[80vh] w-full max-w-2xl overflow-hidden p-0 shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+              <div>
+                <h2 id="date-appointments-title" className="text-lg font-semibold">{selectedDateLabel}</h2>
+                <p className="text-sm text-muted-foreground">{selectedDayAppointments.length} appointment{selectedDayAppointments.length === 1 ? '' : 's'}</p>
+              </div>
+              <Button type="button" variant="secondary" aria-label="Close date appointments" onClick={() => setShowDateAppointments(false)}>
+                <X className="size-4" />
+                Close
+              </Button>
             </div>
-            <span className="text-sm text-muted-foreground">
-              {selectedDayAppointments.length} appointments
-            </span>
-          </div>
-          <div className="mt-4 space-y-3">
-            {pagedDay.visible.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="grid cursor-pointer gap-3 rounded-xl border border-border p-3 transition-colors hover:bg-muted/50 lg:grid-cols-[90px_1fr_180px_180px] lg:items-center"
-                onClick={() => setSelectedAppointment(appointment)}
-              >
-                <div className="flex items-center gap-2 font-semibold">
-                  <Clock className="size-4 text-primary" />
-                  {formatTime(appointment.appointmentAt)}
+            <div className="max-h-[calc(80vh-78px)] overflow-y-auto p-4">
+              {selectedDayAppointments.length ? (
+                <div className="space-y-2">
+                  {selectedDayAppointments.map((appointment) => (
+                    <button
+                      key={appointment.id}
+                      type="button"
+                      className="flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left transition hover:border-primary/40 hover:bg-muted/60"
+                      onClick={() => {
+                        setShowDateAppointments(false);
+                        openAppointment(appointment);
+                      }}
+                    >
+                      <span className="flex min-w-20 items-center gap-2 font-semibold">
+                        <Clock className="size-4 text-primary" />
+                        {formatTime(appointment.appointmentAt)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{appointment.lead?.name ?? 'Patient'}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{appointment.lead?.mobile ?? '-'} · {appointment.branch?.name ?? 'Branch not set'}</span>
+                      </span>
+                      <StatusBadge tone={['CHECKED_IN', 'COMPLETED'].includes(appointment.status) ? 'success' : ['NO_SHOW', 'CANCELLED'].includes(appointment.status) ? 'danger' : ['WAITING', 'IN_CONSULTATION'].includes(appointment.status) ? 'info' : 'neutral'} className="shrink-0 capitalize">
+                        {(appointment.status === 'CHECKED_IN' ? 'ARRIVED' : appointment.status.replaceAll('_', ' ')).toLowerCase()}
+                      </StatusBadge>
+                    </button>
+                  ))}
                 </div>
-                <div>
-                  <div className="font-medium">{appointment.lead?.name ?? 'Patient'}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {appointment.lead?.mobile} - {appointment.branch?.name} -{' '}
-                    {appointment.lead?.source?.replace('_', ' ')}
-                  </div>
-                </div>
-                <AppointmentWorkflowActions
-                  appointment={appointment}
-                  onReschedule={() => startEdit(appointment)}
-                  onAction={(action) => updateAppointment.mutate({ id: appointment.id, values: appointmentActionPayload(action) })}
-                />
-                <div className="flex lg:justify-end" onClick={(event) => event.stopPropagation()}>
-                  <DeleteRecordButton kind="appointment" id={appointment.id} what="appointment" name={`${appointment.lead?.name ?? 'Patient'} · ${formatDate(localDateKey(new Date(appointment.appointmentAt)))} ${formatTime(appointment.appointmentAt)}`} />
-                </div>
-              </div>
-            ))}
-            {!appointmentsQuery.isLoading && selectedDayAppointments.length === 0 ? (
-              <div className="rounded-md border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                No appointments on this date.
-              </div>
-            ) : null}
-          </div>
-          <ClientPagination page={pagedDay.page} totalPages={pagedDay.totalPages} total={pagedDay.total} pageSize={pagedDay.pageSize} onPageChange={pagedDay.setPage} />
-        </Card>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">No appointments on this date.</div>
+              )}
+            </div>
+          </Card>
+        </div>
       ) : null}
 
       {selectedAppointment ? (
@@ -1150,6 +1073,36 @@ export function AppointmentsView() {
               <DeleteRecordButton kind="appointment" id={selectedAppointment.id} what="appointment" className="h-10 px-4 text-sm" name={`${selectedAppointment.lead?.name ?? 'Appointment'} · ${formatDate(localDateKey(new Date(selectedAppointment.appointmentAt)))} ${formatTime(selectedAppointment.appointmentAt)}`} onDeleted={() => setSelectedAppointment(null)} />
             </div>
           </Card>
+        </div>
+      ) : null}
+
+      {selectedPatientId ? (
+        <div
+          className="fixed inset-0 z-50 bg-black/45 p-2 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Patient master record"
+        >
+          <div className="mx-auto flex h-full max-w-[1600px] flex-col overflow-hidden rounded-2xl bg-background shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-3 sm:px-6">
+              <div>
+                <h2 className="font-semibold">Patient master record</h2>
+                <p className="text-xs text-muted-foreground">Complete Patient 360 record</p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                aria-label="Close patient record"
+                onClick={() => setSelectedPatientId(null)}
+              >
+                <X className="size-4" />
+                Close
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-6">
+              <Patient360View patientId={selectedPatientId} embedded />
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -1504,6 +1457,7 @@ function AppointmentList({
             appointment={appointment}
             onReschedule={() => onEdit(appointment)}
             onAction={(action) => onAction(appointment, action)}
+            showActionDropdown={false}
           />
           <div className="flex lg:justify-end" onClick={(event) => event.stopPropagation()}>
             <DeleteRecordButton kind="appointment" id={appointment.id} what="appointment" name={`${appointment.lead?.name ?? 'Patient'} · ${formatDate(localDateKey(new Date(appointment.appointmentAt)))} ${formatTime(appointment.appointmentAt)}`} />
@@ -1519,14 +1473,14 @@ function AppointmentList({
   );
 }
 
-function AppointmentWorkflowActions({ appointment, onReschedule, onAction }: { appointment: Appointment; onReschedule: () => void; onAction: (action: AppointmentWorkflowAction) => void }) {
+function AppointmentWorkflowActions({ appointment, onReschedule, onAction, showActionDropdown = true }: { appointment: Appointment; onReschedule: () => void; onAction: (action: AppointmentWorkflowAction) => void; showActionDropdown?: boolean }) {
   const { session } = useSessionStore();
   const isReceptionist = session?.user.role === 'RECEPTIONIST';
   const finished = ['CHECKED_IN', 'WAITING', 'IN_CONSULTATION', 'COMPLETED', 'NO_SHOW', 'CANCELLED'].includes(appointment.status);
   const canRecordArrival = isReceptionist && ['SCHEDULED', 'CONFIRMATION_PENDING', 'CONFIRMED'].includes(appointment.status);
   return <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
     {canRecordArrival ? <Button type="button" variant="secondary" onClick={onReschedule}><RotateCcw className="size-4" />Reschedule</Button> : null}
-    {canRecordArrival ? <Select aria-label="Appointment action" value="" onChange={(event) => { if (event.target.value) onAction(event.target.value as 'ARRIVED' | 'NOT_ARRIVED' | 'CANCELLED'); }}><option value="">Action</option><option value="ARRIVED">Arrived</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select> : <StatusBadge tone={['CHECKED_IN', 'COMPLETED'].includes(appointment.status) ? 'success' : ['NO_SHOW', 'CANCELLED'].includes(appointment.status) ? 'danger' : ['WAITING', 'IN_CONSULTATION'].includes(appointment.status) ? 'info' : 'neutral'} className="capitalize">{(appointment.status === 'CHECKED_IN' ? 'ARRIVED' : finished ? appointment.status.replaceAll('_', ' ') : 'PENDING').toLowerCase()}</StatusBadge>}
+    {canRecordArrival && showActionDropdown ? <Select aria-label="Appointment action" value="" onChange={(event) => { if (event.target.value) onAction(event.target.value as 'ARRIVED' | 'NOT_ARRIVED' | 'CANCELLED'); }}><option value="">Action</option><option value="ARRIVED">Arrived</option><option value="NOT_ARRIVED">Not arrived</option><option value="CANCELLED">Cancelled</option></Select> : <StatusBadge tone={['CHECKED_IN', 'COMPLETED'].includes(appointment.status) ? 'success' : ['NO_SHOW', 'CANCELLED'].includes(appointment.status) ? 'danger' : ['WAITING', 'IN_CONSULTATION'].includes(appointment.status) ? 'info' : 'neutral'} className="capitalize">{(appointment.status === 'CHECKED_IN' ? 'ARRIVED' : !showActionDropdown || finished ? appointment.status.replaceAll('_', ' ') : 'PENDING').toLowerCase()}</StatusBadge>}
     {isReceptionist && appointment.status === 'CHECKED_IN' ? <Button type="button" onClick={() => onAction('CHECK_IN')}>Check in</Button> : null}
   </div>;
 }

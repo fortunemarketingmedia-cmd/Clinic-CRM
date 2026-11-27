@@ -406,7 +406,6 @@ export function SchedulesView() {
                 await Promise.all([
                   queryClient.invalidateQueries({ queryKey: ['schedule-appointments'] }),
                   queryClient.invalidateQueries({ queryKey: ['appointments'] }),
-                  queryClient.invalidateQueries({ queryKey: ['daily-client-queue'] }),
                 ]);
               }}
             />
