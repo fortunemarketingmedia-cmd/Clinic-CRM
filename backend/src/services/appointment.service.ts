@@ -16,6 +16,7 @@ import { accessService } from './access.service.js';
 import { automationService } from './automation.service.js';
 import { integrationService } from './integration.service.js';
 import { whatsappAppointmentService } from './whatsapp-appointment.service.js';
+import { withResolvedAppointmentPatient } from '../utils/appointment-patient.js';
 
 const globalRoles: Role[] = [RoleEnum.ADMIN];
 
@@ -93,15 +94,20 @@ export const appointmentService = {
     requireBranchForReceptionist(filters.role, filters.branchId);
     await ensureBranchExists(filters.branchId);
     await accessService.assertBranchAccess(filters.userId, filters.role, filters.branchId);
-    return appointmentRepository.list(filters);
+    const result = await appointmentRepository.list(filters);
+    return {
+      ...result,
+      items: result.items.map(withResolvedAppointmentPatient),
+    };
   },
 
   async getAppointment(id: string, access?: { id: string; role: Role }) {
-    const appointment = await appointmentRepository.findById(id);
+    const appointmentRecord = await appointmentRepository.findById(id);
 
-    if (!appointment) {
+    if (!appointmentRecord) {
       throw new HttpError(404, 'Appointment not found');
     }
+    const appointment = withResolvedAppointmentPatient(appointmentRecord);
     if (access) await accessService.assertBranchAccess(access.id, access.role, appointment.branchId);
 
     return appointment;
@@ -152,7 +158,7 @@ export const appointmentService = {
       }
 
       const person = await personService.findOrCreate({ fullName: input.name, primaryMobile: input.mobile, address: input.address, preferredBranchId: input.branchId });
-      const appointment = await appointmentRepository.createForIntake({
+      const appointmentRecord = await appointmentRepository.createForIntake({
         name: input.name,
         mobile: input.mobile,
         address: input.address,
@@ -177,9 +183,10 @@ export const appointmentService = {
         bookingSource: input.bookingSource,
         bookingChannel: input.bookingChannel,
       });
+      const appointment = withResolvedAppointmentPatient(appointmentRecord);
       await timelineRepository.create({
         leadId: appointment.leadId,
-        patientId: appointment.lead?.patient?.id,
+        patientId: appointment.patientId ?? undefined,
         type: 'APPOINTMENT_BOOKED',
         title: 'Appointment booked',
         description: appointment.appointmentAt.toISOString(),
@@ -195,7 +202,7 @@ export const appointmentService = {
     }
 
     await ensureLeadCanBeScheduled(input.leadId, input.branchId);
-    const appointment = await appointmentRepository.create({
+    const appointmentRecord = await appointmentRepository.create({
       leadId: input.leadId,
       branchId: input.branchId,
       appointmentAt: input.appointmentAt,
@@ -215,9 +222,10 @@ export const appointmentService = {
       bookingSource: input.bookingSource,
       bookingChannel: input.bookingChannel,
     });
+    const appointment = withResolvedAppointmentPatient(appointmentRecord);
     await timelineRepository.create({
       leadId: appointment.leadId,
-      patientId: appointment.lead?.patient?.id,
+      patientId: appointment.patientId ?? undefined,
       type: 'APPOINTMENT_BOOKED',
       title: 'Appointment booked',
       description: appointment.appointmentAt.toISOString(),
@@ -282,26 +290,27 @@ export const appointmentService = {
       if (!availability.available) throw new HttpError(409, 'The selected staff member or resource is not available for this interval');
     }
     const lifecycleData = input.status === 'CHECKED_IN' ? appointment.resourceType === 'TREATMENT_ROOM' ? { arrivalAt: now, checkInAt: now, treatmentStartedAt: now } : { arrivalAt: now } : input.status === 'WAITING' ? { checkInAt: now, waitingStartedAt: now } : input.status === 'IN_CONSULTATION' ? { consultationStartedAt: now } : input.status === 'TREATMENT_IN_PROGRESS' ? { consultationCompletedAt: now, treatmentStartedAt: now } : input.status === 'BILLING_PENDING' ? { treatmentCompletedAt: now } : input.status === 'COMPLETED' ? { checkoutAt: now, ...(appointment.resourceType === 'TREATMENT_ROOM' ? { treatmentCompletedAt: now } : {}) } : {};
-    const updated = await appointmentRepository.update(id, { ...input, ...lifecycleData, endAt: addMinutes(startsAt, durationMinutes), durationMinutes, bufferMinutes, rescheduleCount: input.appointmentAt && input.appointmentAt.getTime() !== appointment.appointmentAt.getTime() ? appointment.rescheduleCount + 1 : appointment.rescheduleCount });
+    const updatedRecord = await appointmentRepository.update(id, { ...input, ...lifecycleData, endAt: addMinutes(startsAt, durationMinutes), durationMinutes, bufferMinutes, rescheduleCount: input.appointmentAt && input.appointmentAt.getTime() !== appointment.appointmentAt.getTime() ? appointment.rescheduleCount + 1 : appointment.rescheduleCount });
+    const updated = withResolvedAppointmentPatient(updatedRecord);
 
     if (input.status === AppointmentStatusEnum.CHECKED_IN) {
       await timelineRepository.create({
         leadId: updated.leadId,
-        patientId: updated.lead?.patient?.id,
+        patientId: updated.patientId ?? undefined,
         type: 'PATIENT_ARRIVED',
         title: appointment.resourceType === 'TREATMENT_ROOM' ? 'Treatment room checked in' : 'Patient arrived',
       });
     } else if (input.status) {
       await timelineRepository.create({
         leadId: updated.leadId,
-        patientId: updated.lead?.patient?.id,
+        patientId: updated.patientId ?? undefined,
         type: 'APPOINTMENT_STATUS_CHANGED',
         title: `Appointment marked ${input.status.replace('_', ' ').toLowerCase()}`,
       });
     } else if (input.appointmentAt) {
       await timelineRepository.create({
         leadId: updated.leadId,
-        patientId: updated.lead?.patient?.id,
+        patientId: updated.patientId ?? undefined,
         type: 'APPOINTMENT_RESCHEDULED',
         title: 'Appointment rescheduled',
         description: updated.appointmentAt.toISOString(),

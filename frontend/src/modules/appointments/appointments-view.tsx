@@ -29,6 +29,7 @@ import type { Branch } from '@/types/branch';
 import type { AppointmentStatus } from '@/types/appointment';
 import type { Lead } from '@/types/lead';
 import { Patient360View } from '@/modules/patients/patient-360-view';
+import { resolveAppointmentPatientId } from './appointment-patient';
 
 type PackageMaster = {
   id: string;
@@ -303,7 +304,7 @@ export function AppointmentsView() {
   const [customTo, setCustomTo] = useState(localDateKey(new Date()));
 
   const openAppointment = (appointment: Appointment) => {
-    const patientId = appointment.lead?.patient?.id;
+    const patientId = resolveAppointmentPatientId(appointment);
     if (patientId) {
       setSelectedPatientId(patientId);
       return;

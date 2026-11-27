@@ -480,6 +480,30 @@ await test('production audit HTTP integration', async (t) => {
       );
     },
   );
+  await t.test(
+    'repeat-patient appointments resolve through Person without moving either branch',
+    async () => {
+      const originalPatientBranchId = pa.branchId;
+      const patientCountBefore = await prisma.patient.count({ where: { personId: pa.personId } });
+      const booked = await request('/appointments', adminToken, {
+        name: pa.fullName,
+        mobile: pa.mobile,
+        branchId: b.id,
+        appointmentAt: new Date(Date.now() + 3 * 86400000).toISOString(),
+      });
+
+      assert.equal(booked.status, 201);
+      assert.equal(booked.data.data.patientId, pa.id);
+      assert.equal(booked.data.data.branchId, b.id);
+      assert.equal(booked.data.data.lead.patient, null);
+      assert.equal(booked.data.data.lead.person.patient.id, pa.id);
+
+      const createdLead = await prisma.lead.findUniqueOrThrow({ where: { id: booked.data.data.leadId } });
+      assert.equal(createdLead.personId, pa.personId);
+      assert.equal((await prisma.patient.findUniqueOrThrow({ where: { id: pa.id } })).branchId, originalPatientBranchId);
+      assert.equal(await prisma.patient.count({ where: { personId: pa.personId } }), patientCountBefore);
+    },
+  );
   await t.test('appointment writes reject a foreign target branch', async () => {
     assert.equal(
       (

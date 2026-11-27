@@ -51,7 +51,7 @@ export const appointmentRepository = {
     const [items, total] = await prisma.$transaction([
       prisma.appointment.findMany({ where, include: {
         branch: true,
-        lead: { include: { patient: true } },
+        lead: { include: { patient: true, person: { include: { patient: true } } } },
         service: true,
         doctor: { select: { id: true, name: true } },
         therapist: { select: { id: true, name: true } },
@@ -72,7 +72,7 @@ export const appointmentRepository = {
       where: { id },
       include: {
         branch: true,
-        lead: { include: { patient: true } },
+        lead: { include: { patient: true, person: { include: { patient: true } } } },
         service: true,
         doctor: { select: { id: true, name: true } },
         therapist: { select: { id: true, name: true } },
@@ -93,6 +93,12 @@ export const appointmentRepository = {
       if (!patient) throw new HttpError(404, 'Patient not found');
 
       let lead = patient.lead;
+      if (lead && patient.personId && !lead.personId) {
+        lead = await tx.lead.update({
+          where: { id: lead.id },
+          data: { personId: patient.personId },
+        });
+      }
       if (!lead) {
         const branchUser = await tx.user.findFirst({
           where: { status: 'ACTIVE', branchAccess: { some: { branchId: patient.branchId } } },
@@ -236,7 +242,7 @@ export const appointmentRepository = {
         where: { id: appointment.id },
         include: {
           branch: true,
-          lead: { include: { patient: true } },
+          lead: { include: { patient: true, person: { include: { patient: true } } } },
           service: true,
           doctor: { select: { id: true, name: true } },
           therapist: { select: { id: true, name: true } },
@@ -290,7 +296,7 @@ export const appointmentRepository = {
         where: { id: appointment.id },
         include: {
           branch: true,
-          lead: { include: { patient: true } },
+          lead: { include: { patient: true, person: { include: { patient: true } } } },
           service: true,
           doctor: { select: { id: true, name: true } },
           therapist: { select: { id: true, name: true } },
@@ -355,7 +361,7 @@ export const appointmentRepository = {
         where: { id: appointment.id },
         include: {
           branch: true,
-          lead: { include: { patient: true } },
+          lead: { include: { patient: true, person: { include: { patient: true } } } },
           service: true,
           doctor: { select: { id: true, name: true } },
           therapist: { select: { id: true, name: true } },

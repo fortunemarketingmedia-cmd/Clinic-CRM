@@ -48,6 +48,10 @@ export type Lead = {
   adLeads?: AdLead[];
   patient?: { id: string; patientNo: string; fullName: string } | null;
   personId?: string | null;
+  person?: {
+    id: string;
+    patient?: { id: string; patientNo: string; fullName: string } | null;
+  } | null;
   ownerId?: string | null;
   owner?: { id: string; name: string } | null;
   nextAction?: string | null;
